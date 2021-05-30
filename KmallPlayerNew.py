@@ -187,13 +187,6 @@ class KmallPlayer:
         header['time_nanosec'] = fields[6]
         return header
 
-    def read_partition_raw(self, data) -> dict:
-        partition = {}
-        fields = struct.unpack(self.PARTITION_STRUCT_FORMAT, data[self.HEADER_STRUCT_SIZE:self.PARTITION_STRUCT_SIZE])
-        partition['numOfDgms'] = fields[0]
-        partition['dgmNum'] = fields[1]
-        return partition
-
     @staticmethod
     def update_header_with_dgm_size(header, new_size) -> bytes:
         header['numBytesDgm'] = new_size
@@ -202,12 +195,6 @@ class KmallPlayer:
                                       header['dgmVersion'], header['systemID'],
                                       header['echoSounderID'], header['time_sec'], header['time_nanosec'])
         return header_in_bytes
-
-    def update_partition_with_dgm_num(self, partition, num_of_dgms, dgm_num):
-        partition['numOfDgms'] = num_of_dgms
-        partition['dgmNum'] = dgm_num
-        partition_in_bytes = struct.pack(self.PARTITION_STRUCT_FORMAT, partition['numOfDgms'], partition['dgmNum'])
-        return partition_in_bytes
 
     def partition_msg(self, msg_to_split: bytes) -> []:
         message_size = len(msg_to_split)
@@ -264,7 +251,7 @@ class KmallPlayer:
 
             return messages
 
-    def send_all_datagrams_rt(self, fp, df):
+    def send_all_datagrams(self, fp, df):
         """
         Sends all UDP datagrams extracted from kmall file. Will send at scheduled time
         (real time) or as soon as possible after previous message is sent.
@@ -312,43 +299,12 @@ class KmallPlayer:
 
     def play_datagrams(self, fp, df):
         if self.replay_timing is None:  # Real-time replay:
-            # TODO: Last few messages are being counted as sent, but are not being written to file at rx side.
             # Replay all datagrams in single new thread:
-            threading.Timer(-1, self.send_all_datagrams_rt(fp, df)).start()
+            threading.Timer(-1, self.send_all_datagrams(fp, df)).start()
         else:  # Fixed-interval reply:
-            # Schedule each datagram in its own new thread to avoid busy waiting for extended periods of time.
-            # TODO: This could still have problems with overlapping messages if interval is too small.
-            # TODO: Main thread could close (along with socket) before all messages are sent?
-            nonMWCdgms = 0
-
-            f = open(fp, 'rb')
-
-            final_byteOffset = df['ByteOffset'].iloc[-1]
-            now = datetime.datetime.now()
-
-            # Iterate through rows of sorted dataframe:
-            for index, row in df.iterrows():
-
-                # Send negative and zero delay datagrams immediately (#IIP, #IOP)
-                # TODO: Handle MWC datagrams.
-                if row['ScheduledDelay'] <= 0 and "#MWC" not in row['MessageType']:
-                    # TODO: Testing:
-                    nonMWCdgms += 1
-                    self.send_single_datagram(f, row, final_byteOffset)
-                    if row['ScheduledDelay'] == 0:
-                        now = datetime.datetime.now()
-
-                # Schedule positive delay datagrams
-                else:
-                    # TODO: Handle MWC datagrams.
-                    if "#MWC" not in row['MessageType']:
-                        # TODO: Testing:
-                        nonMWCdgms += 1
-                        run_at = now + datetime.timedelta(seconds=row['ScheduledDelay'])
-                        delay = (run_at - now).total_seconds()
-                        threading.Timer(delay, self.send_single_datagram, [f, row, final_byteOffset]).start()
-
-            print("Sent dgms: ", nonMWCdgms)
+            # TODO: Untested.
+            # Replay all datagrams in single new thread:
+            threading.Timer(-1, self.send_all_datagrams(fp, df)).start()
 
     def run(self):
         self.dg_counter = 0
@@ -364,9 +320,6 @@ class KmallPlayer:
             self.calculate_dgm_schedule(k.Index)
 
             self.play_datagrams(file, k.Index)
-
-
-
 
 
 if __name__ == "__main__":
