@@ -6,6 +6,10 @@
 # Description: Capture UDP datagrams from Kongsberg sonar;
 # insert datagram into shared queue (multiprocessing.Queue), or write to file.
 
+# Note: Can configure in SIS which datagrams are sent to this program along with IP and port.
+# 13 May 2021: When operating on RVGS, program run with following arguments:
+# "0.0.0.0" "8080" "testlog.txt" --connection "UDP"
+
 import argparse
 import io
 import KMALL
@@ -31,7 +35,7 @@ class KongsbergDGCaptureFromSonar:
         self.sock_in = self.__init_socket()
 
         self.MAX_DATAGRAM_SIZE = 2 ** 16
-        self.REQUIRED_DATAGRAMS = [b'#MRZ', b'#MWC', b'#SKM']
+        self.REQUIRED_DATAGRAMS = [b'#MRZ', b'#MWC', b'#SKM', b'#SPO']
 
         # Note: Structs current as of *.kmall format REV. I.
         self.HEADER_STRUCT_FORMAT = '1I4s2B1H2I'
@@ -44,9 +48,13 @@ class KongsbergDGCaptureFromSonar:
             # temp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             logger.warning("Only UDP and Multicast connections supported at this time.")
             sys.exit(1)
+
         elif self.connection == "UDP":
             temp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            # TODO: Added following line on RVGS 13 May 2021, but not sure that it is necessary?
+            temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.MAX_DATAGRAM_SIZE)
             temp_sock.bind((self.rx_ip, self.rx_port))
+
         elif self.connection == "Multicast":
             temp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
             # Allow reuse of addresses
@@ -57,11 +65,18 @@ class KongsbergDGCaptureFromSonar:
             group = socket.inet_aton(self.rx_ip)
             mreq = struct.pack('4sL', group, socket.INADDR_ANY)
             temp_sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+
         else:
             raise RuntimeError("Connection type must be 'TCP', 'UDP', or 'Multicast'.")
 
         temp_sock.settimeout(self.SOCKET_TIMEOUT)
         return temp_sock
+
+    def print_settings(self):
+        print("Recieve IP:Port: ", self.rx_ip, ":", self.rx_port, ",", self.connection)
+
+    def print_packet_details(self, data):
+        pass
 
     def receive_dg_and_write(self):
         """
@@ -171,7 +186,7 @@ if __name__ == "__main__":
 
     parser.add_argument("rx_ip", help="IP address to receive Kongsberg datagrams.")
     parser.add_argument("rx_port", help="Port to receive Kongsberg datagrams.", type=int)
-    parser.add_argument("--connection", default="Multicast", help="Connection type: TCP or UDP.",
+    parser.add_argument("--connection", default="Multicast", help="Connection type: TCP, UDP, or Multicast.",
                         choices={"TCP", "UDP", "Multicast"})
     parser.add_argument("out_file", help="Path to write file.")
 
