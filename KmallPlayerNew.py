@@ -251,6 +251,9 @@ class KmallPlayer:
 
             return messages
 
+    def test_message_partition(self, messages):
+        pass
+
     def send_all_datagrams(self, fp, df):
         """
         Sends all UDP datagrams extracted from kmall file. Will send at scheduled time
@@ -300,7 +303,8 @@ class KmallPlayer:
     def play_datagrams(self, fp, df):
         if self.replay_timing is None:  # Real-time replay:
             # Replay all datagrams in single new thread:
-            threading.Timer(-1, self.send_all_datagrams(fp, df)).start()
+            #threading.Timer(-1, self.send_all_datagrams(fp, df)).start()
+            self.send_all_datagrams(fp, df)
         else:  # Fixed-interval reply:
             # TODO: Untested.
             # Replay all datagrams in single new thread:

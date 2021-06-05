@@ -23,16 +23,21 @@ class KongsbergDGMain:
 
         self.queue = multiprocessing.Queue()
         self.dg_capture = KongsbergDGCaptureFromSonar(rx_ip, rx_port, connection, queue=self.queue)
-        self.dg_process = KongsbergDGProcess(bin_size=0.05, queue=self.queue)
+        self.dg_process = KongsbergDGProcess(bin_size=0.05, water_depth=10, queue=self.queue)
 
     def receive_dg(self):
-        #process_producer = multiprocessing.Process(target=self.dg_capture.receive_and_put_dg, args=(self.queue, ))
-        process_producer = multiprocessing.Process(target=self.dg_capture.receive_dg_and_queue())
-        process_consumer = multiprocessing.Process(target=self.dg_process.get_and_process_dg)
         # TODO: Do I need to set process_consumer daemon value to True?
         #  https://stonesoupprogramming.com/2017/09/11/python-multiprocessing-producer-consumer-pattern/comment-page-1/
+
+        process_producer = multiprocessing.Process(target=self.dg_capture.receive_dg_and_queue)
+        process_producer.daemon = True
         process_producer.start()
+        print("producer started")
+
+        process_consumer = multiprocessing.Process(target=self.dg_process.get_and_process_dg)
+        process_consumer.daemon = True
         process_consumer.start()
+        print("consumer started")
 
         process_producer.join()
         process_consumer.join()
