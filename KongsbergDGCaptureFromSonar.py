@@ -22,7 +22,7 @@ import sys
 logger = logging.getLogger(__name__)
 
 class KongsbergDGCaptureFromSonar:
-    def __init__(self, rx_ip, rx_port, connection="Multicast", queue=None, out_file=None):
+    def __init__(self, rx_ip, rx_port, connection="Multicast", queue_data=None, out_file=None):
 
         print("dgcapture: init")
         self.rx_ip = rx_ip
@@ -31,7 +31,7 @@ class KongsbergDGCaptureFromSonar:
 
         # When run as main, out_file is required;
         # when run with multiprocessing, queue is required (multiprocessing.Queue)
-        self.queue = queue
+        self.queue_tx_data = queue_data
         self.out_file = out_file
 
         self.SOCKET_TIMEOUT = 5  # Seconds
@@ -149,7 +149,7 @@ class KongsbergDGCaptureFromSonar:
                                        bytes_io.read(struct.Struct(self.M_PARTITION_STRUCT_FORMAT).size))
                     num_of_dgms = partition[0]
                     if num_of_dgms == 1:  # There is only one part to the datagram; no need to reconstruct
-                        self.queue.put(data)
+                        self.queue_tx_data.put(data)
                     else:  # There is more than one part to the datagram; datagram needs to be reconstructed
                         if data_timestamp != dgm_timestamp:
                             if data_count != 0:  # Previous data block is incomplete
@@ -210,7 +210,7 @@ class KongsbergDGCaptureFromSonar:
                                 # Add final 4-byte size field:
                                 flat_data_buffer += struct.pack("I", data_size)
 
-                                self.queue.put(flat_data_buffer)
+                                self.queue_tx_data.put(flat_data_buffer)
 
                                 print("Complete datablock: {}; {}; {}".format(data_type, data_size, data_timestamp))
 
@@ -219,7 +219,7 @@ class KongsbergDGCaptureFromSonar:
                                 data_size = 0
 
                 else:  # Datagrams are not partitioned
-                    self.queue.put(data)
+                    self.queue_tx_data.put(data)
 
             #print("self.dgms_rxed: ", self.dgms_rxed)
 
@@ -257,9 +257,9 @@ class KongsbergDGCaptureFromSonar:
         return flat_data_buffer
 
     def run(self):
-        if self.queue is not None:
-            print(self.queue)
-            print(type(self.queue))
+        if self.queue_tx_data is not None:
+            print(self.queue_tx_data)
+            print(type(self.queue_tx_data))
             self.receive_dg_and_queue()
 
         else:

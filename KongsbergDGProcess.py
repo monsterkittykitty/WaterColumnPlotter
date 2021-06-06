@@ -10,24 +10,30 @@ import datetime
 import io
 import KMALL
 from KmallReaderForWaterColumn import KmallReaderForWaterColumn as k
+from KongsbergDGPlot import KongsbergDGPlot
 import logging
 import math
 import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
+import multiprocessing
 import numpy as np
 import queue
 
 logger = logging.getLogger(__name__)
 
 class KongsbergDGProcess:
-    def __init__(self, bin_size=None, water_depth=None, queue=None):
+    def __init__(self, bin_size=None, water_depth=None, queue_data=None, queue_pie=None):
         print("init_dgprocess")
         # TODO: Create a function that ensure bin size is not larger than range resolution and will not exceed max 1000 x 1000 matrix
         self.bin_size = bin_size  # Meters
         self.water_depth = water_depth  # Meters
-        # Queue shared between processes
-        self.queue = queue
+
+        # Queue shared between DGCapture and DGProcess ('get' data from this queue)
+        self.queue_rx_data = queue_data
+
+        # Queue shared between DGProcess and DGPlot ('put' pie in this queue)
+        self.queue_tx_pie = queue_pie
 
         self.k = KMALL.kmall(filename=None)
 
@@ -35,46 +41,29 @@ class KongsbergDGProcess:
         self.mwc = None
         self.skm = None
 
-        self.QUEUE_TIMEOUT = 60  # Seconds
+        self.QUEUE_RX_DATA_TIMEOUT = 60  # Seconds
         self.MAX_NUM_GRID_CELLS = 500
-
-        # TODO: A hare-brained idea to make matrix computations faster for small grids
-        if (self.water_depth / self.bin_size) > self.MAX_NUM_GRID_CELLS:
-            self.num_bins_depth = self.MAX_NUM_GRID_CELLS
-        else:
-            self.num_bins_depth = int(self.water_depth / self.bin_size)
-        if ((math.tan(math.radians(75)) * self.water_depth * 2) / self.bin_size) > self.MAX_NUM_GRID_CELLS:
-            self.num_bins_width = self.MAX_NUM_GRID_CELLS
-        else:
-            self.num_bins_width = int((math.tan(math.radians(75)) * self.water_depth * 2) / self.bin_size)
-
-        # self.pie_plot = plt.figure(figsize=(11, 8.5), dpi=150)
-        self.pie_plot = self.__initialize_pie_plot(self.num_bins_width, self.num_bins_depth)
 
     def get_and_process_dg(self):
         print("DGProcess: get_and_process")  # For debugging
+
         count = 0  # For testing
         while True:
             try:
-                bytes = self.queue.get(block=True, timeout=60)
+                bytes = self.queue_rx_data.get(block=True, timeout=self.QUEUE_RX_DATA_TIMEOUT)
 
-                # KMALL method:
-                # Decode / read datagram using KMALL package
-                # self.k.FID = io.BytesIO(bytes)
-                # self.k.decode_datagram()
-                # self.k.read_datagram()
-
-
-                #self.print_MWC(bytes_io)
                 self.process_dgm(bytes)
 
-                count += 1  # For testing
-                #print("process q size: ", self.queue.qsize())
-                print("process count: ", count)  # For testing
+                # count += 1  # For testing
+                # print("DGProcess Count: ", count)  # For testing
+                #print("DGProcess Queue Size: ", self.queue_rx_data.qsize())
+
             except queue.Empty:
                 # TODO: Shutdown processes when queue is empty?
                 logger.exception("Datagram queue empty exception.")
                 break
+
+        #self.__join_subprocesses()
 
     def process_dgm(self, bytes):
         bytes_io = io.BytesIO(bytes)
@@ -86,10 +75,9 @@ class KongsbergDGProcess:
 
         elif header[1] == b'#MWC':
             self.mwc = bytes
-            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!:", header[0])
-            #exit()
 
-            pie_array = self.process_MWC(header, bytes_io)
+            pie_matrix = self.process_MWC(header, bytes_io)
+            self.queue_tx_pie.put(pie_matrix)
 
         elif header[1] == b'#SKM':
             self.skm = bytes
@@ -99,12 +87,12 @@ class KongsbergDGProcess:
         pass
 
     def process_MWC(self, header, bytes_io):
-        print("DGProcess: process_MWC")
+        # print("DGProcess: process_MWC()")
         dg = k.read_EMdgmMWC(bytes_io)
 
         # Header fields:
         timestamp = dg['header']['dgtime']
-        datetime = dg['header']['dgdatetime']
+        dg_datetime = dg['header']['dgdatetime']
 
         # CmnPart fields:
         swaths_per_ping = dg['cmnPart']['swathsPerPing']
@@ -121,11 +109,12 @@ class KongsbergDGProcess:
         sample_freq = dg['rxInfo']['sampleFreq_Hz']
         sound_speed = dg['rxInfo']['soundVelocity_mPerSec']
 
-        # pie_chart_matrix = np.empty((1000, 1000))
-        # pie_chart_matrix[:] = np.array()
         # TODO: Adjust this based on bin size and water depth?
         #pie_chart_list = [[[] for value in range(self.MAX_NUM_GRID_CELLS)] for value in range(self.MAX_NUM_GRID_CELLS)]
-        pie_chart_list = [[[] for value in range(self.num_bins_width)] for value in range(self.num_bins_depth)]
+        #pie_chart_list = [[[] for value in range(self.num_bins_width)] for value in range(self.num_bins_depth)]
+
+        pie_chart_values = np.zeros(shape=(self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS))
+        pie_chart_count = np.zeros(shape=(self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS))
 
         for beam in range(num_beams):
             # Across-track beam angle:
@@ -167,30 +156,26 @@ class KongsbergDGProcess:
                 # bin_index_z = max(0, (math.floor(kongs_z / self.bin_size) - 1))
                 bin_index_z = math.floor(kongs_z / self.bin_size)
 
-                pie_chart_list[bin_index_z][bin_index_y].append(dg['beamData']['sampleAmplitude05dB_p'][beam][i])
+                #pie_chart_list[bin_index_z][bin_index_y].append(dg['beamData']['sampleAmplitude05dB_p'][beam][i])
+                pie_chart_values[bin_index_z][bin_index_y] += dg['beamData']['sampleAmplitude05dB_p'][beam][i]
+                pie_chart_count[bin_index_z][bin_index_y] += 1
 
         # TODO: We need to find an efficient way of averaging this matrix.
-        print("converting python list to np array")
-        # After capturing value and position of every data point in every beam in a given ping:
-        pie_chart_np_array_3d = np.array(pie_chart_list, dtype=object)
-        print("converted python list to np array")
-
-
         # From: https://stackoverflow.com/questions/20572316/numpy-average-over-one-dimension-in-jagged-3d-array
-        do_average = np.vectorize(np.average)
-        print("do average created")
-        start = datetime.now()
-        pie_chart_np_array_average_2d = do_average(pie_chart_np_array_3d)
-        end = datetime.now()
-        diff = end - start
-        print("ARRAY AVERAGE TAKES {}####################################################################".format(diff))
-        print("len(pie_chart_np_array_3d)", len(pie_chart_np_array_3d))
-        # pie_chart_np_array_average_2d = np.mean([pie_chart_np_array_3d[i] for i in range(self.MAX_NUM_GRID_CELLS)])
-        print("*****************************************************************************************averaging done")
-        #print(pie_chart_np_array_average_2d)
-        #print("Calling plot.")
-        #self.plot_pie_chart(pie_chart_np_array_average_2d)
-        return pie_chart_np_array_average_2d
+        # After capturing value and position of every data point in every beam in a given ping:
+        # pie_chart_np_array_3d = np.array(pie_chart_list, dtype=object)
+        # do_average = np.vectorize(np.average)
+        # pie_chart_np_array_average_2d = do_average(pie_chart_np_array_3d)
+
+        start = datetime.datetime.now()
+        # This appears to be a very quick way of doing the averaging! 0.002 sec for 500 x 500 matrix!
+        pie_chart_average = pie_chart_values / pie_chart_count
+        end = datetime.datetime.now()
+
+        # print("ARRAY AVERAGE TAKES {}###########################################################".format((end - start)))
+        # print("*****************************************************************************************averaging done")
+
+        return pie_chart_average
 
     def process_SKM(self, header, bytes_io):
         pass
@@ -226,28 +211,27 @@ class KongsbergDGProcess:
                 beamData.append(k.read_EMdgmMWC_rxBeamData(bytes_io, header[2], rx_info[3], return_fields=True))
             print("Beam Data: ", beamData)
 
-    def __initialize_pie_plot(self, x, y):
-        # array = np.zeros([x, y])
-        # fig1 = plt.figure(figsize=(11, 8.5), dpi=150)
-        # ax1 = plt.axes()
-        # plt.gca().invert_yaxis()
-        # pcm = plt.pcolormesh(array, cmap="gray")
-        # pcm.set_data(array.shape)
-        # return pcm
-
-        # array = np.zeros([y, x])
-        # fig1 = plt.figure(figsize=(11, 8.5), dpi=150)
-        # plt.gca().invert_yaxis()
-        # pcm = plt.pcolormesh(array, cmap="gray")
-        # fig1.canvas.draw()
+    def __init_plots(self, x, y):
 
         array = np.zeros([y, x])
+
+        plt.ion()
+
         fig1 = plt.figure(figsize=(11, 8.5), dpi=150)
         ax1 = plt.axes()
         im = ax1.imshow(array, cmap="gray")  # origin=?
-        #im.set_data(array.shape)
-
+        im.set_data(array.shape)
         return im
+
+        # fig, ax = plt.subplots()
+        # plt.gca().invert_yaxis()
+        # ax.set_aspect('equal')
+        # im = ax.imshow(array, cmap='gray')
+        # plt.show(block=False)
+        #
+        # return fig, ax, im
+
+
 
     def plot_pie_chart(self, water_column_2d):
         print("******************************************************************************************Plotting!")
@@ -257,7 +241,9 @@ class KongsbergDGProcess:
         #y = [i for i in range(int(self.MAX_NUM_GRID_CELLS / 2))]
         #x = np.arange(-(self.MAX_NUM_GRID_CELLS / 2), (self.MAX_NUM_GRID_CELLS / 2), self.bin_size)
         #y = np.arange(0, self.MAX_NUM_GRID_CELLS, self.bin_size)
-        #plt.pcolormesh(x, y, water_column_2d, cmap='Greys')
+        #plt.gca().invert_yaxis()
+        #plt.pcolormesh(water_column_2d, cmap='Greys')
+        #plt.show()
 
 
         #plt.gca().invert_yaxis()
@@ -271,5 +257,9 @@ class KongsbergDGProcess:
         # self.pie_plot.canvas.draw()
         # plt.show()
 
-        self.pie_plot.set_data(water_column_2d)
-        plt.draw()
+        # self.pie_plot.set_data(water_column_2d)
+        # plt.draw()
+
+        self.im_pie.set_data(water_column_2d)
+        plt.show(block=False)
+

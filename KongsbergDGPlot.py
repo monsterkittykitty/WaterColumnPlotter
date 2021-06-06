@@ -1,0 +1,92 @@
+# Lynette Davis
+# Center for Coastal and Ocean Mapping
+# University of New Hampshire
+# April 2021
+
+# Description:
+# See https://stackoverflow.com/questions/11874767/how-do-i-plot-in-real-time-in-a-while-loop-using-matplotlib for
+# adding updating plot to GUI.
+
+from collections import deque
+import datetime
+import io
+import KMALL
+from KmallReaderForWaterColumn import KmallReaderForWaterColumn as k
+import logging
+import math
+import matplotlib
+matplotlib.use("TkAgg")
+#matplotlib.use("WXAgg")
+import matplotlib.pyplot as plt
+import numpy as np
+import sched
+import threading
+import time
+import queue
+
+logger = logging.getLogger(__name__)
+
+
+class KongsbergDGPlot:
+    def __init__(self, queue_pie=None):
+        print("init_dgplot")
+        self.queue_rx_pie = queue_pie
+
+        self.QUEUE_RX_PIE_TIMEOUT = 60  # Seconds
+
+        self.MAX_LENGTH_BUFFER = 10000  # Based on ~1000 MWC datagrams per minute for 10 minutes (~16 per second).
+        self.pie_buffer = deque([], maxlen=self.MAX_LENGTH_BUFFER)
+
+        # TODO: Should this be passed as an argument to both DGProcess and DGPlot to ensure consistency?
+        self.MAX_NUM_GRID_CELLS = 500
+
+        # TODO: Should these be set in DGProcess by actually calculating them? Possibly they could change...
+        self.PIE_VMIN = -95
+        self.PIE_VMAX = 35
+
+        self.fig_pie, self.ax_pie, self.im_pie = self.__init_plots()
+
+        print("end init_dgplot")
+
+
+
+    def get_and_plot_pie(self):
+        #s = sched.scheduler(time.time, time.sleep)
+        start_time = datetime.datetime.now()
+        while True:
+            try:
+                pie = self.queue_rx_pie.get(block=True, timeout=self.QUEUE_RX_PIE_TIMEOUT)
+                end_time = datetime.datetime.now()
+                self.pie_buffer.append(pie)
+
+                if (end_time - start_time).seconds >= 2:
+                    self.plot_pie(pie)
+                    start_time = datetime.datetime.now()
+                #s.enter(1, 10, self.plot_pie(), (pie, ))
+                #threading.Timer(60.0, self.plot_pie(pie)).start()
+
+            except queue.Empty:
+                # TODO: Shutdown processes when queue is empty?
+                logger.exception("Datagram queue empty exception.")
+                break
+
+    def __init_plots(self):
+        array = np.zeros([self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS])
+
+        #fig1 = plt.figure(figsize=(11, 8.5), dpi=150)
+        # ax1 = fig1.add_subplot(1, 1, 1)
+
+        plt.ion()
+        fig, ax = plt.subplots()
+        plt.gca().invert_yaxis()
+        ax.set_aspect('equal')
+        im = ax.imshow(array, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)
+        plt.show(block=False)
+
+        return fig, ax, im
+
+    def plot_pie(self, pie):
+        print("PLOT PIE!", datetime.datetime.now())
+        self.im_pie.set_data(pie)
+        # plt.draw()  # This doesn't appear to update image. :(
+        plt.show(block=False)  # This doesn't appear to update image. :(

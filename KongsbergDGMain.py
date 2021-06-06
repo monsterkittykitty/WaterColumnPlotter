@@ -8,6 +8,7 @@
 import argparse
 from KongsbergDGCapture import KongsbergDGCapture
 from KongsbergDGCaptureFromSonar import KongsbergDGCaptureFromSonar
+from KongsbergDGPlot import KongsbergDGPlot
 from KongsbergDGProcess import KongsbergDGProcess
 import logging
 import multiprocessing
@@ -21,9 +22,12 @@ class KongsbergDGMain:
         self.rx_ip = rx_ip
         self.rx_port = rx_port
 
-        self.queue = multiprocessing.Queue()
-        self.dg_capture = KongsbergDGCaptureFromSonar(rx_ip, rx_port, connection, queue=self.queue)
-        self.dg_process = KongsbergDGProcess(bin_size=0.05, water_depth=10, queue=self.queue)
+        self.queue_data = multiprocessing.Queue()
+        self.queue_pie = multiprocessing.Queue()
+        self.dg_capture = KongsbergDGCaptureFromSonar(rx_ip, rx_port, connection, queue_data=self.queue_data)
+        self.dg_process = KongsbergDGProcess(bin_size=0.05, water_depth=10, queue_data=self.queue_data,
+                                             queue_pie=self.queue_pie)
+        self.dg_plot = KongsbergDGPlot(queue_pie=self.queue_pie)
 
     def receive_dg(self):
         # TODO: Do I need to set process_consumer daemon value to True?
@@ -39,8 +43,14 @@ class KongsbergDGMain:
         process_consumer.start()
         print("consumer started")
 
+        process_plotter = multiprocessing.Process(target=self.dg_plot.get_and_plot_pie())
+        process_plotter.daemon = True
+        process_consumer.start()
+        print("plotter started")
+
         process_producer.join()
         process_consumer.join()
+        process_plotter.join()
 
 
 if __name__ == "__main__":
