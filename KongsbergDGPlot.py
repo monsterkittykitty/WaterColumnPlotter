@@ -16,7 +16,7 @@ import logging
 import math
 import matplotlib
 matplotlib.use("TkAgg")
-#matplotlib.use("WXAgg")
+import matplotlib.animation as anim
 import matplotlib.pyplot as plt
 import numpy as np
 import sched
@@ -46,47 +46,90 @@ class KongsbergDGPlot:
 
         self.fig_pie, self.ax_pie, self.im_pie = self.__init_plots()
 
-        print("end init_dgplot")
+        self.animation = None
 
-
+        self.start_time = None
 
     def get_and_plot_pie(self):
-        #s = sched.scheduler(time.time, time.sleep)
-        start_time = datetime.datetime.now()
+        print("DGPlot: get_and_plot_pie")  # For debugging
+        self.start_time = datetime.datetime.now()
+
+        # start_time = datetime.datetime.now()
+        #
+        # while True:
+        #     try:
+        #         pie = self.queue_rx_pie.get(block=True, timeout=self.QUEUE_RX_PIE_TIMEOUT)
+        #         end_time = datetime.datetime.now()
+        #         self.pie_buffer.append(pie)
+        #
+        #         if (end_time - start_time).total_seconds() >= 0.25:
+        #             self.plot_pie(pie)
+        #             start_time = datetime.datetime.now()
+        #
+        #     except queue.Empty:
+        #         # TODO: Shutdown processes when queue is empty?
+        #         logger.exception("Datagram queue empty exception.")
+        #         break
+
+        # In a new thread, begin transferring data from self.queue_rx_pie to self.pie_buffer
+        # Note: multiprocessing.Queue() (self.queue_rx_pie) is thread-safe;
+        # collections.deque (self.pie_buffer) append and pop methods are thread-safe.
+        threading.Thread(target=self.get_and_deque_pie, daemon=True).start()
+        # while True:
+        #     print(len(self.pie_buffer))
+        # Animate plot:
+        self.animation = anim.FuncAnimation(self.fig_pie, self.animate, fargs=(), interval=500)  # Milliseconds
+        #plt.ioff()
+        plt.show(block=True)
+
+    def get_and_deque_pie(self):
+        print("DGPlot: get_and_deque_pie")
         while True:
             try:
                 pie = self.queue_rx_pie.get(block=True, timeout=self.QUEUE_RX_PIE_TIMEOUT)
-                end_time = datetime.datetime.now()
+                #print("DGPlot: get_and_deque_pie: APPENDING")
                 self.pie_buffer.append(pie)
-
-                if (end_time - start_time).seconds >= 2:
-                    self.plot_pie(pie)
-                    start_time = datetime.datetime.now()
-                #s.enter(1, 10, self.plot_pie(), (pie, ))
-                #threading.Timer(60.0, self.plot_pie(pie)).start()
+                print(len(self.pie_buffer))
 
             except queue.Empty:
                 # TODO: Shutdown processes when queue is empty?
                 logger.exception("Datagram queue empty exception.")
                 break
 
-    def __init_plots(self):
-        array = np.zeros([self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS])
+        #print("TIME TO DEQUE ALL ITEMS IN QUEUE: {}".format(self.start_time - datetime.datetime.now()))
 
-        #fig1 = plt.figure(figsize=(11, 8.5), dpi=150)
-        # ax1 = fig1.add_subplot(1, 1, 1)
+    def __init_plots(self):
+        # Plotting finally works following this model:
+        # https://stackoverflow.com/questions/43966427/matplotlib-does-not-update-plot-when-used-in-an-ide-pycharm/43967137#43967137
+
+        array = np.zeros([self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS])
+        array[:] = np.nan
 
         plt.ion()
-        fig, ax = plt.subplots()
-        plt.gca().invert_yaxis()
-        ax.set_aspect('equal')
+
+        fig = plt.figure(figsize=(6, 6), dpi=150)
+        ax = fig.add_subplot(1, 1, 1)
         im = ax.imshow(array, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)
-        plt.show(block=False)
+        plt.draw()
+        plt.pause(0.001)
 
         return fig, ax, im
 
     def plot_pie(self, pie):
         print("PLOT PIE!", datetime.datetime.now())
+        print("max(pie): ", np.nanmax(pie), "; min(pie): ", np.nanmin(pie))
         self.im_pie.set_data(pie)
-        # plt.draw()  # This doesn't appear to update image. :(
-        plt.show(block=False)  # This doesn't appear to update image. :(
+        plt.draw()
+        plt.pause(0.001)
+
+    def animate(self, i):
+        print("animate")
+        # Get most recent entry from pie_buffer
+        if self.pie_buffer:
+            pie = self.pie_buffer[-1]
+            #self.im_pie.set_data(pie)
+            self.ax_pie.imshow(pie)
+            plt.draw()
+            plt.pause(0.001)
+        else:
+            logger.warning("Nothing to plot; pie matrix buffer is empty.")

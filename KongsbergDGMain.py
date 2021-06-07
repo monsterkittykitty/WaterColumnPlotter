@@ -44,8 +44,8 @@ class KongsbergDGMain:
         print("consumer started")
 
         process_plotter = multiprocessing.Process(target=self.dg_plot.get_and_plot_pie())
-        process_plotter.daemon = True
-        process_consumer.start()
+        #process_plotter.daemon = True
+        process_plotter.start()
         print("plotter started")
 
         process_producer.join()

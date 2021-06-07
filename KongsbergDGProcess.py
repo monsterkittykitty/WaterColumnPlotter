@@ -10,13 +10,11 @@ import datetime
 import io
 import KMALL
 from KmallReaderForWaterColumn import KmallReaderForWaterColumn as k
-from KongsbergDGPlot import KongsbergDGPlot
 import logging
 import math
 import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
-import multiprocessing
 import numpy as np
 import queue
 
@@ -106,6 +104,7 @@ class KongsbergDGProcess:
 
         # RxInfo fields:
         num_beams = dg['rxInfo']['numBeams']
+        tvg_offset_db = dg['rxInfo']['TVGoffset_dB']
         sample_freq = dg['rxInfo']['sampleFreq_Hz']
         sound_speed = dg['rxInfo']['soundVelocity_mPerSec']
 
@@ -157,7 +156,8 @@ class KongsbergDGProcess:
                 bin_index_z = math.floor(kongs_z / self.bin_size)
 
                 #pie_chart_list[bin_index_z][bin_index_y].append(dg['beamData']['sampleAmplitude05dB_p'][beam][i])
-                pie_chart_values[bin_index_z][bin_index_y] += dg['beamData']['sampleAmplitude05dB_p'][beam][i]
+                pie_chart_values[bin_index_z][bin_index_y] += (dg['beamData']['sampleAmplitude05dB_p'][beam][i] *
+                                                               0.5) - tvg_offset_db
                 pie_chart_count[bin_index_z][bin_index_y] += 1
 
         # TODO: We need to find an efficient way of averaging this matrix.
