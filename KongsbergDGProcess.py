@@ -42,13 +42,21 @@ class KongsbergDGProcess:
         self.QUEUE_RX_DATA_TIMEOUT = 60  # Seconds
         self.MAX_NUM_GRID_CELLS = 500
 
+        self.dg_counter = 0  # For testing
+        self.mwc_counter = 0  # For testing
+
     def get_and_process_dg(self):
         print("DGProcess: get_and_process")  # For debugging
+        first_tx_time = None  # For testing
 
         count = 0  # For testing
         while True:
             try:
                 bytes = self.queue_rx_data.get(block=True, timeout=self.QUEUE_RX_DATA_TIMEOUT)
+
+                if self.dg_counter == 0:  # For testing
+                    first_tx_time = datetime.datetime.now()
+                self.dg_counter += 1
 
                 self.process_dgm(bytes)
 
@@ -61,7 +69,14 @@ class KongsbergDGProcess:
                 logger.exception("Datagram queue empty exception.")
                 break
 
-        #self.__join_subprocesses()
+            if self.queue_rx_data.qsize() == 0:
+                last_tx_time = datetime.datetime.now()
+                print("DGPROCESS, queue_rx_data is empty.")
+                print("DGPROCESS, Received: ", self.dg_counter)
+                print("DGPROCESS, Received MWCs: ", self.mwc_counter)
+                print("DGPROCESS, First transmit: {}; Final transmit: {}; Total time: {}".format(first_tx_time,
+                                                                                                 last_tx_time,
+                                                                                                 (last_tx_time - first_tx_time).total_seconds()))
 
     def process_dgm(self, bytes):
         bytes_io = io.BytesIO(bytes)
@@ -72,6 +87,8 @@ class KongsbergDGProcess:
             self.process_MRZ(header, bytes_io)
 
         elif header[1] == b'#MWC':
+            self.mwc_counter += 1  # For testing
+            print("mwc_counter:", self.mwc_counter)
             self.mwc = bytes
 
             pie_matrix = self.process_MWC(header, bytes_io)
@@ -85,7 +102,9 @@ class KongsbergDGProcess:
         pass
 
     def process_MWC(self, header, bytes_io):
-        # print("DGProcess: process_MWC()")
+        # print("DGProcess: process_MWC()")  # For debugging
+        process_MWC_start_time = datetime.datetime.now()  # For testing
+
         dg = k.read_EMdgmMWC(bytes_io)
 
         # Header fields:
@@ -130,50 +149,83 @@ class KongsbergDGProcess:
             # TODO: Use harmonic sound speed to determine bottom strike point; assume all other points for this
             #  beam on straight line from bottom strike point to transducer.
 
-            # For each water column data point in a single beam:
-            for i in range(detected_range + 1):  # 0 to detected_range
-                range_to_wc_data_point = (sound_speed * i) / (sample_freq * 2)
+            start_wc_i = datetime.datetime.now()  # For testing
 
-                # TODO: Change temp_tilt_angle_re_vertical_deg to tilt_angle_re_vertical_deg
-                kongs_x = range_to_wc_data_point * math.sin(math.radians(temp_tilt_angle_re_vertical_deg))
-                kongs_y = range_to_wc_data_point * math.sin(math.radians(beam_point_angle_re_vertical))
-                kongs_z = range_to_wc_data_point * math.cos(math.radians(temp_tilt_angle_re_vertical_deg)) * \
-                          math.cos(math.radians(beam_point_angle_re_vertical)) - heave
+            # #*#*#*#*#*#*#*#*#*# START NEW, FAST VERSION #*#*#*#*#*#*#*#*#*# #
+            # Create an array from 0 to detected_range, with a step size of 1
+            range_indices_np = np.arange(0, (detected_range + 1), 1)
+            # Calculate range (distance) to every point from 0 to detected range:
+            range_to_wc_data_point_np = (sound_speed * range_indices_np) / (sample_freq * 2)
 
-                # TODO: I dont' think I need -1 here or the max(, ...) because we want to allow negative indices...
-                # Note: We need "(self.MAX_NUM_GRID_CELLS / 2)" to 'normalize position'--otherwise, negative indices
-                # insert values at the end of the array (think negative indexing into array).
-                # Determine corresponding bin based on across-track position (x):
-                # Note: We will approximate a swath as a 2-dimensional y, z plane rotated about the z axis.
-                # We do not need x position except at bottom strike point
-                if i == detected_range:
-                    bin_index_x = math.floor(kongs_x / self.bin_size) + int(self.MAX_NUM_GRID_CELLS / 2)
-                # Determine corresponding bin based on across-track position (y):
-                # bin_index_y = max(0, (math.floor(kongs_y / self.bin_size) - 1))
-                bin_index_y = math.floor(kongs_y / self.bin_size) + int(self.MAX_NUM_GRID_CELLS / 2)
-                # Determine corresponding bin based on depth (z):
-                # bin_index_z = max(0, (math.floor(kongs_z / self.bin_size) - 1))
-                bin_index_z = math.floor(kongs_z / self.bin_size)
+            # TODO: Change temp_tilt_angle_re_vertical_deg to tilt_angle_re_vertical_deg
+            kongs_x_np = range_to_wc_data_point_np * math.sin(math.radians(temp_tilt_angle_re_vertical_deg))
+            kongs_y_np = range_to_wc_data_point_np * math.sin(math.radians(beam_point_angle_re_vertical))
+            kongs_z_np = range_to_wc_data_point_np * math.cos(math.radians(temp_tilt_angle_re_vertical_deg)) * \
+                      math.cos(math.radians(beam_point_angle_re_vertical)) - heave
 
-                #pie_chart_list[bin_index_z][bin_index_y].append(dg['beamData']['sampleAmplitude05dB_p'][beam][i])
-                pie_chart_values[bin_index_z][bin_index_y] += (dg['beamData']['sampleAmplitude05dB_p'][beam][i] *
-                                                               0.5) - tvg_offset_db
-                pie_chart_count[bin_index_z][bin_index_y] += 1
+            # Note: We need "(self.MAX_NUM_GRID_CELLS / 2)" to 'normalize position'--otherwise, negative indices
+            # insert values at the end of the array (think negative indexing into array).
+            # Note: We will approximate a swath as a 2-dimensional y, z plane rotated about the z axis.
 
-        # TODO: We need to find an efficient way of averaging this matrix.
-        # From: https://stackoverflow.com/questions/20572316/numpy-average-over-one-dimension-in-jagged-3d-array
-        # After capturing value and position of every data point in every beam in a given ping:
-        # pie_chart_np_array_3d = np.array(pie_chart_list, dtype=object)
-        # do_average = np.vectorize(np.average)
-        # pie_chart_np_array_average_2d = do_average(pie_chart_np_array_3d)
+            # We only need x bin index for bottom strike points (the last value in the np array).
+            # (Though, I'm not sure we need the x bin index at all, given that we have actual positions (kongs_x_np).)
+            bin_index_x_np = np.floor(kongs_x_np[-1] / self.bin_size) + int(self.MAX_NUM_GRID_CELLS / 2)
+            bin_index_y_np = np.floor(kongs_y_np / self.bin_size) + int(self.MAX_NUM_GRID_CELLS / 2)
+            bin_index_z_np = np.floor(kongs_z_np / self.bin_size)
 
-        start = datetime.datetime.now()
-        # This appears to be a very quick way of doing the averaging! 0.002 sec for 500 x 500 matrix!
+            # Pie chart will be approximated as a 2-dimensional y, z grid.
+            # Combine y, z indices, convert from float to int:
+            y_z_indices = np.vstack((bin_index_z_np, bin_index_y_np)).astype(int)
+
+            # This method of indexing based on:
+            # https://stackoverflow.com/questions/47015578/numpy-assigning-values-to-2d-array-with-list-of-indices
+            pie_chart_values[tuple(y_z_indices)] += \
+                (np.array(dg['beamData']['sampleAmplitude05dB_p'][beam][:detected_range + 1]) * 0.5) - tvg_offset_db
+            pie_chart_count[tuple(y_z_indices)] += 1
+
+            # #*#*#*#*#*#*#*#*#*# START OLD, SLOW VERSION #*#*#*#*#*#*#*#*#*# #
+            # # For each water column data point in a single beam:
+            # for i in range(detected_range + 1):  # 0 to detected_range
+            #     range_to_wc_data_point = (sound_speed * i) / (sample_freq * 2)
+            #
+            #     # TODO: Change temp_tilt_angle_re_vertical_deg to tilt_angle_re_vertical_deg
+            #     kongs_x = range_to_wc_data_point * math.sin(math.radians(temp_tilt_angle_re_vertical_deg))
+            #     kongs_y = range_to_wc_data_point * math.sin(math.radians(beam_point_angle_re_vertical))
+            #     kongs_z = range_to_wc_data_point * math.cos(math.radians(temp_tilt_angle_re_vertical_deg)) * \
+            #               math.cos(math.radians(beam_point_angle_re_vertical)) - heave
+            #
+            #     # TODO: I dont' think I need -1 here or the max(, ...) because we want to allow negative indices...
+            #     # Note: We need "(self.MAX_NUM_GRID_CELLS / 2)" to 'normalize position'--otherwise, negative indices
+            #     # insert values at the end of the array (think negative indexing into array).
+            #     # Determine corresponding bin based on across-track position (x):
+            #     # Note: We will approximate a swath as a 2-dimensional y, z plane rotated about the z axis.
+            #     # We do not need x position except at bottom strike point
+            #     if i == detected_range:
+            #         bin_index_x = math.floor(kongs_x / self.bin_size) + int(self.MAX_NUM_GRID_CELLS / 2)
+            #     # Determine corresponding bin based on across-track position (y):
+            #     # bin_index_y = max(0, (math.floor(kongs_y / self.bin_size) - 1))
+            #     bin_index_y = math.floor(kongs_y / self.bin_size) + int(self.MAX_NUM_GRID_CELLS / 2)
+            #     # Determine corresponding bin based on depth (z):
+            #     # bin_index_z = max(0, (math.floor(kongs_z / self.bin_size) - 1))
+            #     bin_index_z = math.floor(kongs_z / self.bin_size)
+            #
+            #     #pie_chart_list[bin_index_z][bin_index_y].append(dg['beamData']['sampleAmplitude05dB_p'][beam][i])
+            #     pie_chart_values[bin_index_z][bin_index_y] += (dg['beamData']['sampleAmplitude05dB_p'][beam][i] *
+            #                                                    0.5) - tvg_offset_db
+            #     pie_chart_count[bin_index_z][bin_index_y] += 1
+            # #*#*#*#*#*#*#*#*#*# END OLD, SLOW VERSION #*#*#*#*#*#*#*#*#*# #
+
+        # end_wc_i = datetime.datetime.now()  # For testing
+        # wc_i_diff_time = (end_wc_i - start_wc_i).total_seconds()  # For testing
+        # print("***DGPROCESS, time to bin beam's wc data: {}, time x 256 * 1514: {}".format(wc_i_diff_time, (wc_i_diff_time * 256 * 1514)))
+        # print("detected_range: ", detected_range)
+
+        # Quick method of avveraging!
         pie_chart_average = pie_chart_values / pie_chart_count
-        end = datetime.datetime.now()
 
-        # print("ARRAY AVERAGE TAKES {}###########################################################".format((end - start)))
-        # print("*****************************************************************************************averaging done")
+        process_MWC_end_time = datetime.datetime.now()  # For testing
+        time_diff = (process_MWC_end_time - process_MWC_start_time).total_seconds()  # For testing
+        print("DGPROCESS, time for all beams: {}, time x 1514: {}".format(time_diff, (time_diff * 1514)))  # For testing
 
         return pie_chart_average
 
@@ -211,55 +263,20 @@ class KongsbergDGProcess:
                 beamData.append(k.read_EMdgmMWC_rxBeamData(bytes_io, header[2], rx_info[3], return_fields=True))
             print("Beam Data: ", beamData)
 
-    def __init_plots(self, x, y):
-
-        array = np.zeros([y, x])
-
-        plt.ion()
-
-        fig1 = plt.figure(figsize=(11, 8.5), dpi=150)
-        ax1 = plt.axes()
-        im = ax1.imshow(array, cmap="gray")  # origin=?
-        im.set_data(array.shape)
-        return im
-
-        # fig, ax = plt.subplots()
-        # plt.gca().invert_yaxis()
-        # ax.set_aspect('equal')
-        # im = ax.imshow(array, cmap='gray')
-        # plt.show(block=False)
-        #
-        # return fig, ax, im
-
-
-
-    def plot_pie_chart(self, water_column_2d):
-        print("******************************************************************************************Plotting!")
-        #to_plot = np.transpose(water_column_2d)
-        #fig1 = plt.figure(figsize=(11, 8.5), dpi=150)
-        #x = [i for i in range(-int(self.MAX_NUM_GRID_CELLS / 2), int(self.MAX_NUM_GRID_CELLS / 2))]
-        #y = [i for i in range(int(self.MAX_NUM_GRID_CELLS / 2))]
-        #x = np.arange(-(self.MAX_NUM_GRID_CELLS / 2), (self.MAX_NUM_GRID_CELLS / 2), self.bin_size)
-        #y = np.arange(0, self.MAX_NUM_GRID_CELLS, self.bin_size)
-        #plt.gca().invert_yaxis()
-        #plt.pcolormesh(water_column_2d, cmap='Greys')
-        #plt.show()
-
-
-        #plt.gca().invert_yaxis()
-        #plt.pcolormesh(water_column_2d, cmap='Greys')
-        #plt.show(block=True)
-        #plt.show(block=False)
-
-        #self.pie_plot.set_data(water_column_2d)
-
-        # plt.pcolormesh(water_column_2d, cmap='gray')
-        # self.pie_plot.canvas.draw()
-        # plt.show()
-
-        # self.pie_plot.set_data(water_column_2d)
-        # plt.draw()
-
-        self.im_pie.set_data(water_column_2d)
-        plt.show(block=False)
+    # def __init_plots(self, x, y):
+    #     array = np.zeros([y, x])
+    #
+    #     plt.ion()
+    #
+    #     fig1 = plt.figure(figsize=(11, 8.5), dpi=150)
+    #     ax1 = plt.axes()
+    #     im = ax1.imshow(array, cmap="gray")  # origin=?
+    #     im.set_data(array.shape)
+    #     return im
+    #
+    # def plot_pie_chart(self, water_column_2d):
+    #     print("******************************************************************************************Plotting!")
+    #
+    #     self.im_pie.set_data(water_column_2d)
+    #     plt.show(block=False)
 

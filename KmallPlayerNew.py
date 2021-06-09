@@ -262,6 +262,8 @@ class KmallPlayer:
         :param df: Dataframe containing datagram offsets, message sizes, and scheduled times.
         :param final_byteOffset: Close file when current byte offset equals final_byteOffset.
         """
+        first_tx_time = None  # For testing
+        mwc_counter = 0  # For testing
 
         # Open file:
         with open(fp, 'rb') as file:
@@ -273,6 +275,9 @@ class KmallPlayer:
                 # Wait for scheduled time:
                 while row['ScheduledPlay'] > datetime.datetime.now():
                     pass
+
+                if self.dg_counter == 0:  # For testing
+                    first_tx_time = datetime.datetime.now()
 
                 # Seek to position in file:
                 file.seek(row['ByteOffset'], 0)
@@ -295,9 +300,17 @@ class KmallPlayer:
                             logger.warning("Send datagram error: %s" % e)
                         if sent:
                             self.dg_counter += 1
-                    logging.warning("Split message : size %s of type %s", str(row['MessageSize']), row['MessageType'])
 
-            print("Sent: ", self.dg_counter)
+                    if row['MessageType'] == "b'#MWC'":  # For testing
+                        mwc_counter += 1
+                    #logging.warning("Split message : size %s of type %s", str(row['MessageSize']), row['MessageType'])
+
+            last_tx_time = datetime.datetime.now()  # For testing
+
+            print("KMALLPLAYER, Sent: ", self.dg_counter)
+            print("KMALLPLAYER, Sent MWCs: ", mwc_counter)
+            print("KMALLPLAYER, First transmit: {}; Final transmit: {}; Total time: {}".format(first_tx_time, last_tx_time,
+                                                                                  (last_tx_time - first_tx_time).total_seconds()))
 
 
     def play_datagrams(self, fp, df):

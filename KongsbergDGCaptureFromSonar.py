@@ -109,6 +109,9 @@ class KongsbergDGCaptureFromSonar:
         """
 
         print("DGCapture: receive_dg_and_queue")  # For debugging
+        first_tx_time = None  # For testing
+        dg_counter = 0  # For testing
+        mwc_counter = 0  # For testing
 
         data_type = ""
         data_timestamp = 0.0
@@ -120,6 +123,11 @@ class KongsbergDGCaptureFromSonar:
             try:
                 data, address = self.sock_in.recvfrom(self.MAX_DATAGRAM_SIZE)
                 # print(data)  # For debugging
+
+                if dg_counter == 0:  # For testing
+                    first_tx_time = datetime.datetime.now()
+                dg_counter += 1
+
             except BlockingIOError:
                 continue
             except socket.timeout:
@@ -142,6 +150,10 @@ class KongsbergDGCaptureFromSonar:
             if dgm_type in self.REQUIRED_DATAGRAMS:
                 # print(dgm_type)  # For debugging
                 if dgm_type == b'#MRZ' or dgm_type == b'#MWC':  # Datagrams may be partitioned
+
+                    if dgm_type == b'#MWC':  # For testing
+                        mwc_counter += 1
+
                     # Skip over remainder of header
                     # bytes_io.seek(struct.Struct(self.HEADER_STRUCT_FORMAT).size, 0)
                     # Read partition; dg[0] is numOfDgms; dg[1] is dgmNum
@@ -177,15 +189,12 @@ class KongsbergDGCaptureFromSonar:
 
                             if dgm_type == b'#MRZ':
                                 if dgm_version in [3]:
-                                    rev_i_plus = True
                                     length_to_strip += struct.calcsize(self.M_BODY_STRUCT_FORMAT)
                             elif dgm_type == b'#MWC':
                                 if dgm_version in [2]:
-                                    rev_i_plus = True
                                     length_to_strip += struct.calcsize(self.M_BODY_STRUCT_FORMAT)
 
                             # Note: Final 4 bytes of partitioned datagram is a repeated size field. Remove this.
-                            # data_buffer[dgm_num - 1] = data[length_to_strip:-4]
                             data_buffer[dgm_num - 1] = bytearray(data[length_to_strip:-4])
                             data_count += 1
                             data_size += len(data[length_to_strip:-4])
@@ -212,7 +221,7 @@ class KongsbergDGCaptureFromSonar:
 
                                 self.queue_tx_data.put(flat_data_buffer)
 
-                                print("Complete datablock: {}; {}; {}".format(data_type, data_size, data_timestamp))
+                                #print("Complete datablock: {}; {}; {}".format(data_type, data_size, data_timestamp))
 
                                 # Reset data_count, data_size
                                 data_count = 0
@@ -221,33 +230,12 @@ class KongsbergDGCaptureFromSonar:
                 else:  # Datagrams are not partitioned
                     self.queue_tx_data.put(data)
 
-            #print("self.dgms_rxed: ", self.dgms_rxed)
-
-
-
-
-                # FOR TESTING:
-                # if num_bytes_dgm < self.MAX_DATAGRAM_SIZE:
-                #     print("datagram small enough to queue: ", dgm_type, num_bytes_dgm)
-                # else:
-                #     print("datagram must be split: ", dgm_type)
-
-
-            # if data_buffer is None:
-            #     k.FID = io.BytesIO(data)
-            # else:
-            #     k.FID = io.BytesIO(data_buffer + data)
-            #
-            # k.FID.seek(0, 0)
-            # # dg_header = k.read_EMdgmHeader()
-            # # print(dg_header)
-            # num_bytes_dg = k.FID.read(4)
-            # dg_type = k.FID.read(4)
-            # print(dg_type)
-            # print(type(dg_type))
-            # if dg_type in self.REQUIRED_DATAGRAMS:
-            #     print('req dg: ', dg_type)
-            #     exit()
+            if dg_counter == 8709:  # For testing
+                last_tx_time = datetime.datetime.now()
+                print("DGCAPTURE, Received: ", dg_counter)
+                print("DGCAPTURE, Received MWCs: ", mwc_counter)
+                print("DGCAPTURE, First transmit: {}; Final transmit: {}; Total time: {}".format(first_tx_time, last_tx_time,
+                                                                                      (last_tx_time - first_tx_time).total_seconds()))
 
     def flatten_data_buffer(self, data_buffer):
         flat_data_buffer = b''

@@ -42,13 +42,15 @@ class KongsbergDGPlot:
 
         # TODO: Should these be set in DGProcess by actually calculating them? Possibly they could change...
         self.PIE_VMIN = -95
-        self.PIE_VMAX = 35
+        self.PIE_VMAX = 10
 
         self.fig_pie, self.ax_pie, self.im_pie = self.__init_plots()
 
         self.animation = None
 
         self.start_time = None
+        self.plot_count = 0
+        self.old_pie = None
 
     def get_and_plot_pie(self):
         print("DGPlot: get_and_plot_pie")  # For debugging
@@ -79,22 +81,36 @@ class KongsbergDGPlot:
         #     print(len(self.pie_buffer))
         # Animate plot:
         self.animation = anim.FuncAnimation(self.fig_pie, self.animate, fargs=(), interval=500)  # Milliseconds
+        #self.save_animation(self.animation)
         #plt.ioff()
         plt.show(block=True)
 
     def get_and_deque_pie(self):
-        print("DGPlot: get_and_deque_pie")
+        print("DGPlot: get_and_deque_pie")  # For debugging
+        start_rx_time = 0
+        mwc_count = 0
+
         while True:
             try:
                 pie = self.queue_rx_pie.get(block=True, timeout=self.QUEUE_RX_PIE_TIMEOUT)
                 #print("DGPlot: get_and_deque_pie: APPENDING")
+
+                if mwc_count == 0:  # For testing
+                    start_rx_time = datetime.datetime.now()
+                mwc_count += 1
+
                 self.pie_buffer.append(pie)
-                print(len(self.pie_buffer))
+                #print(len(self.pie_buffer))
 
             except queue.Empty:
                 # TODO: Shutdown processes when queue is empty?
                 logger.exception("Datagram queue empty exception.")
                 break
+
+            if self.queue_rx_pie.qsize() == 0:
+                end_rx_time = datetime.datetime.now()
+                diff = (end_rx_time - start_rx_time).total_seconds()
+                print("DGPLOT, time to deque {} MWC plots: {}".format(mwc_count, diff))
 
         #print("TIME TO DEQUE ALL ITEMS IN QUEUE: {}".format(self.start_time - datetime.datetime.now()))
 
@@ -109,7 +125,9 @@ class KongsbergDGPlot:
 
         fig = plt.figure(figsize=(6, 6), dpi=150)
         ax = fig.add_subplot(1, 1, 1)
-        im = ax.imshow(array, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)
+        #im = ax.imshow(array, cmap='gray_r', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Reverse greyscale
+        im = ax.imshow(array, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
+        plt.colorbar(im)  # This isn't displaying anything
         plt.draw()
         plt.pause(0.001)
 
@@ -123,13 +141,23 @@ class KongsbergDGPlot:
         plt.pause(0.001)
 
     def animate(self, i):
-        print("animate")
+        #print("animate")
+        self.plot_count += 1
+        print(self.plot_count)
         # Get most recent entry from pie_buffer
         if self.pie_buffer:
             pie = self.pie_buffer[-1]
             #self.im_pie.set_data(pie)
-            self.ax_pie.imshow(pie)
+            self.ax_pie.clear()
+            #self.ax_pie.imshow(pie, cmap='gray_r', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Reverse greyscale
+            self.ax_pie.imshow(pie, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
             plt.draw()
             plt.pause(0.001)
         else:
             logger.warning("Nothing to plot; pie matrix buffer is empty.")
+
+    def save_animation(self, animation):
+        writer_video = anim.ImageMagickWriter(fps=10)
+        # writer_video = anim.FFMpegWriter(fps=10)
+        writer_video = anim.PillowWriter(fps=10)
+        animation.save("testanimation.gif", writer=writer_video)
