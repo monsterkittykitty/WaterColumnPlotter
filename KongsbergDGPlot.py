@@ -147,10 +147,34 @@ class KongsbergDGPlot:
         # Get most recent entry from pie_buffer
         if self.pie_buffer:
             pie = self.pie_buffer[-1]
-            #self.im_pie.set_data(pie)
+
+            # Plot is not updating with masked array. :(
+            # I can plot something like pie[:][:200], but not pie[~mask.mask].
+            # # Create a mask to remove NaNs prior to plotting
+            # mask = np.ma.masked_invalid(pie)
+            # # Apply mask
+            # pie = pie[~mask.mask]
+
+            # Alternate method of 'masking': Find first full row of NaNs.
+            # https://stackoverflow.com/questions/67925064/how-to-identify-the-index-of-a-row-containing-only-nans-in-a-numpy-matrix
+            index = np.isnan(pie).all(axis=1).argmax()
+
+            # The above method sometimes finds a row of NaNs high in the water column, at a depth were there *should*
+            # be more data below. This method will look for the index of the last row that is not completely filled with
+            # NaNs. Add one to that index for the first full row of NaNs after all data.
+            index = np.argwhere(~np.isnan(pie).all(axis=1))[-1][0] + 1
+            print("index: ", index)
+            if index == 500:
+                print(pie[498])
+                print(pie[499])
+                #exit()
+            # Ensure that 'index' plus some small buffer does not exceed grid size.
+            index = min((index + 10), self.MAX_NUM_GRID_CELLS)
+
             self.ax_pie.clear()
+            #self.im_pie.set_data(pie)  # This doesn't update plot :(
             #self.ax_pie.imshow(pie, cmap='gray_r', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Reverse greyscale
-            self.ax_pie.imshow(pie, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
+            self.ax_pie.imshow(pie[:][:index], cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
             plt.draw()
             plt.pause(0.001)
         else:

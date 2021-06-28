@@ -42,6 +42,8 @@ class KongsbergDGProcess:
         self.QUEUE_RX_DATA_TIMEOUT = 60  # Seconds
         self.MAX_NUM_GRID_CELLS = 500
 
+        self.MAX_HEAVE = 1  # Meter(s)
+
         self.dg_counter = 0  # For testing
         self.mwc_counter = 0  # For testing
 
@@ -134,98 +136,257 @@ class KongsbergDGProcess:
         pie_chart_values = np.zeros(shape=(self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS))
         pie_chart_count = np.zeros(shape=(self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS))
 
-        for beam in range(num_beams):
-            # Across-track beam angle:
-            beam_point_angle_re_vertical = dg['beamData']['beamPointAngReVertical_deg'][beam]
-            # Along-track beam angle:
-            sector_tilt_angle_re_tx_deg = tilt_angle_re_tx_deg_3_sectors[dg['beamData']['beamTxSectorNum'][beam]]
-            # TODO: Interpolate pitch to find tilt_angle_re_vertical_deg:
-            #  tilt_angle_re_vertical_deg = tilt_angle_re_tx_deg + interpolated_pitch
-            temp_tilt_angle_re_vertical_deg = sector_tilt_angle_re_tx_deg
+        # ###################### START NEW - OUTSIDE ###################### #
+        # for beam in range(num_beams):
+        # Across-track beam angle array:
+        beam_point_angle_re_vertical_np = np.array(dg['beamData']['beamPointAngReVertical_deg'])
+        # Along-track beam angle array:
+        sector_tilt_angle_re_tx_deg_np = np.array([tilt_angle_re_tx_deg_3_sectors[i] for i
+                                                   in dg['beamData']['beamTxSectorNum']])
 
-            # Index in sampleAmplitude05dB array where bottom detected
-            detected_range = dg['beamData']['detectedRangeInSamples'][beam]
+        # TODO: Interpolate pitch to find tilt_angle_re_vertical_deg:
+        #  tilt_angle_re_vertical_deg = tilt_angle_re_tx_deg + interpolated_pitch
+        temp_tilt_angle_re_vertical_deg = sector_tilt_angle_re_tx_deg_np
 
-            # TODO: Use harmonic sound speed to determine bottom strike point; assume all other points for this
-            #  beam on straight line from bottom strike point to transducer.
+        # Index in sampleAmplitude05dB array where bottom detected
+        # detected_range = dg['beamData']['detectedRangeInSamples'][beam]
 
-            start_wc_i = datetime.datetime.now()  # For testing
+        detected_range_np = np.array(dg['beamData']['detectedRangeInSamples'])
+        # Compute average for non-zero values:
+        average_detected_range_for_swath = np.average(detected_range_np[detected_range_np > 0])
+        # Replace zero values with average value:
+        detected_range_np[detected_range_np == 0] = average_detected_range_for_swath
 
-            # #*#*#*#*#*#*#*#*#*# START NEW, FAST VERSION #*#*#*#*#*#*#*#*#*# #
-            # Create an array from 0 to detected_range, with a step size of 1
-            range_indices_np = np.arange(0, (detected_range + 1), 1)
-            # Calculate range (distance) to every point from 0 to detected range:
-            range_to_wc_data_point_np = (sound_speed * range_indices_np) / (sample_freq * 2)
+        # TODO: Use harmonic sound speed to determine bottom strike point; assume all other points for this
+        #  beam on straight line from bottom strike point to transducer.
 
-            # TODO: Change temp_tilt_angle_re_vertical_deg to tilt_angle_re_vertical_deg
-            kongs_x_np = range_to_wc_data_point_np * math.sin(math.radians(temp_tilt_angle_re_vertical_deg))
-            kongs_y_np = range_to_wc_data_point_np * math.sin(math.radians(beam_point_angle_re_vertical))
-            kongs_z_np = range_to_wc_data_point_np * math.cos(math.radians(temp_tilt_angle_re_vertical_deg)) * \
-                      math.cos(math.radians(beam_point_angle_re_vertical)) - heave
+        start_wc_i = datetime.datetime.now()  # For testing
 
-            # Note: We need "(self.MAX_NUM_GRID_CELLS / 2)" to 'normalize position'--otherwise, negative indices
-            # insert values at the end of the array (think negative indexing into array).
-            # Note: We will approximate a swath as a 2-dimensional y, z plane rotated about the z axis.
+        # #*#*#*#*#*#*#*#*#*# START NEW, FAST VERSION - INSIDE #*#*#*#*#*#*#*#*#*# #
+        # Create an array from 0 to max(detected_range_np), with a step size of 1
+        # Tile above array num_beams number of times
+        range_indices_np = np.tile(np.arange(0, (np.max(detected_range_np) + 1), 1), (num_beams, 1))
+        # Mask values beyond actual reported detected range for any given beam
+        # Based on: https://stackoverflow.com/questions/67978532/how-to-mask-rows-of-a-2d-numpy-matrix-by-values-in-1d-list
+        # And: https: // stackoverflow.com / questions / 29046162 / numpy - array - loss - of - dimension - when - masking
+        range_indices_np = np.where(range_indices_np <= detected_range_np[:, None], range_indices_np, np.nan)
 
-            # We only need x bin index for bottom strike points (the last value in the np array).
-            # (Though, I'm not sure we need the x bin index at all, given that we have actual positions (kongs_x_np).)
-            bin_index_x_np = np.floor(kongs_x_np[-1] / self.bin_size) + int(self.MAX_NUM_GRID_CELLS / 2)
-            bin_index_y_np = np.floor(kongs_y_np / self.bin_size) + int(self.MAX_NUM_GRID_CELLS / 2)
-            bin_index_z_np = np.floor(kongs_z_np / self.bin_size)
+        # Calculate range (distance) to every point from 0 to detected range:
+        range_to_wc_data_point_np = (sound_speed * range_indices_np) / (sample_freq * 2)
 
-            # Pie chart will be approximated as a 2-dimensional y, z grid.
-            # Combine y, z indices, convert from float to int:
-            y_z_indices = np.vstack((bin_index_z_np, bin_index_y_np)).astype(int)
+        # TODO: Change temp_tilt_angle_re_vertical_deg to tilt_angle_re_vertical_deg
+        kongs_x_np = range_to_wc_data_point_np * (np.sin(np.radians(temp_tilt_angle_re_vertical_deg)))[:, np.newaxis]
+        kongs_y_np = range_to_wc_data_point_np * (np.sin(np.radians(beam_point_angle_re_vertical_np)))[:, np.newaxis]
+        kongs_z_np = range_to_wc_data_point_np * (np.cos(np.radians(temp_tilt_angle_re_vertical_deg)))[:, np.newaxis] \
+                     * (np.cos(np.radians(beam_point_angle_re_vertical_np)))[:, np.newaxis] + heave
 
-            # This method of indexing based on:
-            # https://stackoverflow.com/questions/47015578/numpy-assigning-values-to-2d-array-with-list-of-indices
-            pie_chart_values[tuple(y_z_indices)] += \
-                (np.array(dg['beamData']['sampleAmplitude05dB_p'][beam][:detected_range + 1]) * 0.5) - tvg_offset_db
-            pie_chart_count[tuple(y_z_indices)] += 1
+        # Note: For x and y, we need "(self.MAX_NUM_GRID_CELLS / 2)" to 'normalize position'--otherwise, negative
+        # indices insert values at the end of the array (think negative indexing into array).
+        # Note: For z, (self.MAX_HEAVE / self.bin_size) results in number of bins allowable above '0' (neutral sea
+        # surface). For example, for a negative (upward) heave that results in a bin index of -20, if self.MAX_HEAVE
+        # is 1 and self.bin_size is 0.05, we will add 20 to the bin index. -20 (bin_index) + 20 (adjustment) = 0
+        # (*new* bin_index).
+        # Note: We will approximate a swath as a 2-dimensional y, z plane rotated about the z axis.
 
-            # #*#*#*#*#*#*#*#*#*# START OLD, SLOW VERSION #*#*#*#*#*#*#*#*#*# #
-            # # For each water column data point in a single beam:
-            # for i in range(detected_range + 1):  # 0 to detected_range
-            #     range_to_wc_data_point = (sound_speed * i) / (sample_freq * 2)
-            #
-            #     # TODO: Change temp_tilt_angle_re_vertical_deg to tilt_angle_re_vertical_deg
-            #     kongs_x = range_to_wc_data_point * math.sin(math.radians(temp_tilt_angle_re_vertical_deg))
-            #     kongs_y = range_to_wc_data_point * math.sin(math.radians(beam_point_angle_re_vertical))
-            #     kongs_z = range_to_wc_data_point * math.cos(math.radians(temp_tilt_angle_re_vertical_deg)) * \
-            #               math.cos(math.radians(beam_point_angle_re_vertical)) - heave
-            #
-            #     # TODO: I dont' think I need -1 here or the max(, ...) because we want to allow negative indices...
-            #     # Note: We need "(self.MAX_NUM_GRID_CELLS / 2)" to 'normalize position'--otherwise, negative indices
-            #     # insert values at the end of the array (think negative indexing into array).
-            #     # Determine corresponding bin based on across-track position (x):
-            #     # Note: We will approximate a swath as a 2-dimensional y, z plane rotated about the z axis.
-            #     # We do not need x position except at bottom strike point
-            #     if i == detected_range:
-            #         bin_index_x = math.floor(kongs_x / self.bin_size) + int(self.MAX_NUM_GRID_CELLS / 2)
-            #     # Determine corresponding bin based on across-track position (y):
-            #     # bin_index_y = max(0, (math.floor(kongs_y / self.bin_size) - 1))
-            #     bin_index_y = math.floor(kongs_y / self.bin_size) + int(self.MAX_NUM_GRID_CELLS / 2)
-            #     # Determine corresponding bin based on depth (z):
-            #     # bin_index_z = max(0, (math.floor(kongs_z / self.bin_size) - 1))
-            #     bin_index_z = math.floor(kongs_z / self.bin_size)
-            #
-            #     #pie_chart_list[bin_index_z][bin_index_y].append(dg['beamData']['sampleAmplitude05dB_p'][beam][i])
-            #     pie_chart_values[bin_index_z][bin_index_y] += (dg['beamData']['sampleAmplitude05dB_p'][beam][i] *
-            #                                                    0.5) - tvg_offset_db
-            #     pie_chart_count[bin_index_z][bin_index_y] += 1
-            # #*#*#*#*#*#*#*#*#*# END OLD, SLOW VERSION #*#*#*#*#*#*#*#*#*# #
+        # We only need x bin index for bottom strike points (the last value in the np array).
+        # (Though, I'm not sure we need the x bin index at all, given that we have actual positions (kongs_x_np).)
+        bin_index_x_np = np.floor(kongs_x_np[-1] / self.bin_size) + int(self.MAX_NUM_GRID_CELLS / 2)
+        bin_index_y_np = np.floor(kongs_y_np / self.bin_size) + int(self.MAX_NUM_GRID_CELLS / 2)
+        bin_index_z_np = np.floor(kongs_z_np / self.bin_size) + int(self.MAX_HEAVE / self.bin_size)
 
-        # end_wc_i = datetime.datetime.now()  # For testing
-        # wc_i_diff_time = (end_wc_i - start_wc_i).total_seconds()  # For testing
-        # print("***DGPROCESS, time to bin beam's wc data: {}, time x 256 * 1514: {}".format(wc_i_diff_time, (wc_i_diff_time * 256 * 1514)))
-        # print("detected_range: ", detected_range)
+        # Mask indices that fall outside of accepted values: 0 to (MAX_NUM_GRID_CELLS - 1)
+        # Mask will read False for values outside of range, True for values inside range
+        # TODO: Do we need to do this for x indices too?
+        mask_index_y = np.ma.masked_inside(bin_index_y_np, 0, (self.MAX_NUM_GRID_CELLS - 1))
+        mask_index_z = np.ma.masked_inside(bin_index_z_np, 0, (self.MAX_NUM_GRID_CELLS - 1))
 
-        # Quick method of avveraging!
-        pie_chart_average = pie_chart_values / pie_chart_count
+        # Error checking and warning if data will be lost:
+        # if len(bin_index_y_np[~mask_index_y.mask]) > 0:  # This doesn't work because NaNs are masked.
+        # np.count_nonzero(np.isnan(bin_index_y_np[~mask_index_y.mask])) will count the number of nans that have been
+        # masked; only if length of masked array is greater than this are real values being masked.
+        if len(bin_index_y_np[~mask_index_y.mask]) > np.count_nonzero(np.isnan(bin_index_y_np[~mask_index_y.mask])):
+            print("Masked y values: ", bin_index_y_np[~mask_index_y.mask])
+            logger.warning("Across-track width exceed maximum grid bounds. "
+                           "{} data points beyond bounds will be lost. Consider increasing bin size."
+                           .format(len(bin_index_y_np[~mask_index_y.mask]) -
+                                   np.count_nonzero(np.isnan(bin_index_y_np[~mask_index_y.mask]))))
+                           #.format(len(bin_index_y_np[~mask_index_y.mask])))
 
-        process_MWC_end_time = datetime.datetime.now()  # For testing
-        time_diff = (process_MWC_end_time - process_MWC_start_time).total_seconds()  # For testing
-        print("DGPROCESS, time for all beams: {}, time x 1514: {}".format(time_diff, (time_diff * 1514)))  # For testing
+        # if len(bin_index_z_np[~mask_index_z.mask]) > 0:  # This doesn't work because NaNs are masked.
+        # np.count_nonzero(np.isnan(bin_index_z_np[~mask_index_z.mask])) will count the number of nans that have been
+        # masked; only if length of masked array is greater than this are real values being masked.
+        if len(bin_index_z_np[~mask_index_z.mask]) > np.count_nonzero(np.isnan(bin_index_z_np[~mask_index_z.mask])):
+            print("Masked z values: ", bin_index_z_np[~mask_index_z.mask])
+            logger.warning("Heave ({:.5f}) exceeds maximum heave ({}) by {:.5f} meters. "
+                           "{} data points beyond maximum heave will be lost. Consider increasing maximum heave."
+                           .format(heave, self.MAX_HEAVE, (heave + self.MAX_HEAVE),
+                                   len(bin_index_z_np[~mask_index_z.mask])))
+
+        # Combine y, z masks:
+        mask_index_y_z = np.logical_and(mask_index_y.mask, mask_index_z.mask)
+
+        # Pie chart will be approximated as a 2-dimensional y, z grid.
+        # Combine y, z indices, convert from float to int:
+        y_z_indices = np.vstack((bin_index_z_np[mask_index_y_z], bin_index_y_np[mask_index_y_z])).astype(int)
+
+        amplitude_np = (np.array(dg['beamData']['sampleAmplitude05dB_p']) * 0.5) - tvg_offset_db
+
+        # Trim amplitude_np to only include values of interest (up to np.max(detected_range_np) + 1)
+        amplitude_np = amplitude_np[:, :(np.max(detected_range_np) + 1)]
+
+        # Mask amplitude_np with same combination of y, z masks
+        amplitude_np = amplitude_np[mask_index_y_z]
+
+        # This method of indexing based on:
+        # https://stackoverflow.com/questions/47015578/numpy-assigning-values-to-2d-array-with-list-of-indices
+        pie_chart_values[tuple(y_z_indices)] += amplitude_np
+        pie_chart_count[tuple(y_z_indices)] += 1
+        # ###################### END NEW - OUTSIDE ###################### #
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        # # ###################### START OLD - OUTSIDE ###################### #
+        # # TODO: I think I can speed this up by getting rid of this loop and just using matrix math?
+        # for beam in range(num_beams):
+        #     # Across-track beam angle:
+        #     beam_point_angle_re_vertical = dg['beamData']['beamPointAngReVertical_deg'][beam]
+        #     # Along-track beam angle:
+        #     sector_tilt_angle_re_tx_deg = tilt_angle_re_tx_deg_3_sectors[dg['beamData']['beamTxSectorNum'][beam]]
+        #     # TODO: Interpolate pitch to find tilt_angle_re_vertical_deg:
+        #     #  tilt_angle_re_vertical_deg = tilt_angle_re_tx_deg + interpolated_pitch
+        #     temp_tilt_angle_re_vertical_deg = sector_tilt_angle_re_tx_deg
+        #
+        #     # Index in sampleAmplitude05dB array where bottom detected
+        #     # detected_range = dg['beamData']['detectedRangeInSamples'][beam]
+        #
+        #     detected_range_np = np.array(dg['beamData']['detectedRangeInSamples'])
+        #     # Compute average for non-zero values:
+        #     average_detected_range_for_swath = np.average(detected_range_np[detected_range_np > 0])
+        #     # Replace zero values with average value:
+        #     detected_range_np[detected_range_np == 0] = average_detected_range_for_swath
+        #
+        #     # Index in sampleAmplitude05dB array where bottom detected
+        #     detected_range = detected_range_np[beam]
+        #
+        #     # For testing:
+        #     # histo = np.histogram(detected_range)
+        #     # detected_range_np_flatten = np.array(detected_range).flatten()
+        #     # mask = np.ma.masked_less(detected_range_np_flatten, 400)
+        #     # detected_range_np_flatten_masked = detected_range_np_flatten[~mask.mask]
+        #     # if len(detected_range_np_flatten_masked) > 1:
+        #     #     plt.hist(detected_range_np_flatten_masked, bins=np.arange(0, 650, 10))
+        #     #     plt.show()
+        #
+        #     # TODO: Use harmonic sound speed to determine bottom strike point; assume all other points for this
+        #     #  beam on straight line from bottom strike point to transducer.
+        #
+        #     start_wc_i = datetime.datetime.now()  # For testing
+        #
+        #     # #*#*#*#*#*#*#*#*#*# START NEW, FAST VERSION #*#*#*#*#*#*#*#*#*# #
+        #     # Create an array from 0 to detected_range, with a step size of 1
+        #     range_indices_np = np.arange(0, (detected_range + 1), 1)
+        #     # Calculate range (distance) to every point from 0 to detected range:
+        #     range_to_wc_data_point_np = (sound_speed * range_indices_np) / (sample_freq * 2)
+        #
+        #     # TODO: Change temp_tilt_angle_re_vertical_deg to tilt_angle_re_vertical_deg
+        #     kongs_x_np = range_to_wc_data_point_np * math.sin(math.radians(temp_tilt_angle_re_vertical_deg))
+        #     kongs_y_np = range_to_wc_data_point_np * math.sin(math.radians(beam_point_angle_re_vertical))
+        #     kongs_z_np = range_to_wc_data_point_np * math.cos(math.radians(temp_tilt_angle_re_vertical_deg)) * \
+        #               math.cos(math.radians(beam_point_angle_re_vertical)) + heave
+        #
+        #     # For testing:
+        #     # mask = np.ma.masked_less(kongs_z_np, 0)
+        #     # kongs_z_np_masked = kongs_z_np[mask.mask]
+        #     # if len(kongs_z_np_masked) > 0:
+        #     #     print("-----------------------------------------------------------------------------------------------")
+        #     #     print("kongs_z_np_masked: ", kongs_z_np_masked)
+        #     #     print("range_indices_np: ", range_indices_np[mask.mask])
+        #     #     print("range_to_wc_data_point: ", range_to_wc_data_point_np[mask.mask])
+        #     #     print("temp_tilt_angle_re_vertical_deg", temp_tilt_angle_re_vertical_deg)
+        #     #     print("beam_point_angle_re_vertical", beam_point_angle_re_vertical)
+        #     #     print("heave: ", heave)
+        #     #     print("-----------------------------------------------------------------------------------------------")
+        #
+        #
+        #     # Note: For x and y, we need "(self.MAX_NUM_GRID_CELLS / 2)" to 'normalize position'--otherwise, negative
+        #     # indices insert values at the end of the array (think negative indexing into array).
+        #     # Note: For z, (self.MAX_HEAVE / self.bin_size) results in number of bins allowable above '0' (neutral sea
+        #     # surface). For example, for a negative (upward) heave that results in a bin index of -20, if self.MAX_HEAVE
+        #     # is 1 and self.bin_size is 0.05, we will add 20 to the bin index. -20 (bin_index) + 20 (adjustment) = 0
+        #     # (*new* bin_index).
+        #     # Note: We will approximate a swath as a 2-dimensional y, z plane rotated about the z axis.
+        #
+        #     # We only need x bin index for bottom strike points (the last value in the np array).
+        #     # (Though, I'm not sure we need the x bin index at all, given that we have actual positions (kongs_x_np).)
+        #     bin_index_x_np = np.floor(kongs_x_np[-1] / self.bin_size) + int(self.MAX_NUM_GRID_CELLS / 2)
+        #     bin_index_y_np = np.floor(kongs_y_np / self.bin_size) + int(self.MAX_NUM_GRID_CELLS / 2)
+        #     bin_index_z_np = np.floor(kongs_z_np / self.bin_size) + int(self.MAX_HEAVE / self.bin_size)
+        #
+        #     # Mask indices that fall outside of accepted values: 0 to (MAX_NUM_GRID_CELLS - 1)
+        #     # TODO: Do we need to do this for x indices too?
+        #     mask_index_y = np.ma.masked_inside(bin_index_y_np, 0, (self.MAX_NUM_GRID_CELLS - 1))
+        #     mask_index_z = np.ma.masked_inside(bin_index_z_np, 0, (self.MAX_NUM_GRID_CELLS - 1))
+        #
+        #     # Error checking and warning if data will be lost:
+        #     if len(bin_index_y_np[~mask_index_y.mask]) > 0:
+        #         logger.warning("Across-track width exceed maximum grid bounds. "
+        #                        "{} data points beyond bounds will be lost. Consider increasing bin size."
+        #                        .format(len(bin_index_y_np[~mask_index_y.mask])))
+        #
+        #     if len(bin_index_z_np[~mask_index_z.mask]) > 0:
+        #         logger.warning("Heave ({:.5f}) exceeds maximum heave ({}) by {:.5f} meters. "
+        #                        "{} data points beyond maximum heave will be lost. Consider increasing maximum heave."
+        #                        .format(heave, self.MAX_HEAVE, (heave + self.MAX_HEAVE),
+        #                                len(bin_index_z_np[~mask_index_z.mask])))
+        #
+        #     # Combine y, z masks:
+        #     mask_index_y_z = np.logical_and(mask_index_y.mask, mask_index_z.mask)
+        #
+        #     # For testing:
+        #     # mask = np.ma.masked_less(bin_index_z_np, 0)
+        #     # bin_index_z_np_masked = bin_index_z_np[mask.mask]
+        #     # if len(bin_index_z_np_masked) > 0:
+        #     #     print("###############################################################################################")
+        #     #     print("bin_index_z_np_masked, should be ints: ", bin_index_z_np_masked)
+        #     #     print("###############################################################################################")
+        #
+        #     # Pie chart will be approximated as a 2-dimensional y, z grid.
+        #     # Combine y, z indices, convert from float to int:
+        #     y_z_indices = np.vstack((bin_index_z_np[mask_index_y_z], bin_index_y_np[mask_index_y_z])).astype(int)
+        #
+        #     amplitude_np = (np.array(dg['beamData']['sampleAmplitude05dB_p'][beam][:detected_range + 1]) * 0.5) - \
+        #                    tvg_offset_db
+        #
+        #     # Mask amplitude_np with same combination of y, z masks
+        #     amplitude_np = amplitude_np[mask_index_y_z]
+        #
+        #     # This method of indexing based on:
+        #     # https://stackoverflow.com/questions/47015578/numpy-assigning-values-to-2d-array-with-list-of-indices
+        #     pie_chart_values[tuple(y_z_indices)] += amplitude_np
+        #     pie_chart_count[tuple(y_z_indices)] += 1
+        #     # pie_chart_values[tuple(y_z_indices)] += \
+        #     #     (np.array(dg['beamData']['sampleAmplitude05dB_p'][beam][:detected_range + 1]) * 0.5) - tvg_offset_db
+        #     # pie_chart_count[tuple(y_z_indices)] += 1
+        # # ###################### END OLD - OUTSIDE ###################### #
+
+        # Ignore divide by zero runtime warning. In this case, divide by 0 results in NaN, which is what we want.
+        with np.errstate(divide='ignore', invalid='ignore'):
+            # Quick method of averaging!
+            pie_chart_average = pie_chart_values / pie_chart_count
 
         return pie_chart_average
 
