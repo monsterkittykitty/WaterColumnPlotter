@@ -10,6 +10,7 @@ import datetime
 import io
 import KMALL
 from KmallReaderForWaterColumn import KmallReaderForWaterColumn as k
+from KongsbergDGPie import KongsbergDGPie
 import logging
 import math
 import matplotlib
@@ -25,7 +26,7 @@ class KongsbergDGProcess:
         print("init_dgprocess")
         # TODO: Create a function that ensure bin size is not larger than range resolution and will not exceed max 1000 x 1000 matrix
         self.bin_size = bin_size  # Meters
-        self.water_depth = water_depth  # Meters
+        #self.water_depth = water_depth  # Meters
 
         # Queue shared between DGCapture and DGProcess ('get' data from this queue)
         self.queue_rx_data = queue_data
@@ -54,13 +55,13 @@ class KongsbergDGProcess:
         count = 0  # For testing
         while True:
             try:
-                bytes = self.queue_rx_data.get(block=True, timeout=self.QUEUE_RX_DATA_TIMEOUT)
+                dg_bytes = self.queue_rx_data.get(block=True, timeout=self.QUEUE_RX_DATA_TIMEOUT)
 
                 if self.dg_counter == 0:  # For testing
                     first_tx_time = datetime.datetime.now()
                 self.dg_counter += 1
 
-                self.process_dgm(bytes)
+                self.process_dgm(dg_bytes)
 
                 # count += 1  # For testing
                 # print("DGProcess Count: ", count)  # For testing
@@ -80,24 +81,27 @@ class KongsbergDGProcess:
                                                                                                  last_tx_time,
                                                                                                  (last_tx_time - first_tx_time).total_seconds()))
 
-    def process_dgm(self, bytes):
-        bytes_io = io.BytesIO(bytes)
+    def process_dgm(self, dg_bytes):
+        bytes_io = io.BytesIO(dg_bytes)
         header = k.read_EMdgmHeader(bytes_io, return_fields=True)
 
         if header[1] == b'#MRZ':
-            self.mrz = bytes
+            self.mrz = dg_bytes
             self.process_MRZ(header, bytes_io)
 
         elif header[1] == b'#MWC':
             self.mwc_counter += 1  # For testing
             print("mwc_counter:", self.mwc_counter)
-            self.mwc = bytes
+            self.mwc = dg_bytes
 
-            pie_matrix = self.process_MWC(header, bytes_io)
-            self.queue_tx_pie.put(pie_matrix)
+            # TODO: !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            # pie_matrix = self.process_MWC(header, bytes_io)
+            # self.queue_tx_pie.put(pie_matrix)
+            pie_object = self.process_MWC(header, bytes_io)
+            self.queue_tx_pie.put(pie_object)
 
         elif header[1] == b'#SKM':
-            self.skm = bytes
+            self.skm = dg_bytes
             self.process_SKM(header, bytes_io)
 
     def process_MRZ(self, header, bytes_io):
@@ -246,19 +250,6 @@ class KongsbergDGProcess:
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
         # # ###################### START OLD - OUTSIDE ###################### #
         # # TODO: I think I can speed this up by getting rid of this loop and just using matrix math?
         # for beam in range(num_beams):
@@ -383,12 +374,16 @@ class KongsbergDGProcess:
         #     # pie_chart_count[tuple(y_z_indices)] += 1
         # # ###################### END OLD - OUTSIDE ###################### #
 
+        # TODO: !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         # Ignore divide by zero runtime warning. In this case, divide by 0 results in NaN, which is what we want.
-        with np.errstate(divide='ignore', invalid='ignore'):
-            # Quick method of averaging!
-            pie_chart_average = pie_chart_values / pie_chart_count
+        # with np.errstate(divide='ignore', invalid='ignore'):
+        #     # Quick method of averaging!
+        #     pie_chart_average = pie_chart_values / pie_chart_count
+        #
+        # return pie_chart_average
 
-        return pie_chart_average
+        pie_object = KongsbergDGPie(pie_chart_values, pie_chart_count, dg['header']['dgtime'])
+        return pie_object
 
     def process_SKM(self, header, bytes_io):
         pass
@@ -400,44 +395,28 @@ class KongsbergDGProcess:
         print("Header: ", header)
         if header[1] == b'#MWC':
             print("Header: ", header)
-            #print("At position {} of length {}".format(bytes_io.tell(), len(bytes)))
+            # print("At position {} of length {}".format(bytes_io.tell(), len(bytes)))
             partition = k.read_EMdgmMpartition(bytes_io, header[1], header[2], return_fields=True)
             print("Partition: ", partition)
-            #print("At position {} of length {}".format(bytes_io.tell(), len(bytes)))
+            # print("At position {} of length {}".format(bytes_io.tell(), len(bytes)))
             cmn_part = k.read_EMdgmMbody(bytes_io, header[1], header[2], return_fields=True)
             print("CmnPart: ", cmn_part)
-            #print("At position {} of length {}".format(bytes_io.tell(), len(bytes)))
+            # print("At position {} of length {}".format(bytes_io.tell(), len(bytes)))
             tx_info = k.read_EMdgmMWC_txInfo(bytes_io, header[2], return_fields=True)
             print("TxInfo: ", tx_info)
-            #print("At position {} of length {}".format(bytes_io.tell(), len(bytes)))
+            # print("At position {} of length {}".format(bytes_io.tell(), len(bytes)))
             sectorData = []
             for i in range(tx_info[1]):
                 sectorData.append(k.read_EMdgmMWC_txSectorData(bytes_io, header[2], return_fields=True))
             print("SectorData: ", sectorData)
-            #print("At position {} of length {}".format(bytes_io.tell(), len(bytes)))
+            # print("At position {} of length {}".format(bytes_io.tell(), len(bytes)))
             rx_info = k.read_EMdgmMWC_rxInfo(bytes_io, header[2], return_fields=True)
             print("Rx Info: ", rx_info)
-            #print("At position {} of length {}".format(bytes_io.tell(), len(bytes)))
+            # print("At position {} of length {}".format(bytes_io.tell(), len(bytes)))
             beamData = []
             for i in range(rx_info[1]):
                 print("In DGProcess. i: ", i)
                 beamData.append(k.read_EMdgmMWC_rxBeamData(bytes_io, header[2], rx_info[3], return_fields=True))
             print("Beam Data: ", beamData)
 
-    # def __init_plots(self, x, y):
-    #     array = np.zeros([y, x])
-    #
-    #     plt.ion()
-    #
-    #     fig1 = plt.figure(figsize=(11, 8.5), dpi=150)
-    #     ax1 = plt.axes()
-    #     im = ax1.imshow(array, cmap="gray")  # origin=?
-    #     im.set_data(array.shape)
-    #     return im
-    #
-    # def plot_pie_chart(self, water_column_2d):
-    #     print("******************************************************************************************Plotting!")
-    #
-    #     self.im_pie.set_data(water_column_2d)
-    #     plt.show(block=False)
 

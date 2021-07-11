@@ -303,7 +303,7 @@ class KmallPlayer:
 
                     if row['MessageType'] == "b'#MWC'":  # For testing
                         mwc_counter += 1
-                    #logging.warning("Split message : size %s of type %s", str(row['MessageSize']), row['MessageType'])
+                    logging.warning("Split message : size %s of type %s", str(row['MessageSize']), row['MessageType'])
 
             last_tx_time = datetime.datetime.now()  # For testing
 
