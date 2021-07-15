@@ -8,7 +8,7 @@
 from collections import deque
 import datetime
 import io
-import KMALL
+#import KMALL
 from KmallReaderForWaterColumn import KmallReaderForWaterColumn as k
 from KongsbergDGPie import KongsbergDGPie
 import logging
@@ -34,7 +34,7 @@ class KongsbergDGProcess:
         # Queue shared between DGProcess and DGPlot ('put' pie in this queue)
         self.queue_tx_pie = queue_pie
 
-        self.k = KMALL.kmall(filename=None)
+        #self.k = KMALL.kmall(filename=None)
 
         self.mrz = None
         self.mwc = None

@@ -13,7 +13,7 @@
 import argparse
 import datetime
 import io
-import KMALL
+#import KMALL
 import logging
 import socket
 import struct

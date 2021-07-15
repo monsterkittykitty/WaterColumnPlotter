@@ -11,7 +11,7 @@ from collections import deque
 import datetime
 import io
 import itertools
-import KMALL
+#import KMALL
 from KmallReaderForWaterColumn import KmallReaderForWaterColumn as k
 from KongsbergDGPie import KongsbergDGPie
 import logging
@@ -23,7 +23,8 @@ import matplotlib.animation as anim
 import matplotlib.pyplot as plt
 from numba import jit
 import numpy as np
-from numpy_ringbuffer import RingBuffer
+#from numpy_ringbuffer import RingBuffer
+from NumpyRingBuffer import NumpyRingBuffer
 import sched
 import statistics
 import threading
@@ -46,20 +47,28 @@ class KongsbergDGPlot:
         self.queue_rx_pie = queue_pie
 
         self.QUEUE_RX_PIE_TIMEOUT = 60  # Seconds
-
         self.MAX_LENGTH_BUFFER = 10000  # Based on ~1000 MWC datagrams per minute for 10 minutes (~16 per second).
+        # Above doesn't work because NumpyRingBuffer allocates full memory for 10000 * 500 * 500 matrix--that's ~20 GB
+        # Update: It works now with dtype=float changed to dtype=np.float16! I think this should still give us good enough precision.
+        #self.MAX_LENGTH_BUFFER = 1000  # Based on ~1000 MWC datagrams per minute for 1 minutes (~16 per second).
+        # TODO: Should this be passed as an argument to both DGProcess and DGPlot to ensure consistency?
+        self.MAX_NUM_GRID_CELLS = 500
+
         #self.pie_buffer = deque([], maxlen=self.MAX_LENGTH_BUFFER)
         #self.pie_buffer = RingBuffer(capacity=self.MAX_LENGTH_BUFFER, dtype=np.ndarray)
-        self.pie_buffer = RingBuffer(capacity=self.MAX_LENGTH_BUFFER, dtype=np.ndarray)
-        self.pie_buffer_values = RingBuffer(capacity=self.MAX_LENGTH_BUFFER, dtype=np.ndarray)
-        self.pie_buffer_count = RingBuffer(capacity=self.MAX_LENGTH_BUFFER, dtype=np.ndarray)
-        self.lat_lon_buffer = RingBuffer(capacity=self.MAX_LENGTH_BUFFER, dtype=tuple)
+        #self.pie_buffer = NumpyRingBuffer(capacity=self.MAX_LENGTH_BUFFER, dtype=np.ndarray)
+        self._lock = threading.Lock()
+        self.pie_values_buffer = NumpyRingBuffer(capacity=self.MAX_LENGTH_BUFFER,
+                                                 dtype=(np.float16, (self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS)))
+        self.pie_count_buffer = NumpyRingBuffer(capacity=self.MAX_LENGTH_BUFFER,
+                                                dtype=(np.uint16, (self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS)))
+        self.timestamp_buffer = NumpyRingBuffer(capacity=self.MAX_LENGTH_BUFFER, dtype=np.float32)
+        self.lat_lon_buffer = NumpyRingBuffer(capacity=self.MAX_LENGTH_BUFFER, dtype=(np.float32, 2))
 
         # TODO: I'm not sure whether another data structure is the best way to do this. Probably not??? Deal with dual swath here.
         #self.vert_mean_buffer = deque([], maxlen=int(self.MAX_LENGTH_BUFFER / self.num_pings_to_average))
 
-        # TODO: Should this be passed as an argument to both DGProcess and DGPlot to ensure consistency?
-        self.MAX_NUM_GRID_CELLS = 500
+
 
         # TODO: Create a setter method for this.
         self.vert_curt_start_index = math.floor((self.MAX_NUM_GRID_CELLS / 2) -
@@ -72,8 +81,9 @@ class KongsbergDGPlot:
         self.PIE_VMAX = 10
         self.PLOT_UPDATE_INTERVAL = 500  # Milliseconds
 
-        self.fig_pie, self.ax_pie, self.im_pie = self.__init_pie_plot()
-        #self.fig_vert, self.ax_vert, self.im_vert = self.__init_vertical_plot()
+        # self.fig_pie, self.ax_pie, self.im_pie = self.__init_pie_plot()
+        # self.fig_vert, self.ax_vert, self.im_vert = self.__init_vertical_plot()
+        self.fig_pie, self.ax_pie, self.ax_vert, self.im_pie, self.im_vert = self.__init_plots()
 
         self.animation = None
 
@@ -109,10 +119,12 @@ class KongsbergDGPlot:
         # while True:
         #     print(len(self.pie_buffer))
         # Animate plot:
-        self.animation_pie = anim.FuncAnimation(self.fig_pie, self.animate_pie, fargs=(),
-                                                interval=self.PLOT_UPDATE_INTERVAL)
+        # self.animation_pie = anim.FuncAnimation(self.fig_pie, self.animate_pie, fargs=(),
+        #                                         interval=self.PLOT_UPDATE_INTERVAL)
         # self.animation_vert = anim.FuncAnimation(self.fig_vert, self.animate_vert, fargs=(),
         #                                         interval=self.PLOT_UPDATE_INTERVAL)
+        self.animation_vert = anim.FuncAnimation(self.fig_pie, self.animate_vert, fargs=(),
+                                                 interval=self.PLOT_UPDATE_INTERVAL)
         #self.save_animation(self.animation)
         #plt.ioff()
         # print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
@@ -130,7 +142,7 @@ class KongsbergDGPlot:
 
 
     def get_and_buffer_pie(self):
-        print("DGPlot: get_and_deque_pie")  # For debugging
+        print("DGPlot: get_and_buffer_pie")  # For debugging
         start_rx_time = 0
         test_count = 0
 
@@ -146,19 +158,22 @@ class KongsbergDGPlot:
                     start_rx_time = datetime.datetime.now()
                 test_count += 1
 
+                self._lock.acquire()
                 #self.pie_buffer.append(pie_object)
-                self.pie_buffer_values.append(pie_object.pie_chart_values)
-                self.pie_buffer_count.append(pie_object.pie_chart_count)
-                self.lat_lon_buffer.append((pie_object.latitude, pie_object.longitude))
+                self.pie_values_buffer.append(pie_object.pie_chart_values)
+                self.pie_count_buffer.append(pie_object.pie_chart_count)
+                self.timestamp_buffer.append(pie_object.timestamp)
+                self.lat_lon_buffer.append([pie_object.latitude, pie_object.longitude])
+                self._lock.release()
                 mwc_mean_count += 1
 
 
-                if mwc_mean_count == 22:
-                    start = datetime.datetime.now()
-                    self.animate_vert(2)
-                    end = datetime.datetime.now()
-                    print("time: ", (end - start).total_seconds())
-                    #exit()
+                # if mwc_mean_count == 22:
+                #     start = datetime.datetime.now()
+                #     self.animate_vert(2)
+                #     end = datetime.datetime.now()
+                #     print("time: ", (end - start).total_seconds())
+                #     #exit()
 
 
                 # # Average 'blocks' of pings as able:
@@ -216,6 +231,27 @@ class KongsbergDGPlot:
 
         #print("TIME TO DEQUE ALL ITEMS IN QUEUE: {}".format(self.start_time - datetime.datetime.now()))
 
+    def __init_plots(self):
+        array1 = np.zeros([self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS])
+        array1[:] = np.nan
+
+        array2 = np.zeros([self.MAX_NUM_GRID_CELLS, int(self.MAX_LENGTH_BUFFER / self.num_pings_to_average)])
+        array2[:] = np.nan
+
+        plt.ion()
+
+        fig = plt.figure(figsize=(6, 6), dpi=150)
+        ax1 = fig.add_subplot(2, 1, 1)
+        ax2 = fig.add_subplot(2, 1, 2)
+        im1 = ax1.imshow(array1, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
+        im2 = ax2.imshow(array2, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
+
+        plt.colorbar(im1)
+        plt.draw()
+        plt.pause(0.001)
+
+        return fig, ax1, ax2, im1, im2
+
     def __init_pie_plot(self):
         # Plotting finally works following this model:
         # https://stackoverflow.com/questions/43966427/matplotlib-does-not-update-plot-when-used-in-an-ide-pycharm/43967137#43967137
@@ -229,6 +265,15 @@ class KongsbergDGPlot:
         ax = fig.add_subplot(1, 1, 1)
         #im = ax.imshow(array, cmap='gray_r', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Reverse greyscale
         im = ax.imshow(array, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
+
+
+        # TODO: EXP:
+        # array_s = np.zeros([self.MAX_NUM_GRID_CELLS, int(self.MAX_LENGTH_BUFFER / self.num_pings_to_average)])
+        # array_s[:] = np.nan
+        # ax2 = fig.add_subplot(2, 1, 1)
+        # im2 = ax2.imshow(array_s, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)
+
+
         plt.colorbar(im)
         plt.draw()
         plt.pause(0.001)
@@ -259,14 +304,21 @@ class KongsbergDGPlot:
         # Animate pie plot:
         # Get most recent entry from pie_buffer
         #if self.pie_buffer:
-        if self.pie_buffer_count:
-            #temp_pie = np.array(self.pie_buffer)[-1]
-            #temp_pie = self.pie_buffer[-1]
-            with np.errstate(divide='ignore', invalid='ignore'):
-                # Quick method of averaging!
-                pie = self.pie_buffer_values.pop() / self.pie_buffer_count.pop()
+        pie = []
+        self._lock.acquire()
+        try:
+            if self.pie_count_buffer:
+                #temp_pie = np.array(self.pie_buffer)[-1]
+                #temp_pie = self.pie_buffer[-1]
 
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    # Quick method of averaging!
+                    pie = self.pie_values_buffer.peek() / self.pie_count_buffer.peek()
+        finally:
+            self._lock.release()
+        if np.any(pie):
 
+            print(pie[50])
             # This method will look for the index of the last row that is not completely filled with
             # NaNs. Add one to that index for the first full row of NaNs after all data.
             index = np.argwhere(~np.isnan(pie).all(axis=1))[-1][0] + 1
@@ -287,86 +339,79 @@ class KongsbergDGPlot:
     def animate_vert(self, i):
         # Animate vertical curtain plot:
 
-        start = datetime.datetime.now()
-        # Slower, less efficient method to retrieve specific instance variables from objects in self.pie_buffer:
-        # pie_chart_values = np.array([pie.pie_chart_values for pie in self.pie_buffer])
-        # pie_chart_count = np.array([pie.pie_chart_count for pie in self.pie_buffer])
-
-        # TODO: This is really slow.
-        # Retrieve specific instance variables (pie_chart_values, pie_chart_count) from objects in self.pie_buffer:
-        temp = np.array([[pie.pie_chart_values, pie.pie_chart_count] for pie in self.pie_buffer])
-        pie_chart_values = (temp[:, 0])[:, :, self.vert_curt_start_index:self.vert_curt_end_index]
-        pie_chart_count = (temp[:, 1])[:, :, self.vert_curt_start_index:self.vert_curt_end_index]
-
-        # Approx same time-wise...
-        # l1, l2 = zip(*[(pie.pie_chart_values, pie.pie_chart_count) for pie in self.pie_buffer])
-        # l1 = np.array(l1)[:, :, self.vert_curt_start_index:self.vert_curt_end_index]
-        # l2 = np.array(l2)[:, :, self.vert_curt_start_index:self.vert_curt_end_index]
-
-        # temp = np.array(self.pie_buffer)
-        # v_values = np.vectorize(lambda x: x.pie_chart_values)
-        # v_count = np.vectorize(lambda x: x.pie_chart_count)
-        # pie_chart_values = v_values(temp)
-        # pie_chart_count = v_count(temp)
-
-        end = datetime.datetime.now()
-        print("time1: ", (end - start).total_seconds())
-
-
-        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        print("len(pie_chart_values):", len(pie_chart_values))
-        print("len(self.pie_buffer):", len(self.pie_buffer))
-        print("pie_chart_values.shape:", pie_chart_values.shape)
-        print("pie_chart_count.shape:", pie_chart_count.shape)
-        print("len(pie_chart_values):" , len(pie_chart_values))
-        print("len(self.pie_buffer):", len(self.pie_buffer))
-
+        self._lock.acquire()
         # We only want a number of pings that is evenly divisible by self.num_pings_to_average;
         # trim the 'remainder' from the end of the array:
-        pie_chart_values = pie_chart_values[:-(pie_chart_values.shape[0] % self.num_pings_to_average)]
-        pie_chart_count = pie_chart_count[:-(pie_chart_count.shape[0] % self.num_pings_to_average)]
+        try:
+            pie_values = self.pie_values_buffer[:-(self.pie_values_buffer.shape[0] % self.num_pings_to_average)]
+            pie_count = self.pie_count_buffer[:-(self.pie_count_buffer.shape[0] % self.num_pings_to_average)]
+            pie_timestamp = self.timestamp_buffer[:-(self.timestamp_buffer.shape[0] % self.num_pings_to_average)]
+            pie_lat_lon = self.lat_lon_buffer[:-(self.lat_lon_buffer.shape[0] % self.num_pings_to_average)]
+        finally:
+            self._lock.release()
 
-        print("pie_chart_values.shape after trim:", pie_chart_values.shape)
-        print("pie_chart_count.shape after trim:", pie_chart_count.shape)
-        print("len(pie_chart_values):", len(pie_chart_values))
-        print("len(self.pie_buffer):", len(self.pie_buffer))
+        pie_values_average = []
 
-        # NOTE: We no longer need this, and neither array (pie_chart_values, pie_chart_count) contains NaNs.
-        # Create a mask to keep track of location of all NaNs;
-        # only necessary for pie_chart_values as pie_chart_count contains no NaNs:
-        # Method based on: https://stackoverflow.com/questions/52262516/using-or-to-reduce-a-3d-boolean-array-to-2d
-        # pie_chart_values_booleans = np.logical_and.reduceat(np.isnan(pie_chart_values),
-        #                                                     range(0, len(pie_chart_values),
-        #                                                     self.num_pings_to_average),
-        #                                                     axis=0)
+        if np.any(pie_values) and np.any(pie_count):
+            # Trim arrays to omit values outside of self.vert_curt_width
+            # TODO: verify that self.vert_curt_start_index, self.vert_curt_end_index are calculated correctly
+            pie_values = pie_values[:, :, self.vert_curt_start_index:self.vert_curt_end_index]
+            pie_count = pie_count[:, :, self.vert_curt_start_index:self.vert_curt_end_index]
+            # "Collapse" arrays by adding every self.num_pings_to_average so that
+            # len(_collapsed_array_) = len(_array_) / self.num_pings_to_average
+            pie_values = np.add.reduceat(pie_values, range(0, len(pie_values), self.num_pings_to_average))
+            pie_count = np.add.reduceat(pie_count, range(0, len(pie_count), self.num_pings_to_average))
+            # Sum rows of matrices:
+            pie_values = np.sum(pie_values, axis=1)
+            pie_count = np.sum(pie_count, axis=1)
 
-        # Sum / collapse every self.num_pings_to_average number of pings. This should result in matrices of length:
-        # (len(pie_chart_values) / self.num_pings_to_average) and (len(pie_chart_count) / self.num_pings_to_average)
-        pie_chart_values = np.add.reduceat(pie_chart_values, range(0, len(pie_chart_values), self.num_pings_to_average))
-        pie_chart_count = np.add.reduceat(pie_chart_count, range(0, len(pie_chart_count), self.num_pings_to_average))
+            # Average trimmed, collapsed, summed arrays:
+            # Note that division by zero results in a warning and a value of NaN.
+            # In cases of divide by zero, NaN is the desired result. Suppress warning.
+            # TODO: Need to deal with adding/averaging nans! Maybe not. Arrays initialized with zeros, not NaNs.
+            with np.errstate(divide='ignore', invalid='ignore'):
+                pie_values_average = pie_values / pie_count
 
-        print("pie_chart_values.shape after collapse:", pie_chart_values.shape)
-        print("pie_chart_count.shape after collapse:", pie_chart_count.shape)
+            print("pie_values.shape after collapse:", pie_values.shape)
+            print("pie_count.shape after collapse:", pie_count.shape)
+            print("pie_values_average.shape after collapse:", pie_values_average.shape)
 
-        # Average by dividing: pie_chart_values / pie_chart_count.
-        # Note that division by zero results in a warning and a value of NaN.
-        # In cases of divide by zero, NaN is the desired result. Suppress warning.
-        with np.errstate(divide='ignore', invalid='ignore'):
-            # Quick method of averaging!
-            pie_chart_average = pie_chart_values / pie_chart_count
+            pie_timestamp_average = []
 
-        print("pie_chart_average.shape: ", pie_chart_average.shape)
-        print("Number of nans in average: ", np.count_nonzero(np.isnan(pie_chart_average)))
-        end = datetime.datetime.now()
-        print("time2: ", (end - start).total_seconds())
+            if np.any(pie_timestamp):
+                # "Collapse" arrays by adding every self.num_pings_to_average so that
+                # len(_collapsed_array_) = len(_array_) / self.num_pings_to_average
+                pie_timestamp = np.add.reduceat(pie_timestamp, range(0, len(pie_timestamp), self.num_pings_to_average))
+                # Average collapsed arrays:
+                # Note that division by zero results in a warning and a value of NaN.
+                # In cases of divide by zero, NaN is the desired result. Suppress warning.
+                # TODO: Need to deal with adding/averaging nans!
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    pie_timestamp_average = pie_timestamp / self.num_pings_to_average
 
-        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            pie_lat_lon_average = []
 
-        # self.ax_vert.clear()
-        # self.ax_vert.imshow(pie_chart_average, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
-        # plt.draw()
-        # plt.pause(0.001)
+            if np.any(pie_lat_lon):
+                # "Collapse" arrays by adding every self.num_pings_to_average so that
+                # len(_collapsed_array_) = len(_array_) / self.num_pings_to_average
+                pie_lat_lon = np.add.reduceat(pie_lat_lon, range(0, len(pie_lat_lon), self.num_pings_to_average))
+                # Average collapsed arrays:
+                # Note that division by zero results in a warning and a value of NaN.
+                # In cases of divide by zero, NaN is the desired result. Suppress warning.
+                # TODO: Need to deal with adding/averaging nans!
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    pie_lat_lon_average = pie_lat_lon / self.num_pings_to_average
 
+
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            #print("pie_values_average: ", pie_values_average[50])
+            self.ax_vert.clear()
+            self.ax_vert.imshow(pie_values_average.T, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
+            plt.draw()
+            plt.pause(0.001)
+
+        else:
+            logger.warning("Nothing to plot; value and count buffers are empty.")
 
 
         # if self.mean_buffer:
