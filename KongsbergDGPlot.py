@@ -83,7 +83,7 @@ class KongsbergDGPlot:
 
         # self.fig_pie, self.ax_pie, self.im_pie = self.__init_pie_plot()
         # self.fig_vert, self.ax_vert, self.im_vert = self.__init_vertical_plot()
-        self.fig_pie, self.ax_pie, self.ax_vert, self.im_pie, self.im_vert = self.__init_plots()
+        self.fig, self.ax_pie, self.ax_vert, self.im_pie, self.im_vert = self.__init_plots()
 
         self.animation = None
 
@@ -123,7 +123,9 @@ class KongsbergDGPlot:
         #                                         interval=self.PLOT_UPDATE_INTERVAL)
         # self.animation_vert = anim.FuncAnimation(self.fig_vert, self.animate_vert, fargs=(),
         #                                         interval=self.PLOT_UPDATE_INTERVAL)
-        self.animation_vert = anim.FuncAnimation(self.fig_pie, self.animate_vert, fargs=(),
+        # self.animation_vert = anim.FuncAnimation(self.fig, self.animate_vert, fargs=(),
+        #                                          interval=self.PLOT_UPDATE_INTERVAL)
+        self.animation_vert = anim.FuncAnimation(self.fig, self.__animate, fargs=(),
                                                  interval=self.PLOT_UPDATE_INTERVAL)
         #self.save_animation(self.animation)
         #plt.ioff()
@@ -296,6 +298,136 @@ class KongsbergDGPlot:
 
         return fig, ax, im
 
+    def __animate(self, i):
+        print("animate################################################################################################")
+        self.plot_count += 1
+        print(self.plot_count)
+
+        pie_display = []
+        pie_values = []
+        pie_count = []
+        pie_timestamp = []
+        pie_lat_lon = []
+
+        self._lock.acquire()
+        try:
+            with np.errstate(divide='ignore', invalid='ignore'):
+                # Quick method of averaging!
+                pie_display = np.array(self.pie_values_buffer.peek() / self.pie_count_buffer.peek())
+            pie_values = np.array(self.pie_values_buffer[:-(self.pie_values_buffer.shape[0]
+                                                            % self.num_pings_to_average)])
+            pie_count = np.array(self.pie_count_buffer[:-(self.pie_values_buffer.shape[0]
+                                                          % self.num_pings_to_average)])
+            pie_timestamp = np.array(self.timestamp_buffer[:-(self.pie_values_buffer.shape[0]
+                                                              % self.num_pings_to_average)])
+            pie_lat_lon = np.array(self.lat_lon_buffer[:-(self.pie_values_buffer.shape[0]
+                                                          % self.num_pings_to_average)])
+        except IndexError:
+            logger.warning("Excepted IndexError in retrieving values from buffer.")
+        finally:
+            self._lock.release()
+
+        #pie_display = []
+        pie_values_average = []
+
+        if len(pie_values) > self.num_pings_to_average and len(pie_count) > self.num_pings_to_average:
+        #if np.any(pie_values) and np.any(pie_count):
+            # Ignore divide by zero warnings. Division by zero results in NaN, which is what we want.
+            # with np.errstate(divide='ignore', invalid='ignore'):
+            #     pie_display = pie_values[-1] / pie_count[-1]
+            print("pie_values.shape before chopping end:", pie_values.shape)
+            print("pie_count.shape before chopping end:", pie_count.shape)
+            # We only want a number of pings that is evenly divisible by self.num_pings_to_average;
+            # trim the 'remainder' from the end of the array:
+            # pie_values = pie_values[:-(self.pie_values_buffer.shape[0] % self.num_pings_to_average)]
+            # pie_count = pie_count[:-(self.pie_count_buffer.shape[0] % self.num_pings_to_average)]
+            print("self.pie_values_buffer.shape[0]:", self.pie_values_buffer.shape[0])
+            print("modulo self.num_pings_to_average:", self.pie_values_buffer.shape[0] % self.num_pings_to_average)
+            print("self.pie_count_buffer.shape[0]:", self.pie_count_buffer.shape[0])
+            print("modulo self.num_pings_to_average:", self.pie_count_buffer.shape[0] % self.num_pings_to_average)
+            print("pie_values.shape after chopping end:", pie_values.shape)
+            print("pie_count.shape after chopping end:", pie_count.shape)
+            # Trim arrays to omit values outside of self.vert_curt_width
+            # TODO: verify that self.vert_curt_start_index, self.vert_curt_end_index are calculated correctly
+            pie_values = pie_values[:, :, self.vert_curt_start_index:self.vert_curt_end_index]
+            pie_count = pie_count[:, :, self.vert_curt_start_index:self.vert_curt_end_index]
+            print("pie_values.shape after trimming curtain:", pie_values.shape)
+            print("pie_count.shape after trimming curtain:", pie_count.shape)
+            # "Collapse" arrays by adding every self.num_pings_to_average so that
+            # len(_collapsed_array_) = len(_array_) / self.num_pings_to_average
+            pie_values = np.add.reduceat(pie_values, range(0, len(pie_values), self.num_pings_to_average))
+            pie_count = np.add.reduceat(pie_count, range(0, len(pie_count), self.num_pings_to_average))
+            print("pie_values.shape after collapse:", pie_values.shape)
+            print("pie_count.shape after collapse:", pie_count.shape)
+            # Sum rows of matrices:
+            pie_values = np.sum(pie_values, axis=2)
+            pie_count = np.sum(pie_count, axis=2)
+            print("pie_values.shape after sum rows:", pie_values.shape)
+            print("pie_count.shape after sum rows:", pie_count.shape)
+
+            # Ignore divide by zero warnings. Division by zero results in NaN, which is what we want.
+            with np.errstate(divide='ignore', invalid='ignore'):
+                pie_values_average = pie_values / pie_count
+
+            pie_timestamp_average = []
+            if np.any(pie_timestamp):
+                # "Collapse" arrays by adding every self.num_pings_to_average so that
+                # len(_collapsed_array_) = len(_array_) / self.num_pings_to_average
+                pie_timestamp = np.add.reduceat(pie_timestamp, range(0, len(pie_timestamp), self.num_pings_to_average))
+                # Ignore divide by zero warnings. Division by zero results in NaN, which is what we want.
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    pie_timestamp_average = pie_timestamp / self.num_pings_to_average
+            else:
+                logger.warning("Water column timestamp matrix buffer is empty.")
+
+            pie_lat_lon_average = []
+            if np.any(pie_lat_lon):
+                # "Collapse" arrays by adding every self.num_pings_to_average so that
+                # len(_collapsed_array_) = len(_array_) / self.num_pings_to_average
+                pie_lat_lon = np.add.reduceat(pie_lat_lon, range(0, len(pie_lat_lon), self.num_pings_to_average))
+                # Ignore divide by zero warnings. Division by zero results in NaN, which is what we want.
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    pie_lat_lon_average = pie_lat_lon / self.num_pings_to_average
+            else:
+                logger.warning("Nothing to plot; water column latitude / longitude matrix buffer is empty.")
+
+            print("size pie_display: ", pie_display.shape)
+            # Trim NaNs from matrices to be plotted:
+            # This method will look for the index of the last row that is not completely filled with
+            # NaNs. Add one to that index for the first full row of NaNs after all data.
+            index_pie_display = np.argwhere(~np.isnan(pie_display).all(axis=1))[-1][0] + 1
+            index_pie_values_average = np.argwhere(~np.isnan(pie_values_average).all(axis=0))[-1][0] + 1
+
+            # Ensure that 'index' plus some small buffer does not exceed grid size.
+            # (Because we want to allow some small buffer around bottom of data if possible.)
+            index_pie_display = min((index_pie_display + 10), self.MAX_NUM_GRID_CELLS)
+            index_pie_values_average = min((index_pie_values_average + 10), self.MAX_NUM_GRID_CELLS)
+
+            print("Updating plots!@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+            # Update plots:
+            self.ax_pie.clear()
+            self.ax_vert.clear()
+            self.ax_pie.imshow(pie_display[:][:index_pie_display], cmap='gray',
+                               vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
+            self.ax_vert.imshow(pie_values_average.T[:index_pie_values_average], cmap='gray',
+                                vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
+            plt.draw()
+            plt.pause(0.001)
+
+
+            # plt.draw()
+            # plt.pause(0.001)
+
+
+        else:
+            logger.warning("Nothing to plot; water column data matrix buffer is empty.")
+
+
+
+
+
+
+
     def animate_pie(self, i):
         #print("animate")
         self.plot_count += 1
@@ -310,15 +442,14 @@ class KongsbergDGPlot:
             if self.pie_count_buffer:
                 #temp_pie = np.array(self.pie_buffer)[-1]
                 #temp_pie = self.pie_buffer[-1]
-
                 with np.errstate(divide='ignore', invalid='ignore'):
                     # Quick method of averaging!
+
                     pie = self.pie_values_buffer.peek() / self.pie_count_buffer.peek()
         finally:
             self._lock.release()
         if np.any(pie):
 
-            print(pie[50])
             # This method will look for the index of the last row that is not completely filled with
             # NaNs. Add one to that index for the first full row of NaNs after all data.
             index = np.argwhere(~np.isnan(pie).all(axis=1))[-1][0] + 1
@@ -362,8 +493,8 @@ class KongsbergDGPlot:
             pie_values = np.add.reduceat(pie_values, range(0, len(pie_values), self.num_pings_to_average))
             pie_count = np.add.reduceat(pie_count, range(0, len(pie_count), self.num_pings_to_average))
             # Sum rows of matrices:
-            pie_values = np.sum(pie_values, axis=1)
-            pie_count = np.sum(pie_count, axis=1)
+            pie_values = np.sum(pie_values, axis=2)
+            pie_count = np.sum(pie_count, axis=2)
 
             # Average trimmed, collapsed, summed arrays:
             # Note that division by zero results in a warning and a value of NaN.
@@ -371,10 +502,6 @@ class KongsbergDGPlot:
             # TODO: Need to deal with adding/averaging nans! Maybe not. Arrays initialized with zeros, not NaNs.
             with np.errstate(divide='ignore', invalid='ignore'):
                 pie_values_average = pie_values / pie_count
-
-            print("pie_values.shape after collapse:", pie_values.shape)
-            print("pie_count.shape after collapse:", pie_count.shape)
-            print("pie_values_average.shape after collapse:", pie_values_average.shape)
 
             pie_timestamp_average = []
 
@@ -402,11 +529,20 @@ class KongsbergDGPlot:
                 with np.errstate(divide='ignore', invalid='ignore'):
                     pie_lat_lon_average = pie_lat_lon / self.num_pings_to_average
 
+            # Trim NaNs from matrix to be plotted:
+            # This method will look for the index of the last row that is not completely filled with
+            # NaNs. Add one to that index for the first full row of NaNs after all data.
+            index = np.argwhere(~np.isnan(pie_values_average).all(axis=0))[-1][0] + 1
 
-            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            # Ensure that 'index' plus some small buffer does not exceed grid size.
+            # (Because we want to allow some small buffer around bottom of data if possible.)
+            index = min((index + 10), self.MAX_NUM_GRID_CELLS)
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!index: ", index)
+
             #print("pie_values_average: ", pie_values_average[50])
             self.ax_vert.clear()
-            self.ax_vert.imshow(pie_values_average.T, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
+            #self.ax_vert.imshow(pie_values_average[:, :index].T, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
+            self.ax_vert.imshow(pie_values_average.T[:index], cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
             plt.draw()
             plt.pause(0.001)
 
