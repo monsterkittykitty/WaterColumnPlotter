@@ -8,7 +8,8 @@
 import argparse
 from KongsbergDGCapture import KongsbergDGCapture
 from KongsbergDGCaptureFromSonar import KongsbergDGCaptureFromSonar
-from KongsbergDGPlot import KongsbergDGPlot
+#from KongsbergDGPlot import KongsbergDGPlot
+from KongsbergDGPlotNew import KongsbergDGPlot
 from KongsbergDGProcess import KongsbergDGProcess
 import logging
 import multiprocessing
@@ -28,14 +29,15 @@ class KongsbergDGMain:
         self.queue_data = multiprocessing.Queue()
         self.queue_pie = multiprocessing.Queue()
         self.dg_capture = KongsbergDGCaptureFromSonar(rx_ip, rx_port, connection, queue_data=self.queue_data)
-        self.dg_process = KongsbergDGProcess(bin_size=self.bin_size, water_depth=10, queue_data=self.queue_data,
+        self.dg_process = KongsbergDGProcess(bin_size=self.bin_size, water_depth=10, max_heave=1, queue_data=self.queue_data,
                                              queue_pie=self.queue_pie)
 
         # TODO: Experiment to launch KongsbergDGPlot from WaterColumnGUI.
         #  Is it better to create KongsbergDGPlot object here and pass it as argument to WaterColumnGUI?
         #  I think it's OK to do it this way because the format of everything in self.queue_pie
         #  should be standard regardless of sonar system...
-        self.dg_plot = KongsbergDGPlot(bin_size=self.bin_size, vert_curt_width_m=1, num_pings_to_average=10,
+        self.dg_plot = KongsbergDGPlot(bin_size=self.bin_size, max_heave=1, vertical_slice_width_m=1,
+                                       horizontal_slice_width_m=1, horizontal_slice_depth_m=1, num_pings_to_average=10,
                                        queue_pie=self.queue_pie)
         # self.gui = WaterColumnGUI(queue_pie=self.queue_pie)
 

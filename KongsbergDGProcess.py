@@ -22,7 +22,7 @@ import queue
 logger = logging.getLogger(__name__)
 
 class KongsbergDGProcess:
-    def __init__(self, bin_size=None, water_depth=None, queue_data=None, queue_pie=None):
+    def __init__(self, bin_size=None, water_depth=None, max_heave=None, queue_data=None, queue_pie=None):
         print("init_dgprocess")
         # TODO: Create a function that ensure bin size is not larger than range resolution and will not exceed max 1000 x 1000 matrix
         self.bin_size = bin_size  # Meters
@@ -43,7 +43,7 @@ class KongsbergDGProcess:
         self.QUEUE_RX_DATA_TIMEOUT = 60  # Seconds
         self.MAX_NUM_GRID_CELLS = 500
 
-        self.MAX_HEAVE = 1  # Meter(s)
+        self.MAX_HEAVE = max_heave  # Meter(s)
 
         self.dg_counter = 0  # For testing
         self.mwc_counter = 0  # For testing
@@ -72,14 +72,14 @@ class KongsbergDGProcess:
                 logger.exception("Datagram queue empty exception.")
                 break
 
-            if self.queue_rx_data.qsize() == 0:
-                last_tx_time = datetime.datetime.now()
-                print("DGPROCESS, queue_rx_data is empty.")
-                print("DGPROCESS, Received: ", self.dg_counter)
-                print("DGPROCESS, Received MWCs: ", self.mwc_counter)
-                print("DGPROCESS, First transmit: {}; Final transmit: {}; Total time: {}".format(first_tx_time,
-                                                                                                 last_tx_time,
-                                                                                                 (last_tx_time - first_tx_time).total_seconds()))
+            # if self.queue_rx_data.qsize() == 0:
+            #     last_tx_time = datetime.datetime.now()
+            #     print("DGPROCESS, queue_rx_data is empty.")
+            #     print("DGPROCESS, Received: ", self.dg_counter)
+            #     print("DGPROCESS, Received MWCs: ", self.mwc_counter)
+            #     print("DGPROCESS, First transmit: {}; Final transmit: {}; Total time: {}".format(first_tx_time,
+            #                                                                                      last_tx_time,
+            #                                                                                      (last_tx_time - first_tx_time).total_seconds()))
 
     def process_dgm(self, dg_bytes):
         bytes_io = io.BytesIO(dg_bytes)
@@ -91,7 +91,7 @@ class KongsbergDGProcess:
 
         elif header[1] == b'#MWC':
             self.mwc_counter += 1  # For testing
-            print("mwc_counter:", self.mwc_counter)
+            #print("mwc_counter:", self.mwc_counter)
             self.mwc = dg_bytes
 
             # TODO: !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
