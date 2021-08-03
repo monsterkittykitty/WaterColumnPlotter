@@ -120,6 +120,10 @@ class NumpyRingBuffer(Sequence):
         res = self._arr[(self._right_index - 1) % self._capacity]
         return res
 
+    # LMD implemented:
+    # def get_np_array(self):
+    #     return self._unwrap()
+
     def extend(self, values):
         lv = len(values)
         if len(self) + lv > self._capacity:

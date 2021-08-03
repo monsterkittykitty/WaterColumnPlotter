@@ -67,12 +67,13 @@ class KongsbergDGPlot:
 
         self._lock_slice_buffers = threading.Lock()
         # ! ! ! ! ! ALWAYS USE self._lock_slice_buffers WHEN ACCESSING THESE BUFFERS ! ! ! ! ! :
+        # self.vertical_slice_buffer = NumpyRingBuffer(capacity=(self.MAX_LENGTH_BUFFER // self.num_pings_to_average),
+        #                                              dtype=(np.float16, (self.MAX_NUM_GRID_CELLS,
+        #                                                                  self.MAX_NUM_GRID_CELLS)))
         self.vertical_slice_buffer = NumpyRingBuffer(capacity=(self.MAX_LENGTH_BUFFER // self.num_pings_to_average),
-                                                     dtype=(np.float16, (self.MAX_NUM_GRID_CELLS,
-                                                                         self.MAX_NUM_GRID_CELLS)))
+                                                     dtype=(np.float16, self.MAX_NUM_GRID_CELLS))
         self.horizontal_slice_buffer = NumpyRingBuffer(capacity=(self.MAX_LENGTH_BUFFER // self.num_pings_to_average),
-                                                       dtype=(np.float16, (self.MAX_NUM_GRID_CELLS,
-                                                                         self.MAX_NUM_GRID_CELLS)))
+                                                       dtype=(np.float16, self.MAX_NUM_GRID_CELLS))
         self.timestamp_slice_buffer = NumpyRingBuffer(capacity=(self.MAX_LENGTH_BUFFER // self.num_pings_to_average),
                                                       dtype=np.float32)
         self.lat_lon_slice_buffer = NumpyRingBuffer(capacity=(self.MAX_LENGTH_BUFFER // self.num_pings_to_average),
@@ -119,11 +120,12 @@ class KongsbergDGPlot:
         # TODO: Should these be set in DGProcess by actually calculating them? Possibly they could change...
         self.PIE_VMIN = -95
         self.PIE_VMAX = 10
-        self.PLOT_UPDATE_INTERVAL = 500  # Milliseconds
+        self.PLOT_UPDATE_INTERVAL = 1000  # Milliseconds
 
         # self.fig_pie, self.ax_pie, self.im_pie = self.__init_pie_plot()
         # self.fig_vert, self.ax_vert, self.im_vert = self.__init_vertical_plot()
-        self.fig, self.ax_pie, self.ax_vert, self.im_pie, self.im_vert = self.__init_plots()
+        self.fig, self.ax_pie, self.ax_vert, self.ax_horiz, self.im_pie, self.im_vert, self.im_horiz = \
+            self.__init_plots()
 
         self.animation = None
 
@@ -211,7 +213,7 @@ class KongsbergDGPlot:
                     finally:
                         self._lock_slice_buffers.release()
 
-
+                    print("self.vertical_slice_buffer.shape:", self.vertical_slice_buffer.shape)
 
             except queue.Empty:
                 # TODO: Shutdown processes when queue is empty?
@@ -221,7 +223,7 @@ class KongsbergDGPlot:
             if self.queue_rx_pie.qsize() == 0:  # For testing
                 end_rx_time = datetime.datetime.now()
                 diff = (end_rx_time - start_rx_time).total_seconds()
-        #         print("DGPLOT, time to deque {} MWC plots: {}".format(test_count, diff))
+                # print("DGPLOT, time to deque {} MWC plots: {}".format(test_count, diff))
 
         #print("TIME TO DEQUE ALL ITEMS IN QUEUE: {}".format(self.start_time - datetime.datetime.now()))
 
@@ -233,10 +235,11 @@ class KongsbergDGPlot:
 
             # VERTICAL SLICE:
             # Trim arrays to omit values outside of self.vertical_slice_width_m
-            # |X|_|_|_|X|
-            # |X|_|_|_|X|
-            # |X|_|_|_|X|
-            # |X|_|_|_|X|
+            # start_index       end_index
+            #          |X|_|_|_|X|
+            #          |X|_|_|_|X|
+            #          |X|_|_|_|X|
+            #          |X|_|_|_|X|
             pie_values_vertical = temp_pie_values[:, :, self.vertical_slice_start_index:self.vertical_slice_end_index]
             pie_count_vertical = temp_pie_count[:, :, self.vertical_slice_start_index:self.vertical_slice_end_index]
 
@@ -254,18 +257,19 @@ class KongsbergDGPlot:
             # Ignore divide by zero warnings. Division by zero results in NaN, which is what we want.
             with np.errstate(divide='ignore', invalid='ignore'):
                 pie_values_vertical_average = pie_values_vertical / pie_count_vertical
-
+            print("pie_values_vertical_average.shape: ", pie_values_vertical_average.shape)
 
             # HORIZONTAL SLICE:
             # Trim arrays to omit values outside of self.horizontal_slice_width_m
-            # |X|X|X|X|X|
+            # |X|X|X|X|X| start_index
             # |_|_|_|_|_|
             # |_|_|_|_|_|
-            # |X|X|X|X|X|
-            pie_values_horizontal = temp_pie_values[:, self.horizontal_slice_start_index:self.horizontal_slice_end_index, :]
-            pie_count_horizontal = temp_pie_count[:, self.horizontal_slice_start_index:self.horizontal_slice_end_index, :]
+            # |X|X|X|X|X| end_index
+            pie_values_horizontal = temp_pie_values[:, self.horizontal_slice_start_index:
+                                                       self.horizontal_slice_end_index, :]
+            pie_count_horizontal = temp_pie_count[:, self.horizontal_slice_start_index:
+                                                     self.horizontal_slice_end_index, :]
 
-            # TODO: Double check the following computations:
             # "Collapse" arrays by adding every self.num_pings_to_average so that
             # len(_collapsed_array_) = len(_array_) / self.num_pings_to_average = 1
             pie_values_horizontal = np.sum(pie_values_horizontal, axis=0)
@@ -312,22 +316,27 @@ class KongsbergDGPlot:
         array1 = np.zeros([self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS])
         array1[:] = np.nan
 
-        array2 = np.zeros([self.MAX_NUM_GRID_CELLS, int(self.MAX_LENGTH_BUFFER / self.num_pings_to_average)])
-        array2[:] = np.nan
+        array2_3 = np.zeros([self.MAX_NUM_GRID_CELLS, int(self.MAX_LENGTH_BUFFER / self.num_pings_to_average)])
+        array2_3[:] = np.nan
 
         plt.ion()
 
         fig = plt.figure(figsize=(6, 6), dpi=150)
-        ax1 = fig.add_subplot(2, 1, 1)
-        ax2 = fig.add_subplot(2, 1, 2)
+        # ax1 = fig.add_subplot(2, 1, 1)
+        # ax2 = fig.add_subplot(2, 1, 2)
+        ax1 = fig.add_subplot(3, 1, 1)
+        ax2 = fig.add_subplot(3, 1, 2)
+        ax3 = fig.add_subplot(3, 1, 3)
         im1 = ax1.imshow(array1, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
-        im2 = ax2.imshow(array2, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
+        im2 = ax2.imshow(array2_3, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
+        im3 = ax3.imshow(array2_3, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
 
-        plt.colorbar(im1)
+        #plt.colorbar(im1)
+        fig.colorbar(im1, orientation="horizontal", pad=0.2)
         plt.draw()
         plt.pause(0.001)
 
-        return fig, ax1, ax2, im1, im2
+        return fig, ax1, ax2, ax3, im1, im2, im3
 
     def __init_pie_plot(self):
         # Plotting finally works following this model:
@@ -366,7 +375,6 @@ class KongsbergDGPlot:
         return fig, ax, im
 
     def __animate(self, i):
-        print("animate################################################################################################")
         self.plot_count += 1
         print("Plot count: ", self.plot_count)
 
@@ -389,8 +397,9 @@ class KongsbergDGPlot:
         self._lock_slice_buffers.acquire()
         try:
             # TODO: This will make a new temporary object--is that what we want? Is it necessary?
-            vertical_slice = np.array(self.vertical_slice_buffer)
-            horizontal_slice = np.array(self.horizontal_slice_buffer)
+            #vertical_slice = np.array(self.vertical_slice_buffer).astype(np.float32)
+            vertical_slice = np.array(self.vertical_slice_buffer).__array__(np.float32)
+            horizontal_slice = np.array(self.horizontal_slice_buffer).__array__(np.float32)
             timestamp_slice = np.array(self.timestamp_slice_buffer)
             lat_lon_slice = np.array(self.lat_lon_slice_buffer)
         finally:
@@ -399,27 +408,35 @@ class KongsbergDGPlot:
         if np.any(vertical_slice) and np.any(horizontal_slice):
 
             # Trim NaNs from matrices to be plotted:
-            # This method will look for the index of the last row that is not completely filled with
-            # NaNs. Add one to that index for the first full row of NaNs after all data.
+            # This method will look for the index of the last row that is not completely filled with NaNs.
+            # Add one to that index for the first full row of NaNs after all data.
             index_pie_display = np.argwhere(~np.isnan(pie_display).all(axis=1))[-1][0] + 1
             index_vertical_slice = np.argwhere(~np.isnan(vertical_slice).all(axis=0))[-1][0] + 1
             # TODO:
-            # index_horizontal_slice =
+            # Minus one to find first full row of NaNs before data.
+            index_horizontal_slice_a = np.argwhere(~np.isnan(horizontal_slice).all(axis=0))[0][0] - 1
+            index_horizontal_slice_b = np.argwhere(~np.isnan(horizontal_slice).all(axis=0))[-1][0] + 1
 
             # Ensure that 'index' plus some small buffer does not exceed grid size.
             # (Because we want to allow some small buffer around bottom of data if possible.)
             index_pie_display = min((index_pie_display + 10), self.MAX_NUM_GRID_CELLS)
             index_vertical_slice = min((index_vertical_slice + 10), self.MAX_NUM_GRID_CELLS)
             # TODO:
-            # index_horizontal_slice =
+            index_horizontal_slice_a = max((index_horizontal_slice_a - 10), 0)
+            index_horizontal_slice_b = min((index_horizontal_slice_b + 10), self.MAX_NUM_GRID_CELLS)
 
-            print("Updating plots!@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
             # Update plots:
             self.ax_pie.clear()
             self.ax_vert.clear()
+            self.ax_horiz.clear()
             self.ax_pie.imshow(pie_display[:][:index_pie_display], cmap='gray',
                                vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
-            self.ax_vert.imshow(vertical_slice.T[:index_vertical_slice], cmap='gray',
+            # TODO: NOTE: matplotlib gives "unsupported dtype" error with np.float16; use np.float32.
+            # self.ax_vert.imshow(vertical_slice, cmap='gray',
+            #                     vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
+            self.ax_vert.imshow(vertical_slice.T[:index_vertical_slice, :], cmap='gray',
+                                vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
+            self.ax_horiz.imshow(horizontal_slice.T[index_horizontal_slice_a:index_horizontal_slice_b, :], cmap='gray',
                                 vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
             plt.draw()
             plt.pause(0.001)
