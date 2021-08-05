@@ -133,32 +133,19 @@ class KongsbergDGPlot:
         self.plot_count = 0
         self.old_pie = None
 
+        # For testing:
+        self.collapse_times = []
+
     def get_and_plot_pie(self):
         print("DGPlot: get_and_plot_pie")  # For debugging
         self.start_time = datetime.datetime.now()
 
         threading.Thread(target=self.get_and_buffer_pie, daemon=True).start()
 
-        print("before animation")
         self.animation = anim.FuncAnimation(self.fig, self.__animate, fargs=(),
                                                  interval=self.PLOT_UPDATE_INTERVAL)
-        print("after animation")
 
-        #self.save_animation(self.animation)
-        #plt.ioff()
-        # print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
-        # print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
-        # print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
-        # print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
-        # print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
         plt.show(block=True)
-        # These do not print unless block=False, but then plot does not update--only empty plot appears.
-        # print("*******************************************************************************************************")
-        # print("*******************************************************************************************************")
-        # print("*******************************************************************************************************")
-        # print("*******************************************************************************************************")
-        # print("*******************************************************************************************************")
-
 
     def get_and_buffer_pie(self):
         print("DGPlot: get_and_buffer_pie")  # For debugging
@@ -228,6 +215,10 @@ class KongsbergDGPlot:
         #print("TIME TO DEQUE ALL ITEMS IN QUEUE: {}".format(self.start_time - datetime.datetime.now()))
 
     def collapse_and_buffer_pings(self, temp_pie_values, temp_pie_count, temp_timestamp, temp_lat_lon):
+        # For testing:
+        start = datetime.datetime.now()
+        print("collapse_and_buffer timestamp: ", start)
+
         pie_values_vertical_average = []
         pie_values_horizontal_average = []
         if np.any(temp_pie_values) and np.any(temp_pie_count):
@@ -309,6 +300,15 @@ class KongsbergDGPlot:
         else:
             logger.warning("Nothing to plot; water column latitude / longitude matrix buffer is empty.")
 
+        # For testing:
+        end = datetime.datetime.now()
+        diff = (end - start).total_seconds()
+        self.collapse_times.append(diff)
+        print("Time for single collapse: ", diff)
+        print("Min collapse time: ", min(self.collapse_times))
+        print("Max collapse time: ", max(self.collapse_times))
+        print("Average collapse time: ", sum(self.collapse_times) / len(self.collapse_times))
+
         return pie_values_vertical_average, pie_values_horizontal_average, pie_timestamp_average, pie_lat_lon_average
 
     def __init_plots(self):
@@ -338,45 +338,11 @@ class KongsbergDGPlot:
 
         return fig, ax1, ax2, ax3, im1, im2, im3
 
-    def __init_pie_plot(self):
-        # Plotting finally works following this model:
-        # https://stackoverflow.com/questions/43966427/matplotlib-does-not-update-plot-when-used-in-an-ide-pycharm/43967137#43967137
-
-        array = np.zeros([self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS])
-        array[:] = np.nan
-
-        plt.ion()
-
-        fig = plt.figure(figsize=(6, 6), dpi=150)
-        ax = fig.add_subplot(1, 1, 1)
-        #im = ax.imshow(array, cmap='gray_r', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Reverse greyscale
-        im = ax.imshow(array, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
-
-        plt.colorbar(im)
-        plt.draw()
-        plt.pause(0.001)
-
-        return fig, ax, im
-
-    def __init_vertical_plot(self):
-        array = np.zeros([self.MAX_NUM_GRID_CELLS, int(self.MAX_LENGTH_BUFFER / self.num_pings_to_average)])
-        array[:] = np.nan
-
-        plt.ion()
-
-        fig = plt.figure(figsize=(6, 6), dpi=150)
-        ax = fig.add_subplot(1, 1, 1)
-        # im = ax.imshow(array, cmap='gray_r', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Reverse greyscale
-        im = ax.imshow(array, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
-        plt.colorbar(im)
-        plt.draw()
-        plt.pause(0.001)
-
-        return fig, ax, im
-
     def __animate(self, i):
+        # For testing:
         self.plot_count += 1
         print("Plot count: ", self.plot_count)
+        print("Animate timestamp: ", datetime.datetime.now())
 
         pie_display = []
         self._lock_raw_buffers.acquire()
@@ -394,8 +360,13 @@ class KongsbergDGPlot:
         horizontal_slice = []
         timestamp_slice = []
         lat_lon_slice = []
-        self._lock_slice_buffers.acquire()
-        try:
+
+        # For testing:
+        start = datetime.datetime.now()
+
+        self._lock_slice_buffers.acquire()  # NOTE: Time to acquire this lock is pretty much always zero (0019 test file).
+
+        try:  # NOTE: Time to copy these data structures is pretty much always zero (0019 test file).
             # TODO: This will make a new temporary object--is that what we want? Is it necessary?
             #vertical_slice = np.array(self.vertical_slice_buffer).astype(np.float32)
             vertical_slice = np.array(self.vertical_slice_buffer).__array__(np.float32)
@@ -404,8 +375,16 @@ class KongsbergDGPlot:
             lat_lon_slice = np.array(self.lat_lon_slice_buffer)
         finally:
             self._lock_slice_buffers.release()
+            pass
+
+        # For testing:
+        end = datetime.datetime.now()
+        diff = (end - start).total_seconds()
+        print("Time to copy data structures: ", diff)  # This always appears to be zero.
 
         if np.any(vertical_slice) and np.any(horizontal_slice):
+            # For testing:
+            print("len(vertical_slice) at animate update: ", len(vertical_slice))
 
             # Trim NaNs from matrices to be plotted:
             # This method will look for the index of the last row that is not completely filled with NaNs.
@@ -443,147 +422,6 @@ class KongsbergDGPlot:
 
         else:
             logger.warning("Nothing to plot; water column data matrix buffer is empty.")
-
-    def animate_pie(self, i):
-        #print("animate")
-        self.plot_count += 1
-        print(self.plot_count)
-
-        # Animate pie plot:
-        # Get most recent entry from pie_buffer
-        #if self.pie_buffer:
-        pie = []
-        self._lock_raw_buffers.acquire()
-        try:
-            if self.pie_count_buffer:
-                #temp_pie = np.array(self.pie_buffer)[-1]
-                #temp_pie = self.pie_buffer[-1]
-                with np.errstate(divide='ignore', invalid='ignore'):
-                    # Quick method of averaging!
-
-                    pie = self.pie_values_buffer.peek() / self.pie_count_buffer.peek()
-        finally:
-            self._lock_raw_buffers.release()
-        if np.any(pie):
-
-            # This method will look for the index of the last row that is not completely filled with
-            # NaNs. Add one to that index for the first full row of NaNs after all data.
-            index = np.argwhere(~np.isnan(pie).all(axis=1))[-1][0] + 1
-
-            # Ensure that 'index' plus some small buffer does not exceed grid size.
-            # (Because we want to allow some small buffer around bottom of data if possible.)
-            index = min((index + 10), self.MAX_NUM_GRID_CELLS)
-
-            self.ax_pie.clear()
-            #self.im_pie.set_data(pie)  # This doesn't update plot :(
-            #self.ax_pie.imshow(pie, cmap='gray_r', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Reverse greyscale
-            self.ax_pie.imshow(pie[:][:index], cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
-            plt.draw()
-            plt.pause(0.001)
-        else:
-            logger.warning("Nothing to plot; pie matrix buffer is empty.")
-
-    def animate_vert(self, i):
-        # Animate vertical curtain plot:
-
-        self._lock_raw_buffers.acquire()
-        # We only want a number of pings that is evenly divisible by self.num_pings_to_average;
-        # trim the 'remainder' from the end of the array:
-        try:
-            pie_values = self.pie_values_buffer[:-(self.pie_values_buffer.shape[0] % self.num_pings_to_average)]
-            pie_count = self.pie_count_buffer[:-(self.pie_count_buffer.shape[0] % self.num_pings_to_average)]
-            pie_timestamp = self.timestamp_buffer[:-(self.timestamp_buffer.shape[0] % self.num_pings_to_average)]
-            pie_lat_lon = self.lat_lon_buffer[:-(self.lat_lon_buffer.shape[0] % self.num_pings_to_average)]
-        finally:
-            self._lock_raw_buffers.release()
-
-        pie_values_average = []
-
-        if np.any(pie_values) and np.any(pie_count):
-            # Trim arrays to omit values outside of self.vertical_slice_width
-            # TODO: verify that self.vertical_slice_start_index, self.vertical_slice_end_index are calculated correctly
-            pie_values = pie_values[:, :, self.vertical_slice_start_index:self.vertical_slice_end_index]
-            pie_count = pie_count[:, :, self.vertical_slice_start_index:self.vertical_slice_end_index]
-            # "Collapse" arrays by adding every self.num_pings_to_average so that
-            # len(_collapsed_array_) = len(_array_) / self.num_pings_to_average
-            pie_values = np.add.reduceat(pie_values, range(0, len(pie_values), self.num_pings_to_average))
-            pie_count = np.add.reduceat(pie_count, range(0, len(pie_count), self.num_pings_to_average))
-            # Sum rows of matrices:
-            pie_values = np.sum(pie_values, axis=2)
-            pie_count = np.sum(pie_count, axis=2)
-
-            # Average trimmed, collapsed, summed arrays:
-            # Note that division by zero results in a warning and a value of NaN.
-            # In cases of divide by zero, NaN is the desired result. Suppress warning.
-            # TODO: Need to deal with adding/averaging nans! Maybe not. Arrays initialized with zeros, not NaNs.
-            with np.errstate(divide='ignore', invalid='ignore'):
-                pie_values_average = pie_values / pie_count
-
-            pie_timestamp_average = []
-
-            if np.any(pie_timestamp):
-                # "Collapse" arrays by adding every self.num_pings_to_average so that
-                # len(_collapsed_array_) = len(_array_) / self.num_pings_to_average
-                pie_timestamp = np.add.reduceat(pie_timestamp, range(0, len(pie_timestamp), self.num_pings_to_average))
-                # Average collapsed arrays:
-                # Note that division by zero results in a warning and a value of NaN.
-                # In cases of divide by zero, NaN is the desired result. Suppress warning.
-                # TODO: Need to deal with adding/averaging nans!
-                with np.errstate(divide='ignore', invalid='ignore'):
-                    pie_timestamp_average = pie_timestamp / self.num_pings_to_average
-
-            pie_lat_lon_average = []
-
-            if np.any(pie_lat_lon):
-                # "Collapse" arrays by adding every self.num_pings_to_average so that
-                # len(_collapsed_array_) = len(_array_) / self.num_pings_to_average
-                pie_lat_lon = np.add.reduceat(pie_lat_lon, range(0, len(pie_lat_lon), self.num_pings_to_average))
-                # Average collapsed arrays:
-                # Note that division by zero results in a warning and a value of NaN.
-                # In cases of divide by zero, NaN is the desired result. Suppress warning.
-                # TODO: Need to deal with adding/averaging nans!
-                with np.errstate(divide='ignore', invalid='ignore'):
-                    pie_lat_lon_average = pie_lat_lon / self.num_pings_to_average
-
-            # Trim NaNs from matrix to be plotted:
-            # This method will look for the index of the last row that is not completely filled with
-            # NaNs. Add one to that index for the first full row of NaNs after all data.
-            index = np.argwhere(~np.isnan(pie_values_average).all(axis=0))[-1][0] + 1
-
-            # Ensure that 'index' plus some small buffer does not exceed grid size.
-            # (Because we want to allow some small buffer around bottom of data if possible.)
-            index = min((index + 10), self.MAX_NUM_GRID_CELLS)
-            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!index: ", index)
-
-            #print("pie_values_average: ", pie_values_average[50])
-            self.ax_vert.clear()
-            #self.ax_vert.imshow(pie_values_average[:, :index].T, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
-            self.ax_vert.imshow(pie_values_average.T[:index], cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
-            plt.draw()
-            plt.pause(0.001)
-
-        else:
-            logger.warning("Nothing to plot; value and count buffers are empty.")
-
-
-        # if self.mean_buffer:
-        # if self.vert_mean_buffer:
-        #     # # TODO: Probably a better way to do this and not calculate every time:
-        #     # start_index = (self.MAX_NUM_GRID_CELLS / 2) - round((self.vertical_slice_width_m / 2) / self.bin_size)
-        #     # end_index = (self.MAX_NUM_GRID_CELLS / 2) + round((self.vertical_slice_width_m / 2) / self.bin_size) + 1
-        #     # # TODO: I think converting to numpy array can be constly. Time this to confirm. Maybe find better solution.
-        #     # #  (mean_buffer is a deque)
-        #     # if len(self.mean_buffer) > 1:
-        #     #     vert = np.array(self.mean_buffer)[:, :, start_index:end_index]
-        #     # else:
-        #     #     vert = np.array(self.mean_buffer)[:, start_index:end_index]
-        #     self.ax_vert.clear()
-        #     #self.ax_vert.imshow((self.mean_buffer[-1])[:, 240:260], cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
-        #     self.ax_vert.imshow(self.vert_mean_buffer[-1], cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
-        #     plt.draw()
-        #     plt.pause(0.001)
-        # else:
-        #     logger.warning("Nothing to plot; mean buffer is empty.")
 
     def save_animation(self, animation):
         writer_video = anim.ImageMagickWriter(fps=10)
