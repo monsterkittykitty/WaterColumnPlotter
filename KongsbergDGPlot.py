@@ -321,18 +321,17 @@ class KongsbergDGPlot:
 
         plt.ion()
 
-        fig = plt.figure(figsize=(6, 6), dpi=150)
-        # ax1 = fig.add_subplot(2, 1, 1)
-        # ax2 = fig.add_subplot(2, 1, 2)
+        fig = plt.figure(figsize=(6, 8), dpi=150)
         ax1 = fig.add_subplot(3, 1, 1)
         ax2 = fig.add_subplot(3, 1, 2)
         ax3 = fig.add_subplot(3, 1, 3)
+        #plt.subplots_adjust(hspace=0.5)
+        #fig.subplots_adjust(bottom=0.1)
         im1 = ax1.imshow(array1, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
         im2 = ax2.imshow(array2_3, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
         im3 = ax3.imshow(array2_3, cmap='gray', vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
 
-        #plt.colorbar(im1)
-        fig.colorbar(im1, orientation="horizontal", pad=0.2)
+        fig.colorbar(im1, ax=[ax1, ax2, ax3], orientation="horizontal")
         plt.draw()
         plt.pause(0.001)
 

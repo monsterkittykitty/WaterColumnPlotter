@@ -6,11 +6,11 @@
 # Description:
 
 import argparse
-from KongsbergDGCapture import KongsbergDGCapture
+#from KongsbergDGCapture import KongsbergDGCapture
 from KongsbergDGCaptureFromSonar import KongsbergDGCaptureFromSonar
 #from KongsbergDGPlot import KongsbergDGPlot
 #from KongsbergDGPlotIntermediate import KongsbergDGPlot
-from KongsbergDGPlotNew import KongsbergDGPlot
+from KongsbergDGPlot import KongsbergDGPlot
 from KongsbergDGProcess import KongsbergDGProcess
 import logging
 import multiprocessing

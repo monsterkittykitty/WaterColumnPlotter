@@ -261,94 +261,6 @@ class ReadTestLog:
                 print(fields[0])
                 exit()
 
-
-
-
-        # # Keep track of total number of MWC datagrams
-        # mwc_count = 0
-        # # Keep track of number of datagrams that are corrupt and where corruption is located/found
-        # num_bytes_cmn_part_corrupt = 0
-        # num_bytes_tx_info_corrupt = 0
-        # num_bytes_tx_info = []
-        # # Keep track of partition numbers of bad (corrupt) datagrams and good datagrams
-        # partition_tx_info_bad = []
-        # partition_tx_info_good = []
-        # # Keep track of how many datagrams are dropped by comparing timestamps
-        # dgm_count_expected = None
-        # timestamp = None
-        # timestamp_count = 0
-        # unique_timestamp_count = 0
-        # total_dropped_dgms = 0
-        #
-        # # Get MWC offsets:
-        # mwc_offsets = [x for x, y in zip(kmall.msgoffset, kmall.msgtype) if y == "b'#MWC'"]
-        # for offset in mwc_offsets:
-        #     mwc_count += 1
-        #     kmall.FID.seek(offset, 0)
-        #
-        #     header = kmall.read_EMdgmHeader()
-        #
-        #     partition = kmall.read_EMdgmMpartition()
-        #
-        #     if timestamp is None:
-        #         timestamp = header['dgdatetime']  # For determining how many datagrams are dropped
-        #         dgm_count_expected = partition["numOfDgms"]
-        #         timestamp_count = 1
-        #         unique_timestamp_count = 1
-        #     elif timestamp == header['dgdatetime']:
-        #         timestamp_count += 1
-        #     else:  # timestamp != header['dgdatetime']
-        #         total_dropped_dgms += (dgm_count_expected - timestamp_count)
-        #         timestamp = header['dgdatetime']
-        #         dgm_count_expected = partition["numOfDgms"]
-        #         timestamp_count = 1
-        #         unique_timestamp_count += 1
-        #
-        #     print("dgm {} of {}, {}".format(partition["dgmNum"], partition["numOfDgms"], header['dgdatetime']))
-        #
-        #     if header['dgmVersion'] == 0 or 1:
-        #         if partition['dgmNum'] == 1:
-        #             cmn_part = kmall.read_EMdgmMbody()
-        #
-        #             if cmn_part["numBytesCmnPart"] != 12:
-        #                 num_bytes_cmn_part_corrupt += 1
-        #                 num_bytes_tx_info.append(cmn_part["numBytesCmnPart"])
-        #                 partition_tx_info_bad.append(partition['dgmNum'])
-        #
-        #                 kmall.FID.seek(offset, 0)
-        #                 kmall.FID.read(header['numBytesDgm'])
-        #
-        #                 continue
-        #
-        #         # Read txInfo:
-        #         tx_info = kmall.read_EMdgmMWCtxInfo()
-        #         # print("tx_info: ", tx_info)
-        #         if tx_info['numBytesTxInfo'] != 12:
-        #             num_bytes_tx_info_corrupt += 1
-        #             num_bytes_tx_info.append(tx_info['numBytesTxInfo'])
-        #             partition_tx_info_bad.append(partition['dgmNum'])
-        #         else:
-        #             partition_tx_info_good.append(partition['dgmNum'])
-        #
-        #         kmall.FID.seek(offset, 0)
-        #         kmall.FID.read(header['numBytesDgm'])
-        #
-        # print("mwc_count: ", mwc_count)
-        # print("num_bytes_cmn_part_corrupt: ", num_bytes_cmn_part_corrupt)
-        # print("num_bytes_tx_info_corrupt: ", num_bytes_tx_info_corrupt)
-        # print(num_bytes_tx_info)
-        # print("Bad partitions: ", partition_tx_info_bad)
-        # print("Bad 1s: ", partition_tx_info_bad.count(1))
-        # print("Bad 2s: ", partition_tx_info_bad.count(2))
-        # print("Bad 3s: ", partition_tx_info_bad.count(3))
-        # print("Bad 4s: ", partition_tx_info_bad.count(4))
-        # print("Bad 5s: ", partition_tx_info_bad.count(5))
-        # print("Good partitions: ", partition_tx_info_good)
-        # print("Good 1s: ", partition_tx_info_good.count(1))
-        # print("total_dropped_dgms: ", total_dropped_dgms)
-        # print("unique_timestamp_count:", unique_timestamp_count)
-        # print(header)
-
     def kmall_index_mrz(self):
         kmall = KMALL.kmall(self.in_file)
         kmall.index_file()
@@ -465,8 +377,6 @@ class MObject:
 
     def set_num_of_dgms(self, num_of_dgms):
         self.num_of_dgms = num_of_dgms
-
-
 
 
 if __name__ == "__main__":
