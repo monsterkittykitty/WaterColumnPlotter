@@ -6,16 +6,12 @@
 # Description:
 
 import argparse
-#from KongsbergDGCapture import KongsbergDGCapture
 from KongsbergDGCaptureFromSonar import KongsbergDGCaptureFromSonar
-#from KongsbergDGPlot import KongsbergDGPlot
-#from KongsbergDGPlotIntermediate import KongsbergDGPlot
 from KongsbergDGPlot import KongsbergDGPlot
 from KongsbergDGProcess import KongsbergDGProcess
 import logging
 import multiprocessing
 import queue
-#from WaterColumnGUI import WaterColumnGUI
 
 logger = logging.getLogger(__name__)
 
