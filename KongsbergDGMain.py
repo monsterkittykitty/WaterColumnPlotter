@@ -74,7 +74,8 @@ if __name__ == "__main__":
 
     parser.add_argument("rx_ip", help="IP address to receive Kongsberg datagrams.")
     parser.add_argument("rx_port", help="Port to receive Kongsberg datagrams.", type=int)
-    parser.add_argument("--connection", default="UDP", help="Connection type: TCP or UDP.", choices={"TCP", "UDP"})
+    parser.add_argument("--connection", default="UDP", help="Connection type: TCP, UDP, or Multicast.",
+                        choices={"TCP", "UDP", "Multicast"})
     parser.add_argument("bin_size", help="Bin size.", type=float)
 
     args = parser.parse_args()

@@ -23,22 +23,35 @@ from PyQt5.QtWidgets import QWidget
 
 class SettingsDialogue(QDialog):
     def __init__(self, parent=None):
+        #QDialog.__init__()
         super().__init__(parent)
+
+        self.ip = None
+        self.port = None
+
         self.setWindowTitle('IP:Port Settings')
         dlgLayout = QVBoxLayout()
         formLayout = QFormLayout()
-        formLayout.addRow('IP:', QLineEdit())
-        formLayout.addRow('Port:', QLineEdit())
+        self.ip_qle = QLineEdit()
+        self.port_qle = QLineEdit()
+        formLayout.addRow('IP:', self.ip_qle)
+        formLayout.addRow('Port:', self.port_qle)
         dlgLayout.addLayout(formLayout)
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
 
-
-
-        button_box.accepted.connect(self.test)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
 
         dlgLayout.addWidget(button_box)
         self.setLayout(dlgLayout)
 
-    def test(self):
+    def accept(self):
+        self.ip = self.ip_qle.text()
+        self.port = self.port_qle.text()
+        print("ip: ", self.ip)
+        print("port: ", self.port)
         self.close()
         #pass
+
+    def reject(self):
+        self.close()

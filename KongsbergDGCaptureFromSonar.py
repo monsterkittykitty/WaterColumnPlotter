@@ -116,6 +116,10 @@ class KongsbergDGCaptureFromSonar:
         data_type = ""
         data_timestamp = 0.0
         data_buffer = []
+        data_buffer_1 = []
+        data_buffer_2 = []
+        data_buffer_3 = []
+        data_buffer_dict = {}
         data_size = 0
         data_count = 0
 
@@ -153,6 +157,7 @@ class KongsbergDGCaptureFromSonar:
 
                     if dgm_type == b'#MWC':  # For testing
                         mwc_counter += 1
+                        print("dgm_timestamp: ", dgm_timestamp, "mwc_counter: ", mwc_counter)
 
                     # Skip over remainder of header
                     # bytes_io.seek(struct.Struct(self.HEADER_STRUCT_FORMAT).size, 0)
@@ -163,10 +168,27 @@ class KongsbergDGCaptureFromSonar:
                     if num_of_dgms == 1:  # There is only one part to the datagram; no need to reconstruct
                         self.queue_tx_data.put(data)
                     else:  # There is more than one part to the datagram; datagram needs to be reconstructed
+                        # TODO: New implementation:
+                        # dgm_num = partition[1]
+                        #
+                        # if dgm_timestamp in data_buffer_dict.keys(): # Partitions of this datagram already received
+                        #     if dgm_num == 1:  # dgmNum (partition) 1 can be added in its entirety to data_buffer
+                        #         data_buffer_dict[dgm_timestamp][dgm_num - 1] = bytearray(data[:-4])
+                        #         data_count += 1
+                        #         data_size += len(data[:-4])
+
+
+
+
+
+
+
+                        # TODO: Old implementation:
                         if data_timestamp != dgm_timestamp:
                             if data_count != 0:  # Previous data block is incomplete
                                 # TODO: If many of these are reported and datagrams arrive out-of-order,
                                 #  consider adding multiple buffers.
+                                print("data_timestamp: ", data_timestamp, ", dgm_timestamp: ", dgm_timestamp)
                                 logger.warning("Data block incomplete: {}, {}".format(data_type, data_timestamp))
                                 data_count = 0
                                 data_size = 0
@@ -200,7 +222,7 @@ class KongsbergDGCaptureFromSonar:
                             data_size += len(data[length_to_strip:-4])
 
                             if data_count == num_of_dgms:
-
+                                print("full reconstruction")
                                 # Add 4 to data_size to account for 4-byte 'length' field to be appended to end of dgm
                                 data_size += 4
 

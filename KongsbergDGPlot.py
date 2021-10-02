@@ -21,7 +21,7 @@ import matplotlib
 matplotlib.use("Qt5Agg")
 import matplotlib.animation as anim
 import matplotlib.pyplot as plt
-from numba import jit
+#from numba import jit
 import numpy as np
 #from numpy_ringbuffer import RingBuffer
 from NumpyRingBuffer import NumpyRingBuffer
@@ -53,16 +53,13 @@ class KongsbergDGPlot:
 
         self.QUEUE_RX_PIE_TIMEOUT = 60  # Seconds
         # TODO: Ensure that this is an integer
-        self.MAX_LENGTH_BUFFER = 10000  # Based on ~1000 MWC datagrams per minute for 10 minutes (~16 per second).
+        #self.MAX_LENGTH_BUFFER = 10000  # Based on ~1000 MWC datagrams per minute for 10 minutes (~16 per second).
         # Above doesn't work because NumpyRingBuffer allocates full memory for 10000 * 500 * 500 matrix--that's ~20 GB
         # Update: It works now with dtype=float changed to dtype=np.float16! I think this should still give us good enough precision.
-        #self.MAX_LENGTH_BUFFER = 1000  # Based on ~1000 MWC datagrams per minute for 1 minutes (~16 per second).
+        self.MAX_LENGTH_BUFFER = 10000  # Based on ~1000 MWC datagrams per minute for 1 minutes (~16 per second).
         # TODO: Should this be passed as an argument to both DGProcess and DGPlot to ensure consistency?
         # TODO: Ensure that this is an integer
         self.MAX_NUM_GRID_CELLS = 500
-
-
-
 
 
         self._lock_slice_buffers = threading.Lock()
@@ -407,6 +404,7 @@ class KongsbergDGPlot:
             self.ax_pie.clear()
             self.ax_vert.clear()
             self.ax_horiz.clear()
+            print("*****PLOTTING*****")
             self.ax_pie.imshow(pie_display[:][:index_pie_display], cmap='gray',
                                vmin=self.PIE_VMIN, vmax=self.PIE_VMAX)  # Greyscale
             # TODO: NOTE: matplotlib gives "unsupported dtype" error with np.float16; use np.float32.

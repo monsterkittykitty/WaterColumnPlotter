@@ -219,6 +219,8 @@ class KongsbergDGProcess:
         # if len(bin_index_z_np[~mask_index_z.mask]) > 0:  # This doesn't work because NaNs are masked.
         # np.count_nonzero(np.isnan(bin_index_z_np[~mask_index_z.mask])) will count the number of nans that have been
         # masked; only if length of masked array is greater than this are real values being masked.
+        # TODO: Something is wrong here.
+        #  Sometimes we get a warning like: "Heave (-0.2) exceeds maximum heave (1) by 1.2 meters.
         if len(bin_index_z_np[~mask_index_z.mask]) > np.count_nonzero(np.isnan(bin_index_z_np[~mask_index_z.mask])):
             print("Masked z values: ", bin_index_z_np[~mask_index_z.mask])
             logger.warning("Heave ({:.5f}) exceeds maximum heave ({}) by {:.5f} meters. "
@@ -233,7 +235,29 @@ class KongsbergDGProcess:
         # Combine y, z indices, convert from float to int:
         y_z_indices = np.vstack((bin_index_z_np[mask_index_y_z], bin_index_y_np[mask_index_y_z])).astype(int)
 
-        amplitude_np = (np.array(dg['beamData']['sampleAmplitude05dB_p']) * 0.5) - tvg_offset_db
+        # For testing:
+        # print("len(dg['beamData']['sampleAmplitude05dB_p']): ", len(dg['beamData']['sampleAmplitude05dB_p'])) #256
+        # #print("dg[beamData]: ", dg['beamData'])
+        # for i in range(len(dg['beamData']['sampleAmplitude05dB_p'])):
+        #     print("i:", i)
+        #     print("len(dg['beamData']['sampleAmplitude05dB_p'][i]: ", len(dg['beamData']['sampleAmplitude05dB_p'][i])) # This varies, bigger at outer beams, smaller at nadir
+        #
+        # print("shape: ", np.array(dg['beamData']['sampleAmplitude05dB_p']).shape)
+        # print("type: ", type(np.array(dg['beamData']['sampleAmplitude05dB_p'][0])))
+
+        # NOTE: This method results in two errors:
+        # Creating an ndarray from ragged nested sequences (which is a list-or-tuple of lists-or-tuples-or ndarrays
+        # with different lengths or shapes) is deprecated. If you meant to do this, you must specify 'dtype=object'
+        # when creating the ndarray.
+        # TypeError: can't multiply sequence by non-int of type 'float'
+        # amplitude_np = (np.array(dg['beamData']['sampleAmplitude05dB_p']) * 0.5) - tvg_offset_db
+
+        # TODO: Changed 30 August 2021 on RVGS. Based on:
+        # https://stackoverflow.com/questions/10346336/list-of-lists-into-numpy-array
+        # First, make all sub-lists (nested lists) the same length:
+        max_len = max(map(len, np.array(dg['beamData']['sampleAmplitude05dB_p'])))
+        amplitude_np = (np.array([list(sub_list) + [np.nan] * (max_len - len(sub_list))
+                                  for sub_list in dg['beamData']['sampleAmplitude05dB_p']]) * 0.5) - tvg_offset_db
 
         # Trim amplitude_np to only include values of interest (up to np.max(detected_range_np) + 1)
         amplitude_np = amplitude_np[:, :(np.max(detected_range_np) + 1)]

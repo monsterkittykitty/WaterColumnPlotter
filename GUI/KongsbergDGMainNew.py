@@ -21,6 +21,7 @@ from PyQt5.QtWidgets import QToolBar
 from PyQt5.QtWidgets import QVBoxLayout
 from PyQt5.QtWidgets import QWidget
 import sys
+import time
 
 
 class WaterColumnGUI(QMainWindow):
@@ -34,6 +35,7 @@ class WaterColumnGUI(QMainWindow):
         super().__init__()
 
         self.setWindowTitle('Water Column Plotter')
+
         self.setMinimumSize(640, 480)
         self.resize(920, 640)
 
@@ -41,9 +43,6 @@ class WaterColumnGUI(QMainWindow):
         # self.setWindowIcon()
 
         # TODO: Allow saving / loading settings?
-
-
-
 
         main_window = QWidget()
         # TODO: How to set main window geometry?
@@ -59,6 +58,14 @@ class WaterColumnGUI(QMainWindow):
         self._createMenu()
         self._createToolBar()
         self._createStatusBar()
+
+        self.show()
+
+        # # waiting for 2 second
+        # time.sleep(2)
+        #
+        # # closing the window
+        # self.close()
 
     def _createMenu(self):
         self.menu = self.menuBar().addMenu("&Menu")
@@ -76,8 +83,12 @@ class WaterColumnGUI(QMainWindow):
         self.setStatusBar(status)
 
     def _launchSettingsDialogue(self):
-        dlg = SettingsDialogue(parent=self)
+        #dlg = SettingsDialogue(parent=self)
+        dlg = IPSettingsDialog.SettingsDialogue(parent=self)
         dlg.exec_()
+
+    def test(self):
+        self.close()
 
 
 class SettingsDialogue(QDialog):
@@ -105,8 +116,15 @@ class SettingsDialogue(QDialog):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     win = WaterColumnGUI()
-    win.show()
+    #win.show()
     sys.exit(app.exec_())
+
+    # # waiting for 2 second
+    # time.sleep(2)
+    #
+    # # closing the window
+    # win.test()
+
 
 
 
