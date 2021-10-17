@@ -38,6 +38,30 @@ class KongsbergDGMain:
                                        queue_pie=self.queue_pie)
         # self.gui = WaterColumnGUI(queue_pie=self.queue_pie)
 
+    # def __init__(self, settings):
+    #     """
+    #     :param settings: Python dictionary of format:
+    #                     {"ip_settings: {"ip": __, "port": __},
+    #                     "processing_settings": {"binSize_m": __, "acrossTrackAvg_m": __, "depthAvg_m": __,
+    #                                             "alongTrackAvg_ping": __, "dualSwathPolicy": __}}
+    #     """
+    #     self.queue_data = multiprocessing.Queue()
+    #     self.queue_pie = multiprocessing.Queue()
+    #     self.dg_capture = KongsbergDGCaptureFromSonar(rx_ip=settings["ip_settings"]["ip"],
+    #                                                   rx_port=settings["ip_settings"]["port"],
+    #                                                   "UDP", queue_data=self.queue_data)
+    #     self.dg_process = KongsbergDGProcess(bin_size=settings["processing_settings"]["binSize_m"],
+    #                                          water_depth=10, max_heave=1, queue_data=self.queue_data,
+    #                                          queue_pie=self.queue_pie)
+    #
+    #     self.dg_plot = KongsbergDGPlot(bin_size=settings["processing_settings"]["binSize_m"], max_heave=1,
+    #                                     vertical_slice_width_m=settings["processing_settings"]["acrossTrackAvg_m"],
+    #                                     horizontal_slice_width_m=settings["processing_settings"]["depthAvg_m"],
+    #                                     horizontal_slice_depth_m=1,
+    #                                     num_pings_to_average=settings["processing_settings"]["alongTrackAvg_ping"],
+    #                                     queue_pie=self.queue_pie)
+
+
     def run(self):
         # TODO: Do I need to set process_consumer daemon value to True?
         #  https://stonesoupprogramming.com/2017/09/11/python-multiprocessing-producer-consumer-pattern/comment-page-1/
