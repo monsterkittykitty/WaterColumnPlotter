@@ -42,13 +42,13 @@
     <string>To receive incoming packets: </string>
    </property>
   </widget>
-  <widget class="QWidget" name="">
+  <widget class="QWidget" name="layoutWidget">
    <property name="geometry">
     <rect>
      <x>50</x>
      <y>40</y>
      <width>182</width>
-     <height>46</height>
+     <height>48</height>
     </rect>
    </property>
    <layout class="QGridLayout" name="gridLayout">
@@ -61,8 +61,11 @@
     </item>
     <item row="0" column="1">
      <widget class="QLineEdit" name="lineListenIP">
+      <property name="toolTip">
+       <string>Enter IP address to receive incoming data.</string>
+      </property>
       <property name="placeholderText">
-       <string>127.0.0.1</string>
+       <string>Ex: 127.0.0.1</string>
       </property>
      </widget>
     </item>
@@ -75,8 +78,11 @@
     </item>
     <item row="1" column="1">
      <widget class="QLineEdit" name="lineListenPort">
+      <property name="toolTip">
+       <string>Enter port to receive incoming data.</string>
+      </property>
       <property name="placeholderText">
-       <string>8080</string>
+       <string>Ex: 8080</string>
       </property>
      </widget>
     </item>

@@ -1,0 +1,452 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>settingsDialog</class>
+ <widget class="QDialog" name="settingsDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>388</width>
+    <height>418</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Settings</string>
+  </property>
+  <widget class="QDialogButtonBox" name="buttonBox">
+   <property name="geometry">
+    <rect>
+     <x>210</x>
+     <y>370</y>
+     <width>161</width>
+     <height>32</height>
+    </rect>
+   </property>
+   <property name="orientation">
+    <enum>Qt::Horizontal</enum>
+   </property>
+   <property name="standardButtons">
+    <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+   </property>
+  </widget>
+  <widget class="QTabWidget" name="tabSettings">
+   <property name="geometry">
+    <rect>
+     <x>30</x>
+     <y>19</y>
+     <width>331</width>
+     <height>341</height>
+    </rect>
+   </property>
+   <property name="currentIndex">
+    <number>0</number>
+   </property>
+   <widget class="QWidget" name="tabSystem">
+    <attribute name="title">
+     <string>System</string>
+    </attribute>
+    <widget class="QWidget" name="layoutWidget_3">
+     <property name="geometry">
+      <rect>
+       <x>60</x>
+       <y>120</y>
+       <width>201</width>
+       <height>51</height>
+      </rect>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayoutSystem">
+      <item>
+       <widget class="QRadioButton" name="radioButtonKongsberg">
+        <property name="text">
+         <string>Kongsberg</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayoutSystem">
+        <item>
+         <widget class="QRadioButton" name="radioButtonOther">
+          <property name="text">
+           <string>Other:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="lineEditOther">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </widget>
+   <widget class="QWidget" name="tabIP">
+    <attribute name="title">
+     <string>IP</string>
+    </attribute>
+    <widget class="QWidget" name="layoutWidget_2">
+     <property name="geometry">
+      <rect>
+       <x>60</x>
+       <y>120</y>
+       <width>204</width>
+       <height>50</height>
+      </rect>
+     </property>
+     <layout class="QHBoxLayout" name="horizontalLayoutIP">
+      <item>
+       <layout class="QVBoxLayout" name="verticalLayoutIPLabel">
+        <item>
+         <widget class="QLabel" name="labelIP">
+          <property name="text">
+           <string>IP Address: </string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="labelPort">
+          <property name="text">
+           <string>Port: </string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QVBoxLayout" name="verticalLayoutIPLineEdit">
+        <item>
+         <widget class="QLineEdit" name="lineEditIP">
+          <property name="toolTip">
+           <string>Enter IP address to recieve datagrams.</string>
+          </property>
+          <property name="text">
+           <string>127.0.0.1</string>
+          </property>
+          <property name="placeholderText">
+           <string>Ex: 127.0.0.1</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="lineEditPort">
+          <property name="toolTip">
+           <string>Enter port to receive datagrams.</string>
+          </property>
+          <property name="text">
+           <string>8080</string>
+          </property>
+          <property name="placeholderText">
+           <string>Ex: 8080</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </widget>
+   <widget class="QWidget" name="tabProcessing">
+    <attribute name="title">
+     <string>Processing</string>
+    </attribute>
+    <widget class="QDoubleSpinBox" name="doubleSpinBoxBinSize">
+     <property name="geometry">
+      <rect>
+       <x>220</x>
+       <y>10</y>
+       <width>49</width>
+       <height>20</height>
+      </rect>
+     </property>
+     <property name="maximum">
+      <double>100.000000000000000</double>
+     </property>
+     <property name="singleStep">
+      <double>0.050000000000000</double>
+     </property>
+     <property name="value">
+      <double>0.250000000000000</double>
+     </property>
+    </widget>
+    <widget class="QLabel" name="labelBinSize">
+     <property name="geometry">
+      <rect>
+       <x>30</x>
+       <y>10</y>
+       <width>62</width>
+       <height>20</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Bin Size (m): </string>
+     </property>
+    </widget>
+    <widget class="QGroupBox" name="groupBoxAlongTrack">
+     <property name="geometry">
+      <rect>
+       <x>20</x>
+       <y>160</y>
+       <width>281</width>
+       <height>151</height>
+      </rect>
+     </property>
+     <property name="title">
+      <string>Along-Track:</string>
+     </property>
+     <widget class="QSpinBox" name="spinBoxAlongTrackAvg">
+      <property name="geometry">
+       <rect>
+        <x>200</x>
+        <y>20</y>
+        <width>49</width>
+        <height>20</height>
+       </rect>
+      </property>
+      <property name="maximum">
+       <number>100</number>
+      </property>
+      <property name="value">
+       <number>5</number>
+      </property>
+     </widget>
+     <widget class="QLabel" name="labelAlongTrackAvg">
+      <property name="geometry">
+       <rect>
+        <x>20</x>
+        <y>20</y>
+        <width>141</width>
+        <height>20</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Along-Track Average (pings):</string>
+      </property>
+     </widget>
+     <widget class="QGroupBox" name="groupBoxDualSwath">
+      <property name="geometry">
+       <rect>
+        <x>20</x>
+        <y>50</y>
+        <width>161</width>
+        <height>91</height>
+       </rect>
+      </property>
+      <property name="autoFillBackground">
+       <bool>false</bool>
+      </property>
+      <property name="title">
+       <string>Dual Swath: </string>
+      </property>
+      <property name="checkable">
+       <bool>false</bool>
+      </property>
+      <widget class="QWidget" name="layoutWidget">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>20</y>
+         <width>136</width>
+         <height>65</height>
+        </rect>
+       </property>
+       <layout class="QVBoxLayout" name="verticalLayoutDualSwath">
+        <item>
+         <widget class="QRadioButton" name="radioButtonAllPings">
+          <property name="text">
+           <string>Keep all pings.</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QRadioButton" name="radioButtonFirstPing">
+          <property name="text">
+           <string>Keep first ping only.</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QRadioButton" name="radioButtonSecondPing">
+          <property name="text">
+           <string>Keep second ping only.</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </widget>
+    <widget class="QGroupBox" name="groupBoxVerticalSlice">
+     <property name="geometry">
+      <rect>
+       <x>20</x>
+       <y>40</y>
+       <width>281</width>
+       <height>51</height>
+      </rect>
+     </property>
+     <property name="title">
+      <string>Vertical Slice:</string>
+     </property>
+     <widget class="QDoubleSpinBox" name="doubleSpinBoxAcrossTrackAvg">
+      <property name="geometry">
+       <rect>
+        <x>200</x>
+        <y>20</y>
+        <width>49</width>
+        <height>20</height>
+       </rect>
+      </property>
+      <property name="minimum">
+       <double>1.000000000000000</double>
+      </property>
+      <property name="maximum">
+       <double>100.000000000000000</double>
+      </property>
+      <property name="singleStep">
+       <double>0.500000000000000</double>
+      </property>
+      <property name="value">
+       <double>10.000000000000000</double>
+      </property>
+     </widget>
+     <widget class="QLabel" name="labelAcrossTrackAvg">
+      <property name="geometry">
+       <rect>
+        <x>20</x>
+        <y>20</y>
+        <width>129</width>
+        <height>20</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Across-Track Average (m):</string>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QGroupBox" name="groupBoxHorizontalSlice">
+     <property name="geometry">
+      <rect>
+       <x>20</x>
+       <y>100</y>
+       <width>281</width>
+       <height>51</height>
+      </rect>
+     </property>
+     <property name="title">
+      <string>Horizontal Slice: </string>
+     </property>
+     <widget class="QDoubleSpinBox" name="doubleSpinBoxDepthAvg">
+      <property name="geometry">
+       <rect>
+        <x>200</x>
+        <y>20</y>
+        <width>49</width>
+        <height>20</height>
+       </rect>
+      </property>
+      <property name="minimum">
+       <double>1.000000000000000</double>
+      </property>
+      <property name="maximum">
+       <double>100.000000000000000</double>
+      </property>
+      <property name="singleStep">
+       <double>0.500000000000000</double>
+      </property>
+      <property name="value">
+       <double>10.000000000000000</double>
+      </property>
+     </widget>
+     <widget class="QLabel" name="labelDepthAvg">
+      <property name="geometry">
+       <rect>
+        <x>20</x>
+        <y>20</y>
+        <width>129</width>
+        <height>20</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Depth Average (m):</string>
+      </property>
+     </widget>
+    </widget>
+   </widget>
+  </widget>
+ </widget>
+ <tabstops>
+  <tabstop>radioButtonKongsberg</tabstop>
+  <tabstop>radioButtonOther</tabstop>
+  <tabstop>lineEditOther</tabstop>
+  <tabstop>lineEditIP</tabstop>
+  <tabstop>lineEditPort</tabstop>
+  <tabstop>doubleSpinBoxBinSize</tabstop>
+  <tabstop>doubleSpinBoxAcrossTrackAvg</tabstop>
+  <tabstop>doubleSpinBoxDepthAvg</tabstop>
+  <tabstop>spinBoxAlongTrackAvg</tabstop>
+  <tabstop>radioButtonAllPings</tabstop>
+  <tabstop>radioButtonFirstPing</tabstop>
+  <tabstop>radioButtonSecondPing</tabstop>
+  <tabstop>tabSettings</tabstop>
+ </tabstops>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>accepted()</signal>
+   <receiver>settingsDialog</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>248</x>
+     <y>254</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>157</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>settingsDialog</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>316</x>
+     <y>260</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>286</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>radioButtonOther</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>lineEditOther</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>121</x>
+     <y>197</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>222</x>
+     <y>197</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>
