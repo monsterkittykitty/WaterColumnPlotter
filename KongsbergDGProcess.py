@@ -99,6 +99,7 @@ class KongsbergDGProcess:
             # self.queue_tx_pie.put(pie_matrix)
             pie_object = self.process_MWC(header, bytes_io)
             self.queue_tx_pie.put(pie_object)
+            print("size queue_pie: ", self.queue_tx_pie.qsize())
 
         elif header[1] == b'#SKM':
             self.skm = dg_bytes
