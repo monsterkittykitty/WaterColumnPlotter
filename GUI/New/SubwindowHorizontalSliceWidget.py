@@ -1,6 +1,8 @@
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt
 import pyqtgraph as pg
+import pyvista as pv
+from pyvistaqt import BackgroundPlotter, QtInteractor
 from qtrangeslider import QRangeSlider
 import sys
 
@@ -8,6 +10,17 @@ import sys
 class SubwindowHorizontalSliceWidget(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super(SubwindowHorizontalSliceWidget, self).__init__(parent)
+
+        self.horizontal_plot = pg.ImageView(self)
+        # Disable ROI button:
+        self.horizontal_plot.ui.roiBtn.hide()
+        # Disable Norm button:
+        self.horizontal_plot.ui.menuBtn.hide()
+        # Disable right-click context menu:
+        self.horizontal_plot.view.setMenuEnabled(False)
+        self.horizontal_plot.ui.histogram.item.vb.setMenuEnabled(False)
+        #self.horizontal_plot.ui.histogram.item.vb.setRange(disableAutoRange=True)
+
         self.setWindowTitle("Horizontal Slice")
 
         layout = QtWidgets.QGridLayout()
@@ -34,8 +47,7 @@ class SubwindowHorizontalSliceWidget(QtWidgets.QWidget):
         pushButtonApply = QtWidgets.QPushButton("Apply")
         layout.addWidget(pushButtonApply, 0, 3)
 
-        plotWidget = pg.PlotWidget()
-        layout.addWidget(plotWidget, 1, 0, 3, 4)
+        layout.addWidget(self.horizontal_plot, 1, 0, 3, 4)
 
         rangeSlider = QRangeSlider(Qt.Horizontal)
         layout.addWidget(rangeSlider, 4, 1, 1, 2)

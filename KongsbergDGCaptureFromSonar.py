@@ -57,6 +57,8 @@ class KongsbergDGCaptureFromSonar:
 
         elif self.connection == "UDP":
             temp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            # Allow reuse of addresses
+            temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             # TODO: Change buffer size of packets are being lost:
             temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.MAX_DATAGRAM_SIZE * 2 * 2)
             temp_sock.bind((self.rx_ip, self.rx_port))

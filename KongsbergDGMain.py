@@ -11,11 +11,12 @@ from KongsbergDGPlot import KongsbergDGPlot
 from KongsbergDGProcess import KongsbergDGProcess
 import logging
 import multiprocessing
+from PyQt5.QtCore import QRunnable
 import queue
 
 logger = logging.getLogger(__name__)
 
-class KongsbergDGMain:
+class KongsbergDGMain(QRunnable):
     # def __init__(self, rx_ip, rx_port, bin_size, connection="UDP"):
     #     self.connection = connection
     #     self.rx_ip = rx_ip
@@ -45,6 +46,7 @@ class KongsbergDGMain:
                         "processing_settings": {"binSize_m": __, "acrossTrackAvg_m": __, "depthAvg_m": __,
                                                 "alongTrackAvg_ping": __, "dualSwathPolicy": __}}
         """
+        super(KongsbergDGMain, self).__init__()
         self.queue_data = multiprocessing.Queue()
         # self.queue_pie = multiprocessing.Queue()
         self.queue_pie = queue_pie
@@ -67,22 +69,23 @@ class KongsbergDGMain:
         # TODO: Do I need to set process_consumer daemon value to True?
         #  https://stonesoupprogramming.com/2017/09/11/python-multiprocessing-producer-consumer-pattern/comment-page-1/
 
-        process_producer = multiprocessing.Process(target=self.dg_capture.receive_dg_and_queue)
-        process_producer.daemon = True
-        process_producer.start()
+        print("kongsbergdgmain run")
+        self.process_producer = multiprocessing.Process(target=self.dg_capture.receive_dg_and_queue)
+        self.process_producer.daemon = True
+        self.process_producer.start()
         print("producer started")
 
-        process_consumer = multiprocessing.Process(target=self.dg_process.get_and_process_dg)
-        process_consumer.daemon = True
-        process_consumer.start()
+        self.process_consumer = multiprocessing.Process(target=self.dg_process.get_and_process_dg)
+        self.process_consumer.daemon = True
+        self.process_consumer.start()
         print("consumer started")
 
         # process_plotter = multiprocessing.Process(target=self.dg_plot.get_and_plot_pie())
         # process_plotter.start()
         # print("plotter started")
 
-        process_producer.join()
-        process_consumer.join()
+        self.process_producer.join()
+        self.process_consumer.join()
         # process_plotter.join()
         print("after join")
 

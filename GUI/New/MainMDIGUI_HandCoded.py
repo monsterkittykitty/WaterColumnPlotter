@@ -1,10 +1,15 @@
 import copy
 import json
+#from LaunchProcesses import LaunchProcesses
 import multiprocessing
+import numpy as np
+from Plotter import Plotter
+from PlotterMain import PlotterMain
 from PyQt5.QtWidgets import QAction, QApplication, QFileDialog, QMainWindow, QMdiArea, QMdiSubWindow, QMessageBox, \
     QTextEdit
-from PyQt5.QtCore import pyqtSignal, QJsonDocument, Qt, QThread
+from PyQt5.QtCore import pyqtSignal, QJsonDocument, Qt, QThread, QThreadPool, QTimer
 import pyqtgraph as pg
+from pyvistaqt import BackgroundPlotter, QtInteractor
 from qtrangeslider import QRangeSlider
 import sys
 
@@ -29,16 +34,22 @@ class MainWindow(QMainWindow):
         self.defaultSettings = {"system_settings": {"system": ""},
                                 "ip_settings": {"ip": "127.0.0.1", "port": 8080},
                                 "processing_settings": {"binSize_m": 0.25, "acrossTrackAvg_m": 10, "depthAvg_m": 10,
-                                                        "alongTrackAvg_ping": 5, "dualSwathPolicy": 0}}
+                                                        "alongTrackAvg_ping": 5, "depthDisplay_m": 10,
+                                                        "dualSwathPolicy": 0, "maxHeave_m": 5}}
 
         # TODO: Make this loadable from / savable to file:
         self.settings = copy.deepcopy(self.defaultSettings)
 
-        # Shared queue to contain pie matrices:
+        # Shared queue to contain pie objects:
         self.queue_pie = multiprocessing.Queue()
 
+        self.threadPool = QThreadPool()
+        print("Multithreading with maximum %d threads" % self.threadPool.maxThreadCount())
+
+        self.PLOT_UPDATE_INTERVAL = 1000  # Milliseconds
+
         # Window setup:
-        self.resize(1000, 800)
+        self.resize(1200, 800)
 
         self.setWindowTitle("Water Column Plotter")
 
@@ -48,45 +59,35 @@ class MainWindow(QMainWindow):
         self.mdi = QMdiArea()
         self.setCentralWidget(self.mdi)
 
+        # self.verticalPlot = pg.PlotWidget()
+        # self.piePlot = pg.PlotWidget()
+        # self.horizontalPlot = pg.PlotWidget()
+
         # To be set via signal/slot of SettingsDialog.py, when system_settings:system is changed.
         # TODO: Some sort of error handling and graceful closing of threads
         #  if system is changed while another system thread is running!
+        #self.sonarProcess = None
+        self.sonarMain = None
 
-        self.sonarThread = None
+        # TODO: Note to self: Plotter has nothing to plot until pies are made and put in queue_pie;
+        #  nothing is placed in queue_pie until KongsbergDGMain is initiated by selecting a sonar system.
+        self.plotterMain = PlotterMain(self.settings, self.queue_pie)
+        self.threadPool.start(self.plotterMain)
 
-        self.plotterThread = PlotterThread()
-        self.plotterThread.start()
-
-        # Open 3 subwindows for plots:
+        # Open 3 subwindows for plots; 1 subwindow to display settings:
         # VERTICAL:
-        self.verticalPlot = pg.PlotWidget()
-        self.verticalWidget = SubwindowVerticalSliceWidget(self.verticalPlot)
-        self.verticalSubwindowMDI = self.mdi.addSubWindow(self.verticalWidget)
-        self.verticalSubwindowMDI.resize(600, 300)
-        # Disable close button:
-        self.verticalSubwindowMDI.setWindowFlags(Qt.CustomizeWindowHint | Qt.WindowCloseButtonHint)
-
+        # self.verticalWidget = SubwindowVerticalSliceWidget(self.verticalPlot)
+        self.verticalWidget = SubwindowVerticalSliceWidget()
         # PIE
-        self.piePlot = pg.PlotWidget()
-        self.pieWidget = SubwindowPieSliceWidget(self.piePlot)
-        self.pieSubwindowMDI = self.mdi.addSubWindow(self.pieWidget)
-        self.pieSubwindowMDI.resize(300, 300)
-        # Disable close button:
-        self.pieSubwindowMDI.setWindowFlags(Qt.CustomizeWindowHint | Qt.WindowCloseButtonHint)
-
+        # self.pieWidget = SubwindowPieSliceWidget(self.piePlot)
+        self.pieWidget = SubwindowPieSliceWidget()
         # HORIZONTAL:
-        self.horizontalPlot = pg.PlotWidget()
-        self.horizontalWidget = SubwindowHorizontalSliceWidget(self.horizontalPlot)
-        self.horizontalSubwindowMDI = self.mdi.addSubWindow(self.horizontalWidget)
-        self.horizontalSubwindowMDI.resize(600, 300)
-        # Disable close button:
-        self.horizontalSubwindowMDI.setWindowFlags(Qt.CustomizeWindowHint | Qt.WindowCloseButtonHint)
-
-        # Open 1 subwindow to display settings:
+        # self.horizontalWidget = SubwindowHorizontalSliceWidget(self.horizontalPlot)
+        self.horizontalWidget = SubwindowHorizontalSliceWidget()
+        # SETTINGS:
         self.subwindowSettingsDisplay = SubwindowSettingsDisplay(self.settings)
-        self.settingsSubwindowMDI = self.mdi.addSubWindow(self.subwindowSettingsDisplay)
-        self.settingsSubwindowMDI.resize(300, 300)
-        self.settingsSubwindowMDI.setWindowFlags(Qt.CustomizeWindowHint | Qt.WindowCloseButtonHint)
+
+        self.openAllSubwindows()
 
         self.show()
 
@@ -102,11 +103,50 @@ class MainWindow(QMainWindow):
 
         self.displaySettingsDialog()
 
-
-
-
         #self.workerThread = WorkerThread(self.settings)
         #self.workerThread.start()
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.updatePlot)
+        self.timer.start(self.PLOT_UPDATE_INTERVAL)
+
+    def updatePlot(self):
+        print("LEN ", len(self.plotterMain.plotter.vertical_slice_buffer))
+        images = self.plotterMain.plotter.retrieve_plot_matrices()
+        self.pieWidget.pie_plot.setImage(images[0])
+        print("shape pie: ", images[0].shape)
+        self.verticalWidget.vertical_plot.setImage(images[1])
+        print("shape vert: ", images[1].shape)
+        #self.horizontalWidget.horizontal_plot.setImage(images[2])
+
+    def openAllSubwindows(self):
+        self.setupVerticalPlotSubwindow()
+        self.setupPiePlotSubwindow()
+        self.setupHorizontalPlotSubwindow()
+        self.setupSettingsSubwindow()
+
+    def setupVerticalPlotSubwindow(self):
+        verticalSubwindowMDI = self.mdi.addSubWindow(self.verticalWidget)
+        verticalSubwindowMDI.resize(800, 400)
+        # Disable close button:
+        verticalSubwindowMDI.setWindowFlags(Qt.CustomizeWindowHint | Qt.WindowCloseButtonHint)
+
+    def setupPiePlotSubwindow(self):
+        pieSubwindowMDI = self.mdi.addSubWindow(self.pieWidget)
+        pieSubwindowMDI.resize(400, 400)
+        # Disable close button:
+        pieSubwindowMDI.setWindowFlags(Qt.CustomizeWindowHint | Qt.WindowCloseButtonHint)
+
+    def setupHorizontalPlotSubwindow(self):
+        horizontalSubwindowMDI = self.mdi.addSubWindow(self.horizontalWidget)
+        horizontalSubwindowMDI.resize(800, 400)
+        # Disable close button:
+        horizontalSubwindowMDI.setWindowFlags(Qt.CustomizeWindowHint | Qt.WindowCloseButtonHint)
+
+    def setupSettingsSubwindow(self):
+        settingsSubwindowMDI = self.mdi.addSubWindow(self.subwindowSettingsDisplay)
+        settingsSubwindowMDI.resize(400, 400)
+        # Disable close button:
+        settingsSubwindowMDI.setWindowFlags(Qt.CustomizeWindowHint | Qt.WindowCloseButtonHint)
 
     def setupMenuBar(self):
 
@@ -145,9 +185,12 @@ class MainWindow(QMainWindow):
 
         if self.settings["system_settings"]["system"] == "Kongsberg":
             # Launch Kongsberg thread:
-            if self.sonarThread is None:
-                self.sonarThread = KongsbergThread(self.settings, self.queue_pie)
-                self.sonarThread.start()
+            if self.sonarMain is None:
+                # Note: Must maintain reference to this with 'self.':
+                # self.sonarProcess = LaunchSonarProcess(KongsbergDGMain(self.settings, self.queue_pie))
+                # self.sonarProcess.start()
+                self.sonarMain = KongsbergDGMain(self.settings, self.queue_pie)
+                self.threadPool.start(self.sonarMain)
 
                 print(self.settings["ip_settings"]["ip"])
                 print("Launching KongsbergMain")
@@ -161,13 +204,13 @@ class MainWindow(QMainWindow):
             # Launch other processing code: XXX
             # Note: This is currently disabled by error checks in
             # SettingsDialog.py that do now allow selection of "Other"
-            # EX: self.sonarThread = ResonThread(), self.sonarThread = r2SonicThread()
+            # EX: self.sonarProcess = ResonThread(), self.sonarProcess = r2SonicThread()
             pass
 
     def ipEdited(self):
-        # print("IP HAS BEEN EDITED: {}".format(self.settings["ip_settings"]["ip"]))
-        # print("default ip: {}".format(self.defaultSettings["ip_settings"]["ip"]))
-        # print("type(self.settings): ", type(self.settings))
+        print("IP HAS BEEN EDITED: {}".format(self.settings["ip_settings"]["ip"]))
+        print("default ip: {}".format(self.defaultSettings["ip_settings"]["ip"]))
+        print("type(self.settings): ", type(self.settings))
         # print("ipEdited")
         self.subwindowSettingsDisplay.setIPPort(self.settings)
 
@@ -223,26 +266,68 @@ class MainWindow(QMainWindow):
 
             self.settingsDialog.validateAndloadValues(tempSettings)
 
-class KongsbergThread(QThread):
+class LaunchSonarProcess(QThread):
+    def __init__(self, sonarMain, parent=None):
+        super(LaunchSonarProcess, self).__init__(parent)
 
-    def __init__(self, settings, queue_pie, parent=None):
-        super(KongsbergThread, self).__init__(parent)
-
-        self.kongsbergMain = KongsbergDGMain(settings, queue_pie)
+        self.sonarMain = sonarMain
 
     def run(self):
-        #self.threadDone.emit("string1", "string2")
-        self.kongsbergMain.run()
+        self.sonarMain.run()
 
-class PlotterThread(QThread):
+class LaunchPlotterProcess(QThread):
+    def __init__(self, plotterMain, parent=None):
+        super(LaunchPlotterProcess, self).__init__(parent)
 
-    def __init__(self, parent=None):
-        super(PlotterThread, self).__init__(parent)
+        self.plotterMain = plotterMain
 
-    # TODO: Initiate plotter! This should probably be its own file!
     def run(self):
-        print("Plotting!")
-        pass
+        self.plotterMain.run()
+
+class LaunchProcesses(QThread):
+
+    def __init__(self, sonarMain, plottingMain, parent=None):
+        super(LaunchProcesses, self).__init__(parent)
+        print("LaunchProcesses")
+        self.sonarMain = sonarMain
+        self.plottingProcess = plottingMain
+
+    def run(self):
+        print("LaunchProcesses run")
+        self.sonarMain.run()
+        self.plottingMain.run()
+
+
+# class LaunchProcesses(QThread):
+#
+#     def __init__(self, settings, queue_pie, vertical_plot, parent=None):
+#         super(LaunchProcesses, self).__init__(parent)
+#         print("LaunchProcesses")
+#
+#         #self.processes = LaunchProcesses(settings, queue_pie, vertical_plot)
+#         self.kongsbergMain = KongsbergDGMain(settings, queue_pie)
+#         print("LaunchProcesses plotter")
+#         self.plotterThread = PlotterThread(vertical_plot)
+#
+#     def run(self):
+#         print("LaunchProcesses.run")
+#         #self.threadDone.emit("string1", "string2")
+#         self.kongsbergMain.run()
+#         self.plotterThread.run()
+#         #self.processes.run()
+#
+#         self.kongsbergMain.process_consumer.join()
+#         self.kongsbergMain.process_producer.join()
+#         self.plotterThread.process_plotter.join()
+
+# class KongsbergThread(QThread):
+#     def __init__(self, settings, queue, parent=None):
+#         super(KongsbergThread, self).__init__(parent)
+#         self.kg = KongsbergDGMain(settings, queue)
+#
+#     def run(self):
+#         print("kongsthread running")
+#         self.kg.run()
 
 def main():
     app = QApplication(sys.argv)
