@@ -9,7 +9,7 @@ from collections import deque
 import datetime
 import io
 #import KMALL
-from KmallReaderForWaterColumn import KmallReaderForWaterColumn as k
+from KmallReaderForMDatagrams import KmallReaderForMDatagrams as k
 from KongsbergDGPie import KongsbergDGPie
 import logging
 import math
@@ -82,14 +82,18 @@ class KongsbergDGProcess:
             #                                                                                      (last_tx_time - first_tx_time).total_seconds()))
 
     def process_dgm(self, dg_bytes):
+
         bytes_io = io.BytesIO(dg_bytes)
         header = k.read_EMdgmHeader(bytes_io, return_fields=True)
+
+        print("DGProcess, process_dgm. header[1]: ", header[1])
 
         if header[1] == b'#MRZ':
             self.mrz = dg_bytes
             self.process_MRZ(header, bytes_io)
 
         elif header[1] == b'#MWC':
+            print("IN MWC")
             self.mwc_counter += 1  # For testing
             #print("mwc_counter:", self.mwc_counter)
             self.mwc = dg_bytes
@@ -112,10 +116,14 @@ class KongsbergDGProcess:
         # print("DGProcess: process_MWC()")  # For debugging
         process_MWC_start_time = datetime.datetime.now()  # For testing
 
+        print("*****process_mwc")
+
         dg = k.read_EMdgmMWC(bytes_io)
 
+        print("*****DG: ping, numBeams, numBytesPerBeamEntry", dg['cmnPart']['pingCnt'], dg['rxInfo']['numBeams'], dg['rxInfo']['numBytesPerBeamEntry'])
+
         # Header fields:
-        timestamp = dg['header']['dgtime']
+        timestamp = dg['header']['dgTime']
         dg_datetime = dg['header']['dgdatetime']
 
         # CmnPart fields:
@@ -407,7 +415,7 @@ class KongsbergDGProcess:
         #
         # return pie_chart_average
 
-        pie_object = KongsbergDGPie(pie_chart_values, pie_chart_count, dg['header']['dgtime'])
+        pie_object = KongsbergDGPie(pie_chart_values, pie_chart_count, dg['header']['dgTime'])
         return pie_object
 
     def process_SKM(self, header, bytes_io):
