@@ -1008,15 +1008,12 @@ class KmallReaderForMDatagrams:
 
         dg = {}
         dg['header'] = cls.read_EMdgmHeader(file_io)
-        print("dg['header']: ", dg['header'])
         dg['partition'] = cls.read_EMdgmMpartition(file_io, dgm_type=dg['header']['dgmType'],
                                                     dgm_version=dg['header']['dgmVersion'])
-        print("dg['partition']: ", dg['partition'])
         dg['cmnPart'] = cls.read_EMdgmMbody(file_io, dgm_type=dg['header']['dgmType'],
                                                     dgm_version=dg['header']['dgmVersion'])
-        print("dg['cmnPart']: ",  dg['cmnPart'])
         dg['txInfo'] = cls.read_EMdgmMWC_txInfo(file_io, dgm_version=dg['header']['dgmVersion'])
-        print("dg[txInfo]: ", dg['txInfo'])
+
         # Read TX sector info for each sector
         txSectorData = []
         for sector in range(dg['txInfo']['numTxSectors']):

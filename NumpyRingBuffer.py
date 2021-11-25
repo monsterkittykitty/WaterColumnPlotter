@@ -32,6 +32,7 @@ class NumpyRingBuffer(Sequence):
 
     def _unwrap(self):
         """ Copy the data from this buffer into unwrapped form """
+        print("ringbuffer: unwrap")
         return np.concatenate((
             self._arr[self._left_index:min(self._right_index, self._capacity)],
             self._arr[:max(self._right_index - self._capacity, 0)]

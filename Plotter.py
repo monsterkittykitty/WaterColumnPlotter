@@ -31,7 +31,7 @@ from pyvistaqt import BackgroundPlotter, QtInteractor
 from PyQt5.QtCore import QTimer
 import sched
 import statistics
-from GUI.New.SubwindowHorizontalSliceWidget import SubwindowHorizontalSliceWidget
+from GUI.SubwindowHorizontalSliceWidget import SubwindowHorizontalSliceWidget
 import threading
 import time
 import queue
@@ -123,15 +123,15 @@ class Plotter:
         # Add the above two values to get true index of desired depth.
         # Then, find number of bins that must be included to achieve horizontal_slice_width_m above / below index of
         # desired depth: this is found by dividing horizontal_slice_width_m by 2 and dividing again by bin_size.
-        self.horizontal_slice_start_index = math.ceil(self.settings["processing_settings"]["maxHeave_m"] /
+        self.horizontal_slice_start_index = math.ceil(self.settings["pie_settings"]["maxHeave_m"] /
                                                       self.settings["processing_settings"]["binSize_m"]) + \
-                                            math.floor(self.settings["processing_settings"]["depthDisplay_m"] /
+                                            math.floor(self.settings["processing_settings"]["depth_m"] /
                                                        self.settings["processing_settings"]["binSize_m"]) - \
                                             math.ceil((self.settings["processing_settings"]["depthAvg_m"] / 2) /
                                                       self.settings["processing_settings"]["binSize_m"])
-        self.horizontal_slice_end_index = math.ceil(self.settings["processing_settings"]["maxHeave_m"] /
+        self.horizontal_slice_end_index = math.ceil(self.settings["pie_settings"]["maxHeave_m"] /
                                                     self.settings["processing_settings"]["binSize_m"]) + \
-                                          math.floor(self.settings["processing_settings"]["depthDisplay_m"] /
+                                          math.floor(self.settings["processing_settings"]["depth_m"] /
                                                      self.settings["processing_settings"]["binSize_m"]) + \
                                           math.ceil((self.settings["processing_settings"]["depthAvg_m"] / 2) /
                                                     self.settings["processing_settings"]["binSize_m"])
@@ -220,6 +220,9 @@ class Plotter:
             # TODO:
             # index_horizontal_slice_a = max((index_horizontal_slice_a - 10), 0)
             # index_horizontal_slice_b = min((index_horizontal_slice_b + 10), self.MAX_NUM_GRID_CELLS)
+
+            print("****************verticalslice.shape: ", vertical_slice[:index_vertical_slice, :].shape)
+            print("len(verticalslice): ", len(vertical_slice[:index_vertical_slice, :]))
 
             return pie_display[:][:index_pie_display].T, \
                    vertical_slice[:index_vertical_slice, :], horizontal_slice

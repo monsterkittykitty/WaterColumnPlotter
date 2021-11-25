@@ -1,0 +1,18 @@
+{
+    "system_settings": {
+        "system": "Kongsberg"
+    },
+    "ip_settings": {
+        "ip": "127.0.0.1",
+        "port": 8080
+    },
+    "processing_settings": {
+        "binSize_m": 0.1,
+        "acrossTrackAvg_m": 4.0,
+        "depth_m": 2.0,
+        "depthAvg_m": 4.0,
+        "alongTrackAvg_ping": 5,
+        "dualSwathPolicy": 0,
+        "maxHeave_m": 5
+    }
+}

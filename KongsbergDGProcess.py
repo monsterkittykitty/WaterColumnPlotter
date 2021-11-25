@@ -86,14 +86,13 @@ class KongsbergDGProcess:
         bytes_io = io.BytesIO(dg_bytes)
         header = k.read_EMdgmHeader(bytes_io, return_fields=True)
 
-        print("DGProcess, process_dgm. header[1]: ", header[1])
+        #print("DGProcess, process_dgm. header[1]: ", header[1])
 
         if header[1] == b'#MRZ':
             self.mrz = dg_bytes
             self.process_MRZ(header, bytes_io)
 
         elif header[1] == b'#MWC':
-            print("IN MWC")
             self.mwc_counter += 1  # For testing
             #print("mwc_counter:", self.mwc_counter)
             self.mwc = dg_bytes
@@ -116,11 +115,7 @@ class KongsbergDGProcess:
         # print("DGProcess: process_MWC()")  # For debugging
         process_MWC_start_time = datetime.datetime.now()  # For testing
 
-        print("*****process_mwc")
-
         dg = k.read_EMdgmMWC(bytes_io)
-
-        print("*****DG: ping, numBeams, numBytesPerBeamEntry", dg['cmnPart']['pingCnt'], dg['rxInfo']['numBeams'], dg['rxInfo']['numBytesPerBeamEntry'])
 
         # Header fields:
         timestamp = dg['header']['dgTime']
