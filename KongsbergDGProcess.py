@@ -5,7 +5,7 @@
 
 # Description:
 
-from collections import deque
+import ctypes
 import datetime
 import io
 #import KMALL
@@ -16,13 +16,14 @@ import math
 import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
+from multiprocessing import Value
 import numpy as np
 import queue
 
 logger = logging.getLogger(__name__)
 
 class KongsbergDGProcess:
-    def __init__(self, bin_size=None, water_depth=None, max_heave=None, queue_data=None, queue_pie=None):
+    def __init__(self, bin_size=None, max_heave=None, queue_data=None, queue_pie=None, process_boolean=None):
         print("init_dgprocess")
         # TODO: Create a function that ensure bin size is not larger than range resolution and will not exceed max 1000 x 1000 matrix
         self.bin_size = bin_size  # Meters
@@ -33,6 +34,12 @@ class KongsbergDGProcess:
 
         # Queue shared between DGProcess and DGPlot ('put' pie in this queue)
         self.queue_tx_pie = queue_pie
+
+        # Boolean shared across processes (multiprocessing.Value)
+        if process_boolean:
+            self.process_boolean = process_boolean
+        else:
+            self.process_boolean = Value(ctypes.c_bool, True)
 
         #self.k = KMALL.kmall(filename=None)
 
@@ -53,7 +60,8 @@ class KongsbergDGProcess:
         first_tx_time = None  # For testing
 
         count = 0  # For testing
-        while True:
+        # while True:
+        while self.process_boolean:
             try:
                 dg_bytes = self.queue_rx_data.get(block=True, timeout=self.QUEUE_RX_DATA_TIMEOUT)
 

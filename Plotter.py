@@ -8,6 +8,7 @@
 # adding updating plot to GUI.
 
 from collections import deque
+import ctypes
 import datetime
 import io
 import itertools
@@ -21,6 +22,7 @@ import matplotlib
 matplotlib.use("Qt5Agg")
 import matplotlib.animation as anim
 import matplotlib.pyplot as plt
+from multiprocessing import Value
 #from numba import jit
 import numpy as np
 #from numpy_ringbuffer import RingBuffer
@@ -40,9 +42,15 @@ import warnings
 logger = logging.getLogger(__name__)
 
 class Plotter:
-    def __init__(self, settings, queue_pie):
+    def __init__(self, settings, queue_pie, process_boolean):
         self.settings = settings
         self.queue_rx_pie = queue_pie
+
+        # Boolean shared across processes (multiprocessing.Value)
+        if process_boolean:
+            self.process_boolean = process_boolean
+        else:
+            self.process_boolean = Value(ctypes.c_bool, True)
 
         #self.vertical_plot = pg.PlotWidget()
         self.vertical_plot = pg.ImageView()
@@ -261,7 +269,8 @@ class Plotter:
         temp_timestamp = []
         temp_lat_lon = []
 
-        while True:
+        #while True:
+        while self.process_boolean:
             try:
                 pie_object = self.queue_rx_pie.get(block=True, timeout=self.QUEUE_RX_TIMEOUT)
                 # print("DGPlot: get_and_deque_pie: APPENDING")

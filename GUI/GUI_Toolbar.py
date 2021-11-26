@@ -11,6 +11,7 @@ class GUI_Toolbar(QToolBar):
 
     signalPlay = pyqtSignal(name="playClicked")
     signalStop = pyqtSignal(name="stopClicked")
+    signalSettings = pyqtSignal(name="settingsClicked")
 
     def __init__(self, settings, parent=None):
         super(GUI_Toolbar, self).__init__(parent)
@@ -37,20 +38,18 @@ class GUI_Toolbar(QToolBar):
         # Play / Stop Icons:
         iconPlay = self.style().standardIcon(QStyle.SP_MediaPlay)
         self.toolButtonPlay = QToolButton(self)
+        self.toolButtonPlay.setToolTip("Begin listening / plotting data.")
         self.toolButtonPlay.setIcon(iconPlay)
-        # self.toolButtonPlay.setStyleSheet("background-color : rgb(52, 235, 158)")
-        # self.toolButtonPlay.setStyleSheet("background-color : rgb(225, 225, 225)")
-        # self.toolButtonPlay.setStyleSheet("background-color : rgb(240, 240, 240)")
-        self.toolButtonPlay.setStyleSheet("QToolButton { background-color : rgb(240, 240, 240) }"
-                                          "QToolButton:pressed { background-color : rgb(158, 158, 158) }")
+        self.toolButtonPlay.setStyleSheet("background-color : rgb(240, 240, 240)")
         self.toolButtonPlay.clicked.connect(self.playClicked.emit)
 
         iconStop = self.style().standardIcon(QStyle.SP_MediaStop)
         self.toolButtonStop = QToolButton(self)
+        self.toolButtonStop.setToolTip("Stop listening / plotting data.")
         self.toolButtonStop.setIcon(iconStop)
-        # self.toolButtonStop.setStyleSheet("background-color : rgb(240, 41, 41)")
-        # self.toolButtonStop.setStyleSheet("background-color : rgb(225, 225, 225)")
         self.toolButtonStop.setStyleSheet("background-color : rgb(240, 240, 240)")
+        # Initialize stop button as disabled:
+        self.toolButtonStop.setDisabled(True)
         self.toolButtonStop.clicked.connect(self.stopClicked.emit)
 
         # Add widgets to toolbar:
@@ -58,7 +57,6 @@ class GUI_Toolbar(QToolBar):
         self.addWidget(groupBoxSystem)
         self.addWidget(self.toolButtonPlay)
         self.addWidget(self.toolButtonStop)
-
 
         # For adding additional settngs to toolbar. Note: This is incomplete and signals / slots are not enabled.
         # # Settings:
@@ -112,6 +110,22 @@ class GUI_Toolbar(QToolBar):
         # self.addWidget(spacer)
         #
         # self.addWidget(groupBoxSettings)
+
+        # Instead of above, add icon to toolbar that brings up settings dialog
+        iconSettings = self.style().standardIcon(QStyle.SP_FileDialogDetailedView)
+        self.toolButtonSettings = QToolButton(self)
+        self.toolButtonSettings.setToolTip("Settings")
+        self.toolButtonSettings.setIcon(iconSettings)
+        self.toolButtonSettings.setStyleSheet("QToolButton {background-color : rgb(240, 240, 240)}"
+                                              "QToolButton:pressed {background-color : rgb(158, 158, 158)}")
+        self.toolButtonSettings.clicked.connect(self.settingsClicked.emit)
+
+        # Spacer Widget:
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.addWidget(spacer)
+
+        self.addWidget(self.toolButtonSettings)
 
     def setIPPort(self, ip, port):
         self.labelIPPort.setText(ip + ":" + str(port))

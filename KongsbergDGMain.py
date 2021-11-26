@@ -11,12 +11,13 @@ from KongsbergDGPlot import KongsbergDGPlot
 from KongsbergDGProcess import KongsbergDGProcess
 import logging
 import multiprocessing
-from PyQt5.QtCore import QRunnable
+from PyQt5.QtCore import QRunnable, QObject
 import queue
 
 logger = logging.getLogger(__name__)
 
 class KongsbergDGMain(QRunnable):
+#class KongsbergDGMain(QObject):
     # def __init__(self, rx_ip, rx_port, bin_size, connection="UDP"):
     #     self.connection = connection
     #     self.rx_ip = rx_ip
@@ -39,7 +40,7 @@ class KongsbergDGMain(QRunnable):
     #                                    queue_pie=self.queue_pie)
     #     # self.gui = WaterColumnGUI(queue_pie=self.queue_pie)
 
-    def __init__(self, settings, queue_pie):
+    def __init__(self, settings, queue_pie, process_boolean):
         """
         :param settings: Python dictionary of format:
                         {"ip_settings: {"ip": __, "port": __},
@@ -52,10 +53,11 @@ class KongsbergDGMain(QRunnable):
         self.queue_pie = queue_pie
         self.dg_capture = KongsbergDGCaptureFromSonar(rx_ip=settings["ip_settings"]["ip"],
                                                       rx_port=settings["ip_settings"]["port"],
-                                                      connection="UDP", queue_data=self.queue_data)
+                                                      connection="UDP", queue_data=self.queue_data,
+                                                      process_boolean=process_boolean)
         self.dg_process = KongsbergDGProcess(bin_size=settings["processing_settings"]["binSize_m"],
-                                             water_depth=10, max_heave=1, queue_data=self.queue_data,
-                                             queue_pie=self.queue_pie)
+                                             max_heave=1, queue_data=self.queue_data,
+                                             queue_pie=self.queue_pie, process_boolean=process_boolean)
 
         # self.dg_plot = KongsbergDGPlot(bin_size=settings["processing_settings"]["binSize_m"], max_heave=1,
         #                                 vertical_slice_width_m=settings["processing_settings"]["acrossTrackAvg_m"],

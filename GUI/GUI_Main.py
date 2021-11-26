@@ -4,10 +4,11 @@
 # Center for Coastal and Ocean Mapping
 # November 2021
 
+import ctypes
 import json
 import multiprocessing
 from PlotterMain import PlotterMain
-from PyQt5.QtWidgets import QAction, QApplication, QFileDialog, QGroupBox, QLabel, QMainWindow, QMdiArea, QMdiSubWindow, QTextEdit, QToolBar, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QAction, QApplication, QFileDialog, QGroupBox, QLabel, QMainWindow, QMdiArea, QMdiSubWindow, QMessageBox, QTextEdit, QToolBar, QVBoxLayout, QWidget
 from PyQt5.QtCore import Qt, QThread, QThreadPool, QTimer
 import pyqtgraph as pg
 import sys
@@ -38,8 +39,10 @@ class MainWindow(QMainWindow):
 
         # Shared queue to contain pie objects:
         self.queue_pie = multiprocessing.Queue()
+        # Shared value to communicate 'play' (True) or 'stop' (False) status between main and multiprocessing processes:
+        self.processBoolean = multiprocessing.Value(ctypes.c_bool, True)
 
-        self.threadPool = QThreadPool()
+        self.threadPool = QThreadPool(parent=self)
         print("Multithreading with maximum %d threads" % self.threadPool.maxThreadCount())
 
         self.PLOT_UPDATE_INTERVAL = 1000  # Milliseconds
@@ -49,21 +52,13 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Water Column Plotter")
 
         # Menu Bar
-        self.__initMenuBar()
+        #self.__initMenuBar()
 
         # Tool Bar
-        # self.toolBar = GUI_Toolbar(self.settings, parent=self)
-        # self.addToolBar(self.toolBar)
-        # self.toolBar.signalPlay.connect(self.playProcesses)
-        # self.toolBar.signalStop.connect(self.stopProcesses)
         self.toolBar = self.__initToolBar()
-        #self.__initToolBar()
-        #self.addToolBar(self.toolBar)
 
-        # self.mdi = QMdiArea()
+        # Multiple Document Interface
         self.mdi = self.__initMDI()
-        # self.mdi = GUI_MDI(self.settings, self)
-        # self.__connectMDISignalsSlots()
         self.setCentralWidget(self.mdi)
 
         # To be set via signal/slot of SettingsDialog.py, when system_settings:system is changed.
@@ -74,7 +69,7 @@ class MainWindow(QMainWindow):
 
         # TODO: Note to self: Plotter has nothing to plot until pies are made and put in queue_pie;
         #  nothing is placed in queue_pie until KongsbergDGMain is initiated by selecting a sonar system.
-        self.plotterMain = PlotterMain(self.settings, self.queue_pie)
+        self.plotterMain = PlotterMain(self.settings, self.queue_pie, self.processBoolean)
         # self.threadPool.start(self.plotterMain)
 
         self.show()
@@ -82,15 +77,7 @@ class MainWindow(QMainWindow):
         # self.settingsDialog = AllSettingsDialog(self.settings, self)
         # self.__connectSettingsSignalsSlots()
         #self.settingsDialog = self.__initSettingsDialog()
-        self.testSettingsDialog()
-
-        #self.displaySettingsDialog()  # This will block until OK or Close / Cancel is selected in settings dialog
-
-        # TODO: Experiment
-        self.startTime = pg.ptime.time()
-        self.vertical_curves = []
-        self.chunkSize = 10
-        self.ptr = 0
+        self.displaySettingsDialog()  # This will block until OK or Close / Cancel is selected in settings dialog
 
         #self.workerThread = WorkerThread(self.settings)
         #self.workerThread.start()
@@ -98,74 +85,87 @@ class MainWindow(QMainWindow):
         self.timer.timeout.connect(self.updatePlot)
         # self.timer.start(self.PLOT_UPDATE_INTERVAL)
 
-    def testSettingsDialog(self):
-        settingsDialog = AllSettingsDialog2(self.settings, parent=self)
-
-        # Signals / Slots
-        settingsDialog.pushButtonLoadSettings.clicked.connect(lambda: self.displayLoadSettingsDialog(settingsDialog))
-        settingsDialog.signalSystemEdited.connect(self.systemEdited)
-        settingsDialog.signalIPEdited.connect(self.ipEdited)
-        settingsDialog.signalPortEdited.connect(self.portEdited)
-        settingsDialog.signalBinSizeEdited.connect(lambda: self.binSizeEdited(fromSettingsDialog=True))
-        settingsDialog.signalAcrossTrackAvgEdited.connect(lambda: self.acrossTrackAvgEdited(fromSettingsDialog=True))
-        settingsDialog.signalDepthEdited.connect(lambda: self.depthEdited(fromSettingsDialog=True))
-        settingsDialog.signalDepthAvgEdited.connect(lambda: self.depthAvgEdited(fromSettingsDialog=True))
-        settingsDialog.signalAlongTrackAvgEdited.connect(self.alongTrackAvgEdited)
-        settingsDialog.signalDualSwathPolicyEdited.connect(self.dualSwathAvgEdited)
-
-        settingsDialog.exec_()
-
-
-    def stopProcesses(self):
-        self.toolBar.toolButtonStop.setStyleSheet("background-color : rgb(158, 158, 158)")
-        self.toolBar.toolButtonPlay.setStyleSheet("background-color : rgb(240, 240, 240)")
-        self.stopSystemProcess()
-        self.stopPlotterProcess()
-
     def playProcesses(self):
-        self.toolBar.toolButtonPlay.setStyleSheet("background-color : rgb(158, 158, 158)")
+        """
+        Initiates self.sonarMain and self.plotterMain processes in new threads from QThreadPool.
+        """
+        # Play button is pressed. Disable play button; enable stop button
+        self.toolBar.toolButtonPlay.setDisabled(True)
+        # self.toolBar.toolButtonPlay.setStyleSheet("background-color : rgb(158, 158, 158)")  # Grey
+        self.toolBar.toolButtonPlay.setStyleSheet("background-color : rgb(154, 171, 155)")  # Green
+
+        self.toolBar.toolButtonStop.setEnabled(True)
         self.toolBar.toolButtonStop.setStyleSheet("background-color : rgb(240, 240, 240)")
-        self.playSystemProcess()
-        self.playPlotterProcess()
 
-    def playSystemProcess(self):
-        if self.settings["system_settings"]["system"] == "Kongsberg":
-            # Launch Kongsberg thread:
-            if self.sonarMain is None:
-                # Note: Must maintain reference to this with 'self.':
-                # self.sonarProcess = LaunchSonarProcess(KongsbergDGMain(self.settings, self.queue_pie))
-                # self.sonarProcess.start()
-                print("Launching Kongsberg thread.")
-                self.sonarMain = KongsbergDGMain(self.settings, self.queue_pie)
+        # Ensure shared process_boolean is set to True
+        self.processBoolean.value = True
+
+        # Initiate processes
+        self.__playSystemProcess()
+        self.__playPlotterProcess()
+
+    def __playSystemProcess(self):
+        """
+        Initiates self.sonarMain processe in new threads from QThreadPool.
+        """
+        if self.sonarMain is None:
+            if self.settings["system_settings"]["system"] == "Kongsberg":  # Kongsberg system
+                # print("Launching Kongsberg thread.")
+                # Note: Must maintain reference to sonarMain with 'self.':
+                self.sonarMain = KongsbergDGMain(self.settings, self.queue_pie, self.processBoolean)
                 self.threadPool.start(self.sonarMain)
-            else:
-                # TODO: Error checking. Do you really want to change systems? If yes, close previous thread.
-                pass
-            # while True:
-            #     print(self.queue_pie.qsize())
-            pass
-        else:  # self.settings["system_settings"]["system"] == "Other"
-            # Launch other processing code: XXX
-            # Note: This is currently disabled by error checks in
-            # SettingsDialog.py that do now allow selection of "Other"
-            # EX: self.sonarProcess = ResonThread(), self.sonarProcess = r2SonicThread()
-            pass
+            else:  # Other system
+                # TODO: Alter code when additional systems supported.
+                QMessageBox.warning(self, "Warning", "Currently supporting only Kongsberg systems.")
+                # self.sonarMain = <SystemMain>
+                # self.threadPool.start(self.sonarMain)
+        else:  # self.sonarMain is not None
+            if isinstance(self.sonarMain, KongsbergDGMain):  # Kongsberg system
+                self.threadPool.start(self.sonarMain)
+            else:  # Other system
+                # TODO: Alter code when additional systems supported.
+                QMessageBox.warning(self, "Warning", "Currently supporting only Kongsberg systems.")
+                # self.threadPool.start(self.sonarMain)
 
-    def stopSystemProcess(self):
-        # TODO:
-        pass
-        # Check if process is active before shutting down
-
-    def playPlotterProcess(self):
-        print("Launching plotter main and timer.")
-        # This method of launching plotterMain and timer results in a weird error, but it still works *shrug*:
-        # ImportError: cannot import name 'Popen' from partially initialized module 'multiprocessing.popen_spawn_win32' (most likely due to a circular import)
+    def __playPlotterProcess(self):
+        """Initiates self.plotterMain processe in new threads from QThreadPool."""
+        # NOTE: This method of launching plotterMain and timer results in a weird error, but it still works *shrug*:
+        # ImportError: cannot import name 'Popen' from partially initialized module
+        # 'multiprocessing.popen_spawn_win32' (most likely due to a circular import)
         # Documented here: https://github.com/dask/distributed/issues/4168
         self.threadPool.start(self.plotterMain)
         self.timer.start(self.PLOT_UPDATE_INTERVAL)
 
-    def stopPlotterProcess(self):
-        # TODO:
+    def stopProcesses(self):
+        """
+        Allows self.sonarMain and self.plotterMain processes to end by setting self.process_boolean flag to False.
+        """
+        # Stop button is pressed. Disable stop button; enable play button
+        self.toolBar.toolButtonStop.setDisabled(True)
+        # self.toolBar.toolButtonStop.setStyleSheet("background-color : rgb(158, 158, 158)")  # Grey
+        self.toolBar.toolButtonStop.setStyleSheet("background-color : rgb(219, 141, 141)")  # Red
+
+        self.toolBar.toolButtonPlay.setEnabled(True)
+        self.toolBar.toolButtonPlay.setStyleSheet("background-color : rgb(240, 240, 240)")
+
+        # Ensure shared process_boolean is set to True
+        # TODO: Unsure whether it's necessary to lock this? Ask Steve?
+        with self.processBoolean.get_lock():
+            self.processBoolean.value = False
+
+        self.__stopSystemProcess()
+        self.__stopPlotterProcess()
+
+    def __stopSystemProcess(self):
+        """
+        Probably unnecessary. self.process_boolean = False should allow these processes to end.
+        """
+        pass
+
+    def __stopPlotterProcess(self):
+        """
+        Probably unnecessary. self.process_boolean = False should allow these processes to end.
+        """
         pass
 
     def updatePlot(self):
@@ -183,10 +183,12 @@ class MainWindow(QMainWindow):
                                                        autoHistogramRange=False,
                                                        pos=(-len(images[1]), 0))
 
+        # TODO: Confirm that setPos y position is correct:
         self.mdi.horizontalWidget.horizontal_plot.setImage(images[2], autoRange=False,
                                                            autoLevels=False, levels=(-95, 35),
                                                            autoHistogramRange=False,
-                                                           pos=(-len(images[2]), 0))
+                                                           pos=(-len(images[2]),
+                                                                -(self.settings['pie_settings']['maxGridCells'] / 2)))
 
     def __initMenuBar(self):
         menuBar = self.menuBar()
@@ -230,6 +232,7 @@ class MainWindow(QMainWindow):
         # Signals / Slots
         toolBar.signalPlay.connect(self.playProcesses)
         toolBar.signalStop.connect(self.stopProcesses)
+        toolBar.signalSettings.connect(self.displaySettingsDialog)
 
         return toolBar
 
@@ -244,22 +247,22 @@ class MainWindow(QMainWindow):
 
         return mdi
 
-    def __initSettingsDialog(self):
-        settingsDialog = AllSettingsDialog(self.settings, parent=self)
-
-        # Signals / Slots
-        settingsDialog.pushButtonLoadSettings.clicked.connect(lambda: self.displayLoadSettingsDialog(settingsDialog))
-        settingsDialog.signalSystemEdited.connect(self.systemEdited)
-        settingsDialog.signalIPEdited.connect(self.ipEdited)
-        settingsDialog.signalPortEdited.connect(self.portEdited)
-        settingsDialog.signalBinSizeEdited.connect(lambda: self.binSizeEdited(fromSettingsDialog=True))
-        settingsDialog.signalAcrossTrackAvgEdited.connect(lambda: self.acrossTrackAvgEdited(fromSettingsDialog=True))
-        settingsDialog.signalDepthEdited.connect(lambda: self.depthEdited(fromSettingsDialog=True))
-        settingsDialog.signalDepthAvgEdited.connect(lambda: self.depthAvgEdited(fromSettingsDialog=True))
-        settingsDialog.signalAlongTrackAvgEdited.connect(self.alongTrackAvgEdited)
-        settingsDialog.signalDualSwathPolicyEdited.connect(self.dualSwathAvgEdited)
-
-        return settingsDialog
+    # def __initSettingsDialog(self):
+    #     settingsDialog = AllSettingsDialog(self.settings, parent=self)
+    #
+    #     # Signals / Slots
+    #     settingsDialog.pushButtonLoadSettings.clicked.connect(lambda: self.displayLoadSettingsDialog(settingsDialog))
+    #     settingsDialog.signalSystemEdited.connect(self.systemEdited)
+    #     settingsDialog.signalIPEdited.connect(self.ipEdited)
+    #     settingsDialog.signalPortEdited.connect(self.portEdited)
+    #     settingsDialog.signalBinSizeEdited.connect(lambda: self.binSizeEdited(fromSettingsDialog=True))
+    #     settingsDialog.signalAcrossTrackAvgEdited.connect(lambda: self.acrossTrackAvgEdited(fromSettingsDialog=True))
+    #     settingsDialog.signalDepthEdited.connect(lambda: self.depthEdited(fromSettingsDialog=True))
+    #     settingsDialog.signalDepthAvgEdited.connect(lambda: self.depthAvgEdited(fromSettingsDialog=True))
+    #     settingsDialog.signalAlongTrackAvgEdited.connect(self.alongTrackAvgEdited)
+    #     settingsDialog.signalDualSwathPolicyEdited.connect(self.dualSwathAvgEdited)
+    #
+    #     return settingsDialog
 
 
     def systemEdited(self):
@@ -350,8 +353,23 @@ class MainWindow(QMainWindow):
     def tileActionSlot(self):
         self.mdi.tileSubWindows()
 
-    # def displaySettingsDialog(self):
-    #     self.settingsDialog.exec_()
+    def displaySettingsDialog(self):
+        settingsDialog = AllSettingsDialog2(self.settings, parent=self)
+
+        # Signals / Slots
+        settingsDialog.pushButtonLoadSettings.clicked.connect(lambda: self.displayLoadSettingsDialog(settingsDialog))
+        settingsDialog.pushButtonSaveSettings.clicked.connect(self.displaySaveSettingsDialog)
+        settingsDialog.signalSystemEdited.connect(self.systemEdited)
+        settingsDialog.signalIPEdited.connect(self.ipEdited)
+        settingsDialog.signalPortEdited.connect(self.portEdited)
+        settingsDialog.signalBinSizeEdited.connect(lambda: self.binSizeEdited(fromSettingsDialog=True))
+        settingsDialog.signalAcrossTrackAvgEdited.connect(lambda: self.acrossTrackAvgEdited(fromSettingsDialog=True))
+        settingsDialog.signalDepthEdited.connect(lambda: self.depthEdited(fromSettingsDialog=True))
+        settingsDialog.signalDepthAvgEdited.connect(lambda: self.depthAvgEdited(fromSettingsDialog=True))
+        settingsDialog.signalAlongTrackAvgEdited.connect(self.alongTrackAvgEdited)
+        settingsDialog.signalDualSwathPolicyEdited.connect(self.dualSwathAvgEdited)
+
+        settingsDialog.exec_()
 
     def displaySaveSettingsDialog(self):
         saveDialog = QFileDialog(self)

@@ -13,10 +13,12 @@
 # TODO: Break out buffering mechanism into its own method, so it can be used to reconstruct and write to a file.
 
 import argparse
+import ctypes
 import datetime
 import io
 from KmallReaderForMDatagrams import KmallReaderForMDatagrams as k
 import logging
+from multiprocessing import Value
 import socket
 import struct
 import sys
@@ -24,9 +26,8 @@ import sys
 logger = logging.getLogger(__name__)
 
 class KongsbergDGCaptureFromSonar:
-    def __init__(self, rx_ip, rx_port, connection="Multicast", queue_data=None, out_file=None):
+    def __init__(self, rx_ip, rx_port, connection="Multicast", queue_data=None, process_boolean=None, out_file=None):
 
-        print("dgcapture: init")
         self.rx_ip = rx_ip
         self.rx_port = rx_port
         self.connection = connection
@@ -36,10 +37,16 @@ class KongsbergDGCaptureFromSonar:
         self.queue_tx_data = queue_data
         self.out_file = out_file
 
+        # Boolean shared across processes (multiprocessing.Value)
+        if process_boolean:
+            self.process_boolean = process_boolean
+        else:
+            self.process_boolean = Value(ctypes.c_bool, True)
+
         self.SOCKET_TIMEOUT = 5  # Seconds
         self.MAX_DATAGRAM_SIZE = 2 ** 16
         self.sock_in = self.__init_socket()
-        self.print_settings()
+        #self.print_settings()
 
         self.MAX_NUM_PINGS_TO_BUFFER = 5
 
@@ -103,7 +110,8 @@ class KongsbergDGCaptureFromSonar:
         """
         file_io = open(self.out_file, 'wb')
 
-        while True:
+        #while True:
+        while self.process_boolean:
             try:
                 data, address = self.sock_in.recvfrom(self.MAX_DATAGRAM_SIZE)
                 #print(data)  # For debugging
@@ -128,7 +136,8 @@ class KongsbergDGCaptureFromSonar:
         timestamp_index = 0  # Index of oldest timestamp in buffer
         next_index = 0  # Index of next position in buffer to be filled
 
-        while True:
+        # while True:
+        while self.process_boolean.value:
             try:
                 data, address = self.sock_in.recvfrom(self.MAX_DATAGRAM_SIZE)
 
@@ -289,6 +298,8 @@ class KongsbergDGCaptureFromSonar:
                 print("DGCAPTURE, Received MWCs: ", mwc_counter)
                 print("DGCAPTURE, First transmit: {}; Final transmit: {}; Total time: {}"
                       .format(first_tx_time, last_tx_time, (last_tx_time - first_tx_time).total_seconds()))
+
+        print("BOOLEAN STOOPPED")
 
     def advance_timestamp_index(self):
         """
