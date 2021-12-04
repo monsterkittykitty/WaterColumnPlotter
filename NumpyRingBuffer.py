@@ -10,7 +10,7 @@ from collections import Sequence
 
 
 class NumpyRingBuffer(Sequence):
-    def __init__(self, capacity, dtype=float, allow_overwrite=True):
+    def __init__(self, capacity, dtype=float, buffer=None, allow_overwrite=True):
         """
         Create a new ring buffer with the given capacity and element type
         Parameters
@@ -24,7 +24,9 @@ class NumpyRingBuffer(Sequence):
             If false, throw an IndexError when trying to append to an already
             full buffer
         """
-        self._arr = np.empty(capacity, dtype)
+        self._arr = np.ndarray(capacity, dtype, buffer=buffer)
+        #self._arr[:] = np.nan  # ???
+        #self._arr = np.empty(capacity, dtype)
         self._left_index = 0
         self._right_index = 0
         self._capacity = capacity
@@ -32,7 +34,6 @@ class NumpyRingBuffer(Sequence):
 
     def _unwrap(self):
         """ Copy the data from this buffer into unwrapped form """
-        print("ringbuffer: unwrap")
         return np.concatenate((
             self._arr[self._left_index:min(self._right_index, self._capacity)],
             self._arr[:max(self._right_index - self._capacity, 0)]

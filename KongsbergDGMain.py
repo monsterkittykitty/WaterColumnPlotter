@@ -10,86 +10,83 @@ from KongsbergDGCaptureFromSonar import KongsbergDGCaptureFromSonar
 from KongsbergDGPlot import KongsbergDGPlot
 from KongsbergDGProcess import KongsbergDGProcess
 import logging
-import multiprocessing
+from multiprocessing import Process
 from PyQt5.QtCore import QRunnable, QObject
 import queue
 
 logger = logging.getLogger(__name__)
 
-class KongsbergDGMain(QRunnable):
-#class KongsbergDGMain(QObject):
-    # def __init__(self, rx_ip, rx_port, bin_size, connection="UDP"):
-    #     self.connection = connection
-    #     self.rx_ip = rx_ip
-    #     self.rx_port = rx_port
-    #
-    #     self.bin_size = bin_size
-    #
-    #     self.queue_data = multiprocessing.Queue()
-    #     self.queue_pie = multiprocessing.Queue()
-    #     self.dg_capture = KongsbergDGCaptureFromSonar(rx_ip, rx_port, connection, queue_data=self.queue_data)
-    #     self.dg_process = KongsbergDGProcess(bin_size=self.bin_size, water_depth=10, max_heave=1, queue_data=self.queue_data,
-    #                                          queue_pie=self.queue_pie)
-    #
-    #     # TODO: Experiment to launch KongsbergDGPlot from WaterColumnGUI.
-    #     #  Is it better to create KongsbergDGPlot object here and pass it as argument to WaterColumnGUI?
-    #     #  I think it's OK to do it this way because the format of everything in self.queue_pie
-    #     #  should be standard regardless of sonar system...
-    #     self.dg_plot = KongsbergDGPlot(bin_size=self.bin_size, max_heave=1, vertical_slice_width_m=1,
-    #                                    horizontal_slice_width_m=1, horizontal_slice_depth_m=1, num_pings_to_average=10,
-    #                                    queue_pie=self.queue_pie)
-    #     # self.gui = WaterColumnGUI(queue_pie=self.queue_pie)
+__appname__ = "KongsbergDGMain"
 
-    def __init__(self, settings, queue_pie, process_boolean):
-        """
-        :param settings: Python dictionary of format:
-                        {"ip_settings: {"ip": __, "port": __},
-                        "processing_settings": {"binSize_m": __, "acrossTrackAvg_m": __, "depthAvg_m": __,
-                                                "alongTrackAvg_ping": __, "dualSwathPolicy": __}}
-        """
-        super(KongsbergDGMain, self).__init__()
-        self.queue_data = multiprocessing.Queue()
-        # self.queue_pie = multiprocessing.Queue()
-        self.queue_pie = queue_pie
-        self.dg_capture = KongsbergDGCaptureFromSonar(rx_ip=settings["ip_settings"]["ip"],
-                                                      rx_port=settings["ip_settings"]["port"],
-                                                      connection="UDP", queue_data=self.queue_data,
-                                                      process_boolean=process_boolean)
-        self.dg_process = KongsbergDGProcess(bin_size=settings["processing_settings"]["binSize_m"],
-                                             max_heave=1, queue_data=self.queue_data,
-                                             queue_pie=self.queue_pie, process_boolean=process_boolean)
+class KongsbergDGMain:
+    def __init__(self, settings, queue_datagram, queue_pie_object, process_flag):
 
-        # self.dg_plot = KongsbergDGPlot(bin_size=settings["processing_settings"]["binSize_m"], max_heave=1,
-        #                                 vertical_slice_width_m=settings["processing_settings"]["acrossTrackAvg_m"],
-        #                                 horizontal_slice_width_m=settings["processing_settings"]["depthAvg_m"],
-        #                                 horizontal_slice_depth_m=1,
-        #                                 num_pings_to_average=settings["processing_settings"]["alongTrackAvg_ping"],
-        #                                 queue_pie=self.queue_pie)
+        self.settings = settings
 
+        # multiprocessing.Queues
+        self.queue_datagram = queue_datagram
+        self.queue_pie_object = queue_pie_object
+
+        self.process_flag = process_flag
+
+        self.dg_capture = None
+        self.dg_process = None
+
+        self.dg_capture = KongsbergDGCaptureFromSonar(rx_ip=self.settings["ip_settings"]["ip"],
+                                                      rx_port=self.settings["ip_settings"]["port"],
+                                                      connection="UDP", queue_datagram=self.queue_datagram,
+                                                      process_flag=self.process_flag)
+
+        self.dg_process = KongsbergDGProcess(bin_size=self.settings["processing_settings"]["binSize_m"],
+                                             max_heave=self.settings["buffer_settings"]["maxHeave_m"],
+                                             queue_datagram=self.queue_datagram, queue_pie_object=self.queue_pie_object,
+                                             process_flag=self.process_flag)
 
     def run(self):
         # TODO: Do I need to set process_consumer daemon value to True?
         #  https://stonesoupprogramming.com/2017/09/11/python-multiprocessing-producer-consumer-pattern/comment-page-1/
 
-        print("kongsbergdgmain run")
-        self.process_producer = multiprocessing.Process(target=self.dg_capture.receive_dg_and_queue)
-        self.process_producer.daemon = True
-        self.process_producer.start()
-        print("producer started")
+        # With daemon flag set to True, these should be terminated when main process completes:
+        # https://stackoverflow.com/questions/25391025/what-exactly-is-python-multiprocessing-modules-join-method-doing
 
-        self.process_consumer = multiprocessing.Process(target=self.dg_process.get_and_process_dg)
-        self.process_consumer.daemon = True
-        self.process_consumer.start()
-        print("consumer started")
+        # print("kongsbergdgmain run")
+        # self.process_producer = Process(target=self.dg_capture.receive_dg_and_queue)
+        # self.process_producer.daemon = True
+        # self.process_producer.start()
+        # print("producer started")
+        #
+        # self.process_consumer = Process(target=self.dg_process.get_and_process_dg)
+        # self.process_consumer.daemon = True
+        # self.process_consumer.start()
+        # print("consumer started")
 
         # process_plotter = multiprocessing.Process(target=self.dg_plot.get_and_plot_pie())
         # process_plotter.start()
         # print("plotter started")
 
-        self.process_producer.join()
-        self.process_consumer.join()
+        # self.process_producer.join()
+        # self.process_consumer.join()
+
         # process_plotter.join()
-        print("after join")
+        # print("after join")
+
+        self.dg_capture = KongsbergDGCaptureFromSonar(rx_ip=self.settings["ip_settings"]["ip"],
+                                                      rx_port=self.settings["ip_settings"]["port"],
+                                                      connection="UDP", queue_datagram=self.queue_datagram,
+                                                      process_flag=self.process_flag)
+        self.dg_capture.daemon = True
+
+        self.dg_process = KongsbergDGProcess(bin_size=self.settings["processing_settings"]["binSize_m"],
+                                             max_heave=self.settings["buffer_settings"]["maxHeave_m"],
+                                             queue_datagram=self.queue_datagram, queue_pie_object=self.queue_pie_object,
+                                             process_flag=self.process_flag)
+        self.dg_process.daemon = True
+
+        print("starting dg_capture: ")
+        self.dg_capture.start()
+        print("starting dg_process: ")
+        self.dg_process.start()
+        print("started both dg_capture and dg_process: ")
 
 
 if __name__ == "__main__":

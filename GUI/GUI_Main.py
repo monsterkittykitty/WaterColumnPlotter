@@ -7,21 +7,24 @@
 import ctypes
 import json
 import multiprocessing
-from PlotterMain import PlotterMain
+import numpy as np
+from NumpyRingBuffer import NumpyRingBuffer
+# from PlotterMain import PlotterMain
+from PlotterMain2 import PlotterMain2
+import psutil
 from PyQt5.QtWidgets import QAction, QApplication, QFileDialog, QGroupBox, QLabel, QMainWindow, QMdiArea, QMdiSubWindow, QMessageBox, QTextEdit, QToolBar, QVBoxLayout, QWidget
 from PyQt5.QtCore import Qt, QThread, QThreadPool, QTimer
 import pyqtgraph as pg
 import sys
+from WaterColumn import WaterColumn
 
 from GUI.Dialogs.PYFiles.AllSettingsDialog2 import AllSettingsDialog2
 from GUI_MDI import GUI_MDI
 from GUI_Toolbar import GUI_Toolbar
 
-
 from KongsbergDGMain import KongsbergDGMain
 
 __appname__ = "Water Column Plotter"
-
 
 class MainWindow(QMainWindow):
     count = 0
@@ -31,19 +34,25 @@ class MainWindow(QMainWindow):
 
         # Default settings:
         # TODO: Are we doing anything with maxHeave?
+        # maxBufferSize based on ~1000 MWC datagrams per minute for 10 minutes (~16 per second).
         self.settings = {'system_settings': {'system': "Kongsberg"},
                          'ip_settings': {'ip': '127.0.0.1', 'port': 8080},
                          'processing_settings': {'binSize_m': 0.20, 'acrossTrackAvg_m': 10, 'depth_m': 10,
                                                  'depthAvg_m': 10, 'alongTrackAvg_ping': 5, 'dualSwathPolicy': 0},
-                         'pie_settings': {'maxHeave_m': 5, 'maxGridCells': 500, 'maxBufferSize': 10000}}
+                         'buffer_settings': {'maxHeave_m': 5, 'maxGridCells': 500, 'maxBufferSize': 5000}}
+
+        # Check available memory:
+        available_mem_gb = psutil.virtual_memory().available / 1024 / 1024 / 1024
+
 
         # Shared queue to contain pie objects:
         self.queue_pie = multiprocessing.Queue()
+        self.temp_queue = multiprocessing.Queue()
         # Shared value to communicate 'play' (True) or 'stop' (False) status between main and multiprocessing processes:
-        self.processBoolean = multiprocessing.Value(ctypes.c_bool, True)
+        self.process_flag = multiprocessing.Value(ctypes.c_bool, True)
 
-        self.threadPool = QThreadPool(parent=self)
-        print("Multithreading with maximum %d threads" % self.threadPool.maxThreadCount())
+        #self.threadPool = QThreadPool(parent=self)
+        #print("Multithreading with maximum %d threads" % self.threadPool.maxThreadCount())
 
         self.PLOT_UPDATE_INTERVAL = 1000  # Milliseconds
 
@@ -61,6 +70,8 @@ class MainWindow(QMainWindow):
         self.mdi = self.__initMDI()
         self.setCentralWidget(self.mdi)
 
+        self.waterColumn = WaterColumn(self.settings)
+
         # To be set via signal/slot of SettingsDialog.py, when system_settings:system is changed.
         # TODO: Some sort of error handling and graceful closing of threads
         #  if system is changed while another system thread is running!
@@ -69,7 +80,8 @@ class MainWindow(QMainWindow):
 
         # TODO: Note to self: Plotter has nothing to plot until pies are made and put in queue_pie;
         #  nothing is placed in queue_pie until KongsbergDGMain is initiated by selecting a sonar system.
-        self.plotterMain = PlotterMain(self.settings, self.queue_pie, self.processBoolean)
+        #self.plotterMain = PlotterMain(self.settings, self.queue_pie, self.process_flag)
+        #self.plotterMain = PlotterMain2(self.settings, self.queue_pie, self.process_flag)
         # self.threadPool.start(self.plotterMain)
 
         self.show()
@@ -81,11 +93,31 @@ class MainWindow(QMainWindow):
 
         #self.workerThread = WorkerThread(self.settings)
         #self.workerThread.start()
+        #print("*** Initializing timer.")
         self.timer = QTimer()
         self.timer.timeout.connect(self.updatePlot)
-        # self.timer.start(self.PLOT_UPDATE_INTERVAL)
+        self.timer.start(self.PLOT_UPDATE_INTERVAL)
 
-    def playProcesses(self):
+        # capacity = 10000 // self.settings["processing_settings"]["alongTrackAvg_ping"]
+        # self.vertical_slice_buffer = NumpyRingBuffer(capacity=capacity, dtype=(np.float16, 500))
+        # self.horizontal_slice_buffer = NumpyRingBuffer(capacity=capacity, dtype=(np.float16, 500))
+        # self.timestamp_slice_buffer = NumpyRingBuffer(capacity=capacity, dtype=np.float32)
+        # self.lat_lon_slice_buffer = NumpyRingBuffer(capacity=capacity, dtype=(np.float32, 2))
+        # # # ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! !
+        # #
+        # # self._lock_raw_buffers = threading.Lock()
+        # # # ! ! ! ! ! ALWAYS USE #self._lock_raw_buffers WHEN ACCESSING THESE BUFFERS ! ! ! ! ! :
+
+        # self.pie_values_buffer = NumpyRingBuffer(capacity=10000,
+        #                                          dtype=(np.float16, (500, 500)))
+        # self.pie_count_buffer = NumpyRingBuffer(capacity=10000,
+        #                                         dtype=(np.uint16, (500, 500)))
+        # self.timestamp_buffer = NumpyRingBuffer(capacity=10000, dtype=np.float32)
+        # self.lat_lon_buffer = NumpyRingBuffer(capacity=10000, dtype=(np.float32, 2))
+
+        self.test1 = None
+
+    def startProcesses(self):
         """
         Initiates self.sonarMain and self.plotterMain processes in new threads from QThreadPool.
         """
@@ -98,43 +130,13 @@ class MainWindow(QMainWindow):
         self.toolBar.toolButtonStop.setStyleSheet("background-color : rgb(240, 240, 240)")
 
         # Ensure shared process_boolean is set to True
-        self.processBoolean.value = True
+        self.process_flag.value = True
 
         # Initiate processes
-        self.__playSystemProcess()
-        self.__playPlotterProcess()
-
-    def __playSystemProcess(self):
-        """
-        Initiates self.sonarMain processe in new threads from QThreadPool.
-        """
-        if self.sonarMain is None:
-            if self.settings["system_settings"]["system"] == "Kongsberg":  # Kongsberg system
-                # print("Launching Kongsberg thread.")
-                # Note: Must maintain reference to sonarMain with 'self.':
-                self.sonarMain = KongsbergDGMain(self.settings, self.queue_pie, self.processBoolean)
-                self.threadPool.start(self.sonarMain)
-            else:  # Other system
-                # TODO: Alter code when additional systems supported.
-                QMessageBox.warning(self, "Warning", "Currently supporting only Kongsberg systems.")
-                # self.sonarMain = <SystemMain>
-                # self.threadPool.start(self.sonarMain)
-        else:  # self.sonarMain is not None
-            if isinstance(self.sonarMain, KongsbergDGMain):  # Kongsberg system
-                self.threadPool.start(self.sonarMain)
-            else:  # Other system
-                # TODO: Alter code when additional systems supported.
-                QMessageBox.warning(self, "Warning", "Currently supporting only Kongsberg systems.")
-                # self.threadPool.start(self.sonarMain)
-
-    def __playPlotterProcess(self):
-        """Initiates self.plotterMain processe in new threads from QThreadPool."""
-        # NOTE: This method of launching plotterMain and timer results in a weird error, but it still works *shrug*:
-        # ImportError: cannot import name 'Popen' from partially initialized module
-        # 'multiprocessing.popen_spawn_win32' (most likely due to a circular import)
-        # Documented here: https://github.com/dask/distributed/issues/4168
-        self.threadPool.start(self.plotterMain)
-        self.timer.start(self.PLOT_UPDATE_INTERVAL)
+        #self.__playSystemProcess()
+        # self.__playPlotterProcess()
+        self.waterColumn.startProcesses()
+        #self.waterColumn.plotterMain.plotter.printhi()
 
     def stopProcesses(self):
         """
@@ -150,11 +152,17 @@ class MainWindow(QMainWindow):
 
         # Ensure shared process_boolean is set to True
         # TODO: Unsure whether it's necessary to lock this? Ask Steve?
-        with self.processBoolean.get_lock():
-            self.processBoolean.value = False
+        # with self.process_flag.get_lock():
+        #     self.process_flag.value = False
+        #
+        # self.__stopSystemProcess()
+        # self.__stopPlotterProcess()
 
-        self.__stopSystemProcess()
-        self.__stopPlotterProcess()
+        self.waterColumn.stopProcesses()
+        # print("stop")
+        # for i in range(1000000):
+        #     print(self.waterColumn.plotterMain.process_flag.value)
+        #     self.waterColumn.plotterMain.plotter.printhi()
 
     def __stopSystemProcess(self):
         """
@@ -166,29 +174,42 @@ class MainWindow(QMainWindow):
         """
         Probably unnecessary. self.process_boolean = False should allow these processes to end.
         """
-        pass
+        #self.plotterMain.stop()
+        #pass
 
     def updatePlot(self):
-        print("Update settings: ", self.settings['processing_settings']['binSize_m'])
-        print("LEN ", len(self.plotterMain.plotter.vertical_slice_buffer))
-        images = self.plotterMain.plotter.retrieve_plot_matrices()
+        print("In update plot.")
+        # print(self.waterColumn.plotterMain.plotter.amplitude_buffer.shape)
+        temp_amplitude_buffer = self.waterColumn.getSharedMatrices()
+        print(temp_amplitude_buffer.shape)
+        if self.test1 is None:
+            self.test1 = temp_amplitude_buffer[0]
+        else:
+            print("### TEST: ", np.array_equal(self.test1, temp_amplitude_buffer[0]))
+            print("Shape temp_amplitude_buffer[0]: ", temp_amplitude_buffer[0].shape)
+            print("All zeros, update: ", not temp_amplitude_buffer[0].any())
+            self.test1 = temp_amplitude_buffer[0]
+        print(temp_amplitude_buffer[0])
 
-        self.mdi.pieWidget.pie_plot.setImage(images[0], autoRange=False,
-                                             autoLevels=False, levels=(-95, 35),
-                                             autoHistogramRange=False,
-                                             pos=(-(self.settings['pie_settings']['maxGridCells'] / 2), 0))
-
-        self.mdi.verticalWidget.vertical_plot.setImage(images[1], autoRange=False,
-                                                       autoLevels=False, levels=(-95, 35),
-                                                       autoHistogramRange=False,
-                                                       pos=(-len(images[1]), 0))
-
-        # TODO: Confirm that setPos y position is correct:
-        self.mdi.horizontalWidget.horizontal_plot.setImage(images[2], autoRange=False,
-                                                           autoLevels=False, levels=(-95, 35),
-                                                           autoHistogramRange=False,
-                                                           pos=(-len(images[2]),
-                                                                -(self.settings['pie_settings']['maxGridCells'] / 2)))
+        # images = self.plotterMain.plotter.retrieve_plot_matrices()
+        #
+        # self.mdi.pieWidget.pie_plot.setImage(images[0], autoRange=False,
+        #                                      autoLevels=False, levels=(-95, 35),
+        #                                      autoHistogramRange=False,
+        #                                      pos=(-(self.settings['pie_settings']['maxGridCells'] / 2), 0))
+        #
+        # self.mdi.verticalWidget.vertical_plot.setImage(images[1], autoRange=False,
+        #                                                autoLevels=False, levels=(-95, 35),
+        #                                                autoHistogramRange=False,
+        #                                                pos=(-len(images[1]), 0))
+        #
+        # # TODO: Confirm that setPos y position is correct:
+        # self.mdi.horizontalWidget.horizontal_plot.setImage(images[2], autoRange=False,
+        #                                                    autoLevels=False, levels=(-95, 35),
+        #                                                    autoHistogramRange=False,
+        #                                                    pos=(-len(images[2]),
+        #                                                         -(self.settings['pie_settings']['maxGridCells'] / 2)))
+        pass
 
     def __initMenuBar(self):
         menuBar = self.menuBar()
@@ -230,7 +251,7 @@ class MainWindow(QMainWindow):
         self.addToolBar(toolBar)
 
         # Signals / Slots
-        toolBar.signalPlay.connect(self.playProcesses)
+        toolBar.signalPlay.connect(self.startProcesses)
         toolBar.signalStop.connect(self.stopProcesses)
         toolBar.signalSettings.connect(self.displaySettingsDialog)
 
@@ -389,31 +410,20 @@ class MainWindow(QMainWindow):
 
             settingsDialog.validateAndSetValuesFromFile(tempSettings)
 
-class LaunchSonarProcess(QThread):
-    def __init__(self, sonarMain, parent=None):
-        super(LaunchSonarProcess, self).__init__(parent)
+    def closeEvent(self, event):
+        if self.process_flag == True:
+            self.process_flag = False
+            self.waterColumn.sonarMain.dg_capture.join()
+            self.waterColumn.sonarMain.dg_process.join()
+            self.waterColumn.plotterMain.plotter.join()
+        if self.waterColumn.sonarMain.dg_capture.sock_in:
+            self.waterColumn.sonarMain.dg_capture.sock_in.close()
+        # Quit using shared memory in the frontend
+        self.waterColumn.closeSharedMemory()
+        # Release shared memory definitely
+        self.waterColumn.unlinkSharedMemory()
 
-        self.sonarMain = sonarMain
-
-    def run(self):
-        self.sonarMain.run()
-
-class LaunchPlotterProcess(QThread):
-    def __init__(self, plotterMain, parent=None):
-        super(LaunchPlotterProcess, self).__init__(parent)
-
-        self.plotterMain = plotterMain
-
-    def run(self):
-        self.plotterMain.run()
-
-class LaunchProcesses(QThread):
-
-    def __init__(self, sonarMain, plottingMain, parent=None):
-        super(LaunchProcesses, self).__init__(parent)
-        print("LaunchProcesses")
-        self.sonarMain = sonarMain
-        self.plottingProcess = plottingMain
+        event.accept()
 
     def run(self):
         print("LaunchProcesses run")

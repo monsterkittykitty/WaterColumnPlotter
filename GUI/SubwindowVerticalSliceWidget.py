@@ -25,9 +25,9 @@ class SubwindowVerticalSliceWidget(QWidget):
         # self.plot = pg.PlotItem()
         # self.plot.hideButtons()
         self.plot.vb.state['aspectLocked'] = False
-        self.plot.setXRange(-(self.settings['pie_settings']['maxBufferSize'] /
+        self.plot.setXRange(-(self.settings['buffer_settings']['maxBufferSize'] /
                          self.settings['processing_settings']['alongTrackAvg_ping']), 0)
-        self.plot.setYRange(self.settings['pie_settings']['maxGridCells'], 0)
+        self.plot.setYRange(self.settings['buffer_settings']['maxGridCells'], 0)
 
         # Adding axis labels based on:
         # https://stackoverflow.com/questions/58516639/add-axes-labels-and-title-to-pyqtgraph-imageview
@@ -49,11 +49,11 @@ class SubwindowVerticalSliceWidget(QWidget):
         #self.vertical_plot.ui.histogram.item.vb.setRange(disableAutoRange=True)
 
         # Initialize plot with blank matrix of max size:
-        # temp_image = np.empty((self.settings['pie_settings']['maxGridCells'],
-        #                        self.settings['pie_settings']['maxBufferSize'],))
+        # temp_image = np.empty((self.settings['buffer_settings']['maxGridCells'],
+        #                        self.settings['buffer_settings']['maxBufferSize'],))
         # temp_image.fill(np.nan)
-        # temp_image = np.zeros((self.settings['pie_settings']['maxBufferSize'],
-        #                        self.settings['pie_settings']['maxGridCells'], ))
+        # temp_image = np.zeros((self.settings['buffer_settings']['maxBufferSize'],
+        #                        self.settings['buffer_settings']['maxGridCells'], ))
         # autoRange = Auto scale and pan the view around the image such that the image fills the view.
         # autoLevels = Set the min/max intensity levels automatically to match the image data.
         # autoHistogramRange = If True, the histogram y-range is automatically scaled to fit the image data.
@@ -137,6 +137,6 @@ class GUI_PlotItem(pg.PlotItem):
         """
         # This ensures that full, specified x, y range will be displayed, but 1:1 aspect ratio may not be maintained.
         self.vb.state['aspectLocked'] = False
-        self.setXRange(-(self.settings['pie_settings']['maxBufferSize'] /
+        self.setXRange(-(self.settings['buffer_settings']['maxBufferSize'] /
                          self.settings['processing_settings']['alongTrackAvg_ping']), 0)
-        self.setYRange(self.settings['pie_settings']['maxGridCells'], 0)
+        self.setYRange(self.settings['buffer_settings']['maxGridCells'], 0)
