@@ -6,8 +6,8 @@ import numpy as np
 from PyQt5.QtCore import pyqtSignal, Qt
 from PyQt5.QtWidgets import QDoubleSpinBox, QGridLayout, QLabel, QPushButton, QStyle, QWidget
 import pyqtgraph as pg
-import pyvista as pv
-from pyvistaqt import BackgroundPlotter, QtInteractor
+# import pyvista as pv
+# from pyvistaqt import BackgroundPlotter, QtInteractor
 # from qtrangeslider import QRangeSlider
 import sys
 

@@ -197,6 +197,13 @@ class KongsbergDGCaptureFromSonar(Process):
                             self.buffer['dgmsRxed'][index] += 1
                             self.buffer['data'][index][partition['dgmNum'] - 1] = data
 
+                            # For debugging:
+                            # print("Inserting existing datagram {}, {} into index {}. Part {} of {}."
+                            #       .format(header['dgmType'], header['dgTime'], index,
+                            #               partition['dgmNum'], partition['numOfDgms']))
+                            # print("Existing: self.buffer['dgmsRxed'][index]:", self.buffer['dgmsRxed'][index])
+                            # print("Existing: self.buffer['numOfDgms'][index]:", self.buffer['numOfDgms'][index])
+
                             # Check if all data received:
                             if self.buffer['dgmsRxed'][index] == self.buffer['numOfDgms'][index]:
 
@@ -245,15 +252,39 @@ class KongsbergDGCaptureFromSonar(Process):
 
                             # Check whether next_index currently points to incomplete data.
                             # If so, log and discard / overwrite data.
-                            if self.buffer['dgTime'][next_index] is not None:  # Index contains incomplete data
-                                logger.warning("Data block incomplete. Discarding {}, {}. (Ping {}, {} of {} datagrams.) "
-                                               "\nConsidering increasing size of buffer. (Current buffer size: {}.)"
-                                               .format(self.buffer['dgmType'][next_index],
-                                                       self.buffer['dgTime'][next_index],
-                                                       self.buffer['pingCnt'][next_index],
-                                                       self.buffer['dgmsRxed'][next_index],
-                                                       self.buffer['numOfDgms'][next_index],
-                                                       self.MAX_NUM_PINGS_TO_BUFFER))
+                            if self.buffer['dgTime'][next_index] is not None:  # Index contains data
+
+                                if next_index == timestamp_index:  # This should always be True
+                                    if self.buffer['complete'][next_index]:
+                                        # Earliest timestamp index is complete! Reconstruct data and place in queue
+                                        data_reconstruct, data_size = self.reconstruct_data(
+                                            self.buffer['dgmType'][timestamp_index],
+                                            self.buffer['dgmVersion'][timestamp_index],
+                                            self.buffer['data'][timestamp_index])
+
+                                        self.queue_datagram.put(data_reconstruct)
+
+                                        # Clear entry
+                                        # TODO: Practically, do I need to clear any more than this?
+                                        self.buffer['dgTime'][timestamp_index] = None
+                                        self.buffer['complete'][timestamp_index] = False  # Probably not necessary?
+
+                                        # Advance timestamp_index to oldest timestamp in buffer
+                                        self.advance_timestamp_index()
+
+                                    else:  # Earliest timestamp is not complete; overwrite
+                                        # # For debugging:
+                                        # print("Overwriting data at index {}. This timestamp: {}. All timestamps: {}"
+                                        #       .format(next_index, self.buffer['dgTime'][next_index], self.buffer['dgTime']))
+
+                                        logger.warning("Data block incomplete. Discarding {}, {}. (Ping {}, {} of {} datagrams.) "
+                                                       "\nConsidering increasing size of buffer. (Current buffer size: {}.)"
+                                                       .format(self.buffer['dgmType'][next_index],
+                                                               self.buffer['dgTime'][next_index],
+                                                               self.buffer['pingCnt'][next_index],
+                                                               self.buffer['dgmsRxed'][next_index],
+                                                               self.buffer['numOfDgms'][next_index],
+                                                               self.MAX_NUM_PINGS_TO_BUFFER))
 
                                 # For testing:
                                 # print("Next index: {}. Timestamp index and timestamp: {}, {}. All timestamps: {}"
@@ -262,7 +293,7 @@ class KongsbergDGCaptureFromSonar(Process):
 
                                 # Error checking: If we are overwriting data, next_index must equal timestamp_index or
                                 # something is wrong! This should never print. If it does, there's an error in code.
-                                if next_index != timestamp_index:
+                                else:  # next_index != timestamp_index:
                                     logger.error("Error indexing incoming data buffer. Next: {}, Timestamp: {}. "
                                                  "\nThis should never print; if it does, there's an error in the code."
                                                  .format(next_index, timestamp_index))
@@ -285,6 +316,13 @@ class KongsbergDGCaptureFromSonar(Process):
                             # Insert data at appropriate position
                             self.buffer['data'][next_index][partition['dgmNum'] - 1] = data
 
+                            # For debugging:
+                            # print("Inserting new datagram {}, {} into index {}. Part {} of {}."
+                            #       .format(header['dgmType'], header['dgTime'], next_index,
+                            #               partition['dgmNum'], partition['numOfDgms']))
+                            # print("New: self.buffer['dgmsRxed'][index]:", self.buffer['dgmsRxed'][next_index])
+                            # print("New: self.buffer['numOfDgms'][index]:", self.buffer['numOfDgms'][next_index])
+
                             # Advance timestamp_index to oldest timestamp in buffer
                             # This should be OK. We don't need recursive method here because timestamp_index should
                             # already be pointing to the earliest timestamp. This newly added datagram is the only
@@ -301,6 +339,8 @@ class KongsbergDGCaptureFromSonar(Process):
                             else:
                                 next_index = timestamp_index
 
+
+
             if dg_counter == 8709:  # For testing
                 last_tx_time = datetime.datetime.now()
                 print("DGCAPTURE, Received: ", dg_counter)
@@ -308,7 +348,7 @@ class KongsbergDGCaptureFromSonar(Process):
                 print("DGCAPTURE, First transmit: {}; Final transmit: {}; Total time: {}"
                       .format(first_tx_time, last_tx_time, (last_tx_time - first_tx_time).total_seconds()))
 
-        print("BOOLEAN STOOPPED")
+        print("BOOLEAN STOPPED.")
         self.sock_in.close()
 
     def advance_timestamp_index(self):

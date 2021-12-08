@@ -9,6 +9,7 @@ import json
 import multiprocessing
 import numpy as np
 from NumpyRingBuffer import NumpyRingBuffer
+import os
 # from PlotterMain import PlotterMain
 from PlotterMain2 import PlotterMain2
 import psutil
@@ -26,6 +27,12 @@ from KongsbergDGMain import KongsbergDGMain
 
 __appname__ = "Water Column Plotter"
 
+# if hasattr(Qt, 'AA_EnableHighDpiScaling'):
+#     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+#
+# if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
+#     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+
 class MainWindow(QMainWindow):
     count = 0
 
@@ -37,19 +44,20 @@ class MainWindow(QMainWindow):
         # maxBufferSize based on ~1000 MWC datagrams per minute for 10 minutes (~16 per second).
         self.settings = {'system_settings': {'system': "Kongsberg"},
                          'ip_settings': {'ip': '127.0.0.1', 'port': 8080},
-                         'processing_settings': {'binSize_m': 0.20, 'acrossTrackAvg_m': 10, 'depth_m': 10,
-                                                 'depthAvg_m': 10, 'alongTrackAvg_ping': 5, 'dualSwathPolicy': 0},
-                         'buffer_settings': {'maxHeave_m': 5, 'maxGridCells': 500, 'maxBufferSize': 5000}}
+                         'processing_settings': {'binSize_m': 0.20, 'acrossTrackAvg_m': 10, 'depth_m': 2,
+                                                 'depthAvg_m': 2, 'alongTrackAvg_ping': 5, 'dualSwathPolicy': 0},
+                         'buffer_settings': {'maxHeave_m': 5, 'maxGridCells': 500, 'maxBufferSize': 1000}}
 
         # Check available memory:
-        available_mem_gb = psutil.virtual_memory().available / 1024 / 1024 / 1024
-
+        # available_mem_gb = psutil.virtual_memory().available / 1024 / 1024 / 1024
 
         # Shared queue to contain pie objects:
         self.queue_pie = multiprocessing.Queue()
         self.temp_queue = multiprocessing.Queue()
-        # Shared value to communicate 'play' (True) or 'stop' (False) status between main and multiprocessing processes:
-        self.process_flag = multiprocessing.Value(ctypes.c_bool, True)
+        # # Shared value to communicate 'play' (True) or 'stop' (False) status between main and multiprocessing processes:
+        # self.process_flag = multiprocessing.Value(ctypes.c_bool, True, lock=True)
+        # # Shared array to act as 'left' and 'right' indices in circular array / buffer
+        # self.raw_buffer_indices = multiprocessing.Array(ctypes.c_uint16, (0, 0), lock=True)
 
         #self.threadPool = QThreadPool(parent=self)
         #print("Multithreading with maximum %d threads" % self.threadPool.maxThreadCount())
@@ -98,23 +106,6 @@ class MainWindow(QMainWindow):
         self.timer.timeout.connect(self.updatePlot)
         self.timer.start(self.PLOT_UPDATE_INTERVAL)
 
-        # capacity = 10000 // self.settings["processing_settings"]["alongTrackAvg_ping"]
-        # self.vertical_slice_buffer = NumpyRingBuffer(capacity=capacity, dtype=(np.float16, 500))
-        # self.horizontal_slice_buffer = NumpyRingBuffer(capacity=capacity, dtype=(np.float16, 500))
-        # self.timestamp_slice_buffer = NumpyRingBuffer(capacity=capacity, dtype=np.float32)
-        # self.lat_lon_slice_buffer = NumpyRingBuffer(capacity=capacity, dtype=(np.float32, 2))
-        # # # ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! !
-        # #
-        # # self._lock_raw_buffers = threading.Lock()
-        # # # ! ! ! ! ! ALWAYS USE #self._lock_raw_buffers WHEN ACCESSING THESE BUFFERS ! ! ! ! ! :
-
-        # self.pie_values_buffer = NumpyRingBuffer(capacity=10000,
-        #                                          dtype=(np.float16, (500, 500)))
-        # self.pie_count_buffer = NumpyRingBuffer(capacity=10000,
-        #                                         dtype=(np.uint16, (500, 500)))
-        # self.timestamp_buffer = NumpyRingBuffer(capacity=10000, dtype=np.float32)
-        # self.lat_lon_buffer = NumpyRingBuffer(capacity=10000, dtype=(np.float32, 2))
-
         self.test1 = None
 
     def startProcesses(self):
@@ -129,8 +120,8 @@ class MainWindow(QMainWindow):
         self.toolBar.toolButtonStop.setEnabled(True)
         self.toolBar.toolButtonStop.setStyleSheet("background-color : rgb(240, 240, 240)")
 
-        # Ensure shared process_boolean is set to True
-        self.process_flag.value = True
+        # # Ensure shared process_boolean is set to True
+        # self.process_flag.value = True
 
         # Initiate processes
         #self.__playSystemProcess()
@@ -179,17 +170,39 @@ class MainWindow(QMainWindow):
 
     def updatePlot(self):
         print("In update plot.")
-        # print(self.waterColumn.plotterMain.plotter.amplitude_buffer.shape)
-        temp_amplitude_buffer = self.waterColumn.getSharedMatrices()
-        print(temp_amplitude_buffer.shape)
-        if self.test1 is None:
-            self.test1 = temp_amplitude_buffer[0]
-        else:
-            print("### TEST: ", np.array_equal(self.test1, temp_amplitude_buffer[0]))
-            print("Shape temp_amplitude_buffer[0]: ", temp_amplitude_buffer[0].shape)
-            print("All zeros, update: ", not temp_amplitude_buffer[0].any())
-            self.test1 = temp_amplitude_buffer[0]
-        print(temp_amplitude_buffer[0])
+        print("Raw buffer indices: (", self.waterColumn.raw_buffer_indices[0], ",",
+              self.waterColumn.raw_buffer_indices[1], ")")
+        print("Processed buffer indices: (", self.waterColumn.processed_buffer_indices[0], ",",
+              self.waterColumn.processed_buffer_indices[1], ")")
+        temp_pie = self.waterColumn.get_pie()
+        if temp_pie.any():
+            print("temp_pie.shape", temp_pie.shape)
+        temp_vertical = self.waterColumn.get_vertical_slice()
+        if temp_vertical.any():
+            print("temp_vertical.shape", temp_vertical.shape)
+        temp_horizontal = self.waterColumn.get_horizontal_slice()
+        if temp_horizontal.any():
+            print("temp_horizontal.shape", temp_horizontal.shape)
+
+        if temp_pie.any():
+            self.mdi.pieWidget.pie_plot.setImage(temp_pie.T, autoRange=False,
+                                                 autoLevels=False, levels=(-95, 35),
+                                                 autoHistogramRange=False,
+                                                 pos=(-(self.settings['buffer_settings']['maxGridCells'] / 2), 0))
+
+        if temp_vertical.shape[0] > 0:
+            print("plotting vertical")
+            self.mdi.verticalWidget.vertical_plot.setImage(temp_vertical, autoRange=False,
+                                                           autoLevels=False, levels=(-95, 35),
+                                                           autoHistogramRange=False,
+                                                           pos=(-temp_vertical.shape[0], 0))
+        if temp_horizontal.shape[0] > 0:
+            print("plotting horizontal")
+            self.mdi.horizontalWidget.horizontal_plot.setImage(temp_horizontal, autoRange=False,
+                                                               autoLevels=False, levels=(-95, 35),
+                                                               autoHistogramRange=False,
+                                                               pos=(-temp_horizontal.shape[0],
+                                                                    -temp_horizontal.shape[1] / 2))
 
         # images = self.plotterMain.plotter.retrieve_plot_matrices()
         #
@@ -411,12 +424,12 @@ class MainWindow(QMainWindow):
             settingsDialog.validateAndSetValuesFromFile(tempSettings)
 
     def closeEvent(self, event):
-        if self.process_flag == True:
-            self.process_flag = False
+        if self.waterColumn.process_flag.value == True:
+            self.waterColumn.process_flag.value = False
             self.waterColumn.sonarMain.dg_capture.join()
             self.waterColumn.sonarMain.dg_process.join()
             self.waterColumn.plotterMain.plotter.join()
-        if self.waterColumn.sonarMain.dg_capture.sock_in:
+        if self.waterColumn.sonarMain:
             self.waterColumn.sonarMain.dg_capture.sock_in.close()
         # Quit using shared memory in the frontend
         self.waterColumn.closeSharedMemory()

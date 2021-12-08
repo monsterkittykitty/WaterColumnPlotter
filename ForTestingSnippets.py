@@ -136,6 +136,7 @@ startTime = pg.ptime.time()
 win.nextRow()
 p5 = win.addPlot(colspan=2)
 # print(type(p5))  # <class 'pyqtgraph.graphicsItems.PlotItem.PlotItem.PlotItem'>
+print("type: ", type(p5.plot()))
 p5.setLabel('bottom', 'Time', 's')
 p5.setXRange(-10, 0)
 curves = []
@@ -219,9 +220,9 @@ if __name__ == '__main__':
 
 
 
-print(obj_array[:][:].data_array)
-print(obj_array[:].data_count)
-print(obj_array[:].data_array + obj_array[:].data_count)
+# print(obj_array[:][:].data_array)
+# print(obj_array[:].data_count)
+# print(obj_array[:].data_array + obj_array[:].data_count)
 
 # import pyqtgraph.examples
 # pyqtgraph.examples.run()

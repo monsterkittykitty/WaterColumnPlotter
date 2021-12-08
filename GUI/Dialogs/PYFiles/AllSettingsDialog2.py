@@ -30,7 +30,7 @@ class AllSettingsDialog2(QtWidgets.QDialog):
 
         self.ui = uic.loadUi('Dialogs/UIFiles/AllSettingsDialog.ui', self)
         # Disable ability to resize settings window
-        self.setFixedSize(self.size())
+        #self.setFixedSize(self.size())
 
         #self.setDefaultValues()
         self.setValues()

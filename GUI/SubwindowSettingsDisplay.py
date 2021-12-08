@@ -5,7 +5,7 @@
 from PyQt5.QtWidgets import QComboBox, QGridLayout, QLabel, QPushButton, QSpinBox, QStyle, QWidget
 from PyQt5.QtCore import pyqtSignal, Qt
 import pyqtgraph as pg
-from qtrangeslider import QRangeSlider
+# from qtrangeslider import QRangeSlider
 import sys
 
 

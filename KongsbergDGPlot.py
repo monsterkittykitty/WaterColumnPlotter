@@ -16,11 +16,11 @@ from KmallReaderForMDatagrams import KmallReaderForMDatagrams as k
 from KongsbergDGPie import KongsbergDGPie
 import logging
 import math
-import matplotlib
-#matplotlib.use("TkAgg")
-matplotlib.use("Qt5Agg")
-import matplotlib.animation as anim
-import matplotlib.pyplot as plt
+# import matplotlib
+# matplotlib.use("TkAgg")
+# matplotlib.use("Qt5Agg")
+# import matplotlib.animation as anim
+# import matplotlib.pyplot as plt
 #from numba import jit
 import numpy as np
 #from numpy_ringbuffer import RingBuffer

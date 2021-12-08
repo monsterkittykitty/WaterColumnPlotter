@@ -15,7 +15,7 @@ import os
 import re
 import bz2
 import copy
-from pyproj import Proj
+# from pyproj import Proj
 from scipy import stats
 
 

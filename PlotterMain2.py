@@ -17,7 +17,8 @@ from TestProcess import InitializeBigArrays
 #class PlotterMain2(Process):
 class PlotterMain2:
 
-    def __init__(self, settings, queue_pie_object, queue_plot, queue_lat_lon, queue_timestamp, process_flag):
+    def __init__(self, settings, queue_pie_object, queue_plot, queue_lat_lon,
+                 queue_timestamp, raw_buffer_indices, processed_buffer_indices, process_flag):
         #super().__init__()
 
         self.settings = settings
@@ -27,6 +28,9 @@ class PlotterMain2:
         self.queue_plot = queue_plot
         self.queue_lat_lon = queue_lat_lon
         self.queue_timestamp = queue_timestamp
+
+        self.raw_buffer_indices = raw_buffer_indices
+        self.processed_buffer_indices = processed_buffer_indices
 
         self.process_flag = process_flag
 
@@ -108,7 +112,8 @@ class PlotterMain2:
         #exit()
 
         self.plotter = Plotter2(self.settings, self.queue_pie_object, self.queue_plot,
-                                self.queue_lat_lon, self.queue_timestamp, self.process_flag)
+                                self.queue_lat_lon, self.queue_timestamp, self.raw_buffer_indices,
+                                self.processed_buffer_indices, self.process_flag)
         #
         # # self.plotter = Plotter2(self.settings, self.queue_pie_object, self.queue_plot,
         # #                         self.queue_lat_lon, self.queue_timestamp, self.process_flag,
