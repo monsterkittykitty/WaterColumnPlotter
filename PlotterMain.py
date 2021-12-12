@@ -1,47 +1,48 @@
-from KongsbergDGPlot import KongsbergDGPlot
-import multiprocessing
-#from Plotter import Plotter
-from Plotter2 import Plotter2
-from PyQt5.QtCore import QRunnable, QThread
-import pyqtgraph as pg
+# Lynette Davis
+# Center for Coastal and Ocean Mapping
+# University of New Hampshire
+# April 2021
 
-import TestProcess
+# Description:
+
+from Plotter import Plotter
+import logging
+
+logger = logging.getLogger(__name__)
+
+__appname__ = "PlotterMain"
 
 
-class PlotterMain(QRunnable):
+class PlotterMain:
 
-    def __init__(self, settings, queue_pie, process_boolean=None, parent=None):
-        super(PlotterMain, self).__init__()
+    def __init__(self, settings, queue_pie_object,
+                 raw_buffer_count, processed_buffer_count, raw_buffer_full_flag,
+                 processed_buffer_full_flag, process_flag):
 
         self.settings = settings
-        self.queue_pie = queue_pie
 
-        #self.plotter = Plotter(self.settings, self.queue_pie, process_boolean)
-        self.plotter = Plotter2(self.settings, self.queue_pie, process_boolean)
+        # multiprocessing.Queues
+        self.queue_pie_object = queue_pie_object
 
-        # TODO: Delete this
-        self.test_process = TestProcess.TestProcess(process_boolean)
+        self.raw_buffer_count = raw_buffer_count
+        self.processed_buffer_count = processed_buffer_count
+
+        self.raw_buffer_full_flag = raw_buffer_full_flag
+        self.processed_buffer_full_flag = processed_buffer_full_flag
+
+        self.process_flag = process_flag
+
+        self.plotter = None
 
     def run(self):
-        print("In PlotterMain.run()")
+        # With daemon flag set to True, these should be terminated when main process completes:
+        # https://stackoverflow.com/questions/25391025/what-exactly-is-python-multiprocessing-modules-join-method-doing
+        # https://stonesoupprogramming.com/2017/09/11/python-multiprocessing-producer-consumer-pattern/comment-page-1/
 
-        # self.process_plotter = multiprocessing.Process(target=self.plotter.run())
-        #self.process_plotter = multiprocessing.Process(target=self.plotter.get_and_plot_pie())
+        self.plotter = Plotter(self.settings, self.queue_pie_object,
+                               self.raw_buffer_count, self.processed_buffer_count,
+                               self.raw_buffer_full_flag, self.processed_buffer_full_flag,
+                               self.process_flag)
 
-        # This does not print the true conditions, instead it results in a pickle error:
-        # _pickle.UnpicklingError: pickle data was truncated
-        # And GUI_Main does not exit if play is pressed, (then stop pressed or unpressed), then main window closed.
-        self.process_plotter = multiprocessing.Process(target=self.plotter.get_and_buffer_pie)
-
-        # This does print the true conditions, and GUI_Main does exit when main window closed if stop has been pressed.
-        # But this keeps printing if main window is closed and stop is not pressed.
-        #self.process_plotter = multiprocessing.Process(target=self.plotter.get_and_buffer_pie())
-
-        # TODO: Delete this
-        # No pickle error with this. This works great. No problems with or without stop button, GUI_Main closes.
-        #self.process_plotter =multiprocessing.Process(target=self.test_process.run)
-
-
-        self.process_plotter.daemon = True
-        self.process_plotter.start()
-        #self.process_plotter.join()
+        self.plotter.daemon = True
+        self.plotter.start()

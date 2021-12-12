@@ -23,10 +23,9 @@ class KongsbergDGProcess(Process):
 
         print("New instance of KongsbergDGProcess.")
 
-        print("init_dgprocess")
-        # TODO: Create a function that ensure bin size is not larger than range resolution and will not exceed max 1000 x 1000 matrix
+        # TODO: Create a function that ensure bin size is not larger than range resolution
+        #  and will not exceed max 1000 x 1000 matrix
         self.bin_size = bin_size  # Meters
-        #self.water_depth = water_depth  # Meters
 
         # Queue shared between DGCapture and DGProcess ('get' data from this queue)
         self.queue_datagram = queue_datagram
@@ -76,6 +75,7 @@ class KongsbergDGProcess(Process):
             except queue.Empty:
                 # TODO: Shutdown processes when queue is empty?
                 logger.exception("Datagram queue empty exception.")
+
                 break
 
             # if self.queue_datagram.qsize() == 0:
@@ -319,5 +319,5 @@ class KongsbergDGProcess(Process):
             print("Beam Data: ", beamData)
 
     def run(self):
-        print("Running KongsbergDGProcess process.")
+        #print("Running KongsbergDGProcess process.")
         self.get_and_process_dg()

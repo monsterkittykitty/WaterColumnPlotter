@@ -6,13 +6,9 @@
 # Description:
 
 import argparse
-from KongsbergDGCaptureFromSonar import KongsbergDGCaptureFromSonar
-from KongsbergDGPlot import KongsbergDGPlot
-from KongsbergDGProcess import KongsbergDGProcess
 import logging
 import multiprocessing
-from Plotter import Plotter
-import queue
+from Old.Plotter import Plotter
 
 logger = logging.getLogger(__name__)
 

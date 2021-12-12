@@ -4,8 +4,8 @@
 # Center for Coastal and Ocean Mapping
 # November 2021
 
-from PyQt5.QtCore import pyqtSignal, Qt
-from PyQt5.QtWidgets import QComboBox, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpinBox, QStyle, QToolBar, QToolButton, QVBoxLayout, QWidget
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QGroupBox, QLabel, QSizePolicy, QStyle, QToolBar, QToolButton, QVBoxLayout, QWidget
 
 class GUI_Toolbar(QToolBar):
 
@@ -21,8 +21,7 @@ class GUI_Toolbar(QToolBar):
         # IP:
         groupBoxIPPort = QGroupBox("Listening on: ", parent=self)
         # Set default value:
-        self.labelIPPort = QLabel(settings['ip_settings']['ip'] + ":"
-                                  + str(settings['ip_settings']['port']))  # This field needs to be editable!
+        self.labelIPPort = QLabel(settings['ip_settings']['ip'] + ":" + str(settings['ip_settings']['port']))
         layoutIPPort = QVBoxLayout()
         layoutIPPort.addWidget(self.labelIPPort)
         groupBoxIPPort.setLayout(layoutIPPort)
@@ -30,7 +29,7 @@ class GUI_Toolbar(QToolBar):
         # System:
         groupBoxSystem = QGroupBox("System: ", parent=self)
         # Set default value:
-        self.labelSystem = QLabel(settings['system_settings']['system'])  # This field needs to be editable!
+        self.labelSystem = QLabel(settings['system_settings']['system'])
         layoutSystem = QVBoxLayout()
         layoutSystem.addWidget(self.labelSystem)
         groupBoxSystem.setLayout(layoutSystem)
@@ -41,7 +40,8 @@ class GUI_Toolbar(QToolBar):
         self.toolButtonPlay.setToolTip("Begin listening / plotting data.")
         self.toolButtonPlay.setIcon(iconPlay)
         self.toolButtonPlay.setStyleSheet("background-color : rgb(240, 240, 240)")
-        self.toolButtonPlay.clicked.connect(self.playClicked.emit)
+        # Connect signals / slots
+        self.toolButtonPlay.clicked.connect(self.playButtonClicked)
 
         iconStop = self.style().standardIcon(QStyle.SP_MediaStop)
         self.toolButtonStop = QToolButton(self)
@@ -50,7 +50,8 @@ class GUI_Toolbar(QToolBar):
         self.toolButtonStop.setStyleSheet("background-color : rgb(240, 240, 240)")
         # Initialize stop button as disabled:
         self.toolButtonStop.setDisabled(True)
-        self.toolButtonStop.clicked.connect(self.stopClicked.emit)
+        # Connect signals / slots
+        self.toolButtonStop.clicked.connect(self.stopButtonClicked)
 
         # Add widgets to toolbar:
         self.addWidget(groupBoxIPPort)
@@ -118,6 +119,7 @@ class GUI_Toolbar(QToolBar):
         self.toolButtonSettings.setIcon(iconSettings)
         self.toolButtonSettings.setStyleSheet("QToolButton {background-color : rgb(240, 240, 240)}"
                                               "QToolButton:pressed {background-color : rgb(158, 158, 158)}")
+        # Connect signals / slots
         self.toolButtonSettings.clicked.connect(self.settingsClicked.emit)
 
         # Spacer Widget:
@@ -138,3 +140,29 @@ class GUI_Toolbar(QToolBar):
     #
     # def setDualSwath(self, settings):
     #     self.comboboxDualSwath.setCurrentIndex(settings['processing_settings']['dualSwathPolicy'])
+
+    def playButtonClicked(self):
+        # Play button is pressed.
+        # Disable play button
+        self.toolButtonPlay.setDisabled(True)
+        # self.toolBar.toolButtonPlay.setStyleSheet("background-color : rgb(158, 158, 158)")  # Grey
+        self.toolButtonPlay.setStyleSheet("background-color : rgb(154, 171, 155)")  # Green
+
+        # Enable stop button
+        self.toolButtonStop.setEnabled(True)
+        self.toolButtonStop.setStyleSheet("background-color : rgb(240, 240, 240)")
+
+        self.playClicked.emit()
+
+    def stopButtonClicked(self):
+        # Stop button is pressed.
+        # Disable stop button
+        self.toolButtonStop.setDisabled(True)
+        # self.toolBar.toolButtonStop.setStyleSheet("background-color : rgb(158, 158, 158)")  # Grey
+        self.toolButtonStop.setStyleSheet("background-color : rgb(219, 141, 141)")  # Red
+
+        # Enable play button
+        self.toolButtonPlay.setEnabled(True)
+        self.toolButtonPlay.setStyleSheet("background-color : rgb(240, 240, 240)")
+
+        self.stopClicked.emit()

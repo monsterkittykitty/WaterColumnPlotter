@@ -2,20 +2,15 @@
 
 # Lynette Davis
 # Center for Coastal and Ocean Mapping
+# University of New Hampshire
 # November 2021
 
-import ctypes
+import datetime
 import json
 import multiprocessing
-import numpy as np
-from NumpyRingBuffer import NumpyRingBuffer
-import os
-# from PlotterMain import PlotterMain
-from PlotterMain2 import PlotterMain2
 import psutil
-from PyQt5.QtWidgets import QAction, QApplication, QFileDialog, QGroupBox, QLabel, QMainWindow, QMdiArea, QMdiSubWindow, QMessageBox, QTextEdit, QToolBar, QVBoxLayout, QWidget
-from PyQt5.QtCore import Qt, QThread, QThreadPool, QTimer
-import pyqtgraph as pg
+from PyQt5.QtWidgets import QAction, QApplication, QFileDialog, QMainWindow, QMdiSubWindow, QTextEdit
+from PyQt5.QtCore import QTimer
 import sys
 from WaterColumn import WaterColumn
 
@@ -41,27 +36,22 @@ class MainWindow(QMainWindow):
 
         # Default settings:
         # TODO: Are we doing anything with maxHeave?
+        # TODO: Set 'buffer_settings' in settings dialog?
         # maxBufferSize based on ~1000 MWC datagrams per minute for 10 minutes (~16 per second).
         self.settings = {'system_settings': {'system': "Kongsberg"},
-                         'ip_settings': {'ip': '127.0.0.1', 'port': 8080},
+                         'ip_settings': {'ip': '0.0.0.0', 'port': 8080},
                          'processing_settings': {'binSize_m': 0.20, 'acrossTrackAvg_m': 10, 'depth_m': 2,
                                                  'depthAvg_m': 2, 'alongTrackAvg_ping': 5, 'dualSwathPolicy': 0},
                          'buffer_settings': {'maxHeave_m': 5, 'maxGridCells': 500, 'maxBufferSize': 1000}}
 
-        # Check available memory:
+        # TODO: Check available memory to assign buffer sizes?
         # available_mem_gb = psutil.virtual_memory().available / 1024 / 1024 / 1024
 
         # Shared queue to contain pie objects:
         self.queue_pie = multiprocessing.Queue()
         self.temp_queue = multiprocessing.Queue()
-        # # Shared value to communicate 'play' (True) or 'stop' (False) status between main and multiprocessing processes:
-        # self.process_flag = multiprocessing.Value(ctypes.c_bool, True, lock=True)
-        # # Shared array to act as 'left' and 'right' indices in circular array / buffer
-        # self.raw_buffer_indices = multiprocessing.Array(ctypes.c_uint16, (0, 0), lock=True)
 
-        #self.threadPool = QThreadPool(parent=self)
-        #print("Multithreading with maximum %d threads" % self.threadPool.maxThreadCount())
-
+        # TODO: Set this in settings dialog?
         self.PLOT_UPDATE_INTERVAL = 1000  # Milliseconds
 
         # Window setup:
@@ -69,235 +59,76 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Water Column Plotter")
 
         # Menu Bar
-        #self.__initMenuBar()
+        #self._initMenuBar()
 
         # Tool Bar
-        self.toolBar = self.__initToolBar()
+        self.toolBar = self._initToolBar()
 
         # Multiple Document Interface
-        self.mdi = self.__initMDI()
+        self.mdi = self._initMDI()
         self.setCentralWidget(self.mdi)
 
         self.waterColumn = WaterColumn(self.settings)
 
-        # To be set via signal/slot of SettingsDialog.py, when system_settings:system is changed.
-        # TODO: Some sort of error handling and graceful closing of threads
-        #  if system is changed while another system thread is running!
-        #self.sonarProcess = None
-        self.sonarMain = None
-
-        # TODO: Note to self: Plotter has nothing to plot until pies are made and put in queue_pie;
-        #  nothing is placed in queue_pie until KongsbergDGMain is initiated by selecting a sonar system.
-        #self.plotterMain = PlotterMain(self.settings, self.queue_pie, self.process_flag)
-        #self.plotterMain = PlotterMain2(self.settings, self.queue_pie, self.process_flag)
-        # self.threadPool.start(self.plotterMain)
-
         self.show()
 
-        # self.settingsDialog = AllSettingsDialog(self.settings, self)
-        # self.__connectSettingsSignalsSlots()
-        #self.settingsDialog = self.__initSettingsDialog()
         self.displaySettingsDialog()  # This will block until OK or Close / Cancel is selected in settings dialog
 
-        #self.workerThread = WorkerThread(self.settings)
-        #self.workerThread.start()
-        #print("*** Initializing timer.")
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.updatePlot)
-        self.timer.start(self.PLOT_UPDATE_INTERVAL)
-
-        self.test1 = None
+        self.plot_update_timer = QTimer()
+        self.plot_update_timer.timeout.connect(self.updatePlot)
 
     def startProcesses(self):
         """
-        Initiates self.sonarMain and self.plotterMain processes in new threads from QThreadPool.
+        This method called when toolbar's play button is pressed. Activates processes in WaterColumn class.
         """
-        # Play button is pressed. Disable play button; enable stop button
-        self.toolBar.toolButtonPlay.setDisabled(True)
-        # self.toolBar.toolButtonPlay.setStyleSheet("background-color : rgb(158, 158, 158)")  # Grey
-        self.toolBar.toolButtonPlay.setStyleSheet("background-color : rgb(154, 171, 155)")  # Green
-
-        self.toolBar.toolButtonStop.setEnabled(True)
-        self.toolBar.toolButtonStop.setStyleSheet("background-color : rgb(240, 240, 240)")
-
-        # # Ensure shared process_boolean is set to True
-        # self.process_flag.value = True
-
-        # Initiate processes
-        #self.__playSystemProcess()
-        # self.__playPlotterProcess()
         self.waterColumn.startProcesses()
-        #self.waterColumn.plotterMain.plotter.printhi()
+        self.plot_update_timer.start(self.PLOT_UPDATE_INTERVAL)
 
     def stopProcesses(self):
         """
-        Allows self.sonarMain and self.plotterMain processes to end by setting self.process_boolean flag to False.
+        This method called when toolbar's stop button is pressed. Deactivates processes in WaterColumn class.
         """
-        # Stop button is pressed. Disable stop button; enable play button
-        self.toolBar.toolButtonStop.setDisabled(True)
-        # self.toolBar.toolButtonStop.setStyleSheet("background-color : rgb(158, 158, 158)")  # Grey
-        self.toolBar.toolButtonStop.setStyleSheet("background-color : rgb(219, 141, 141)")  # Red
-
-        self.toolBar.toolButtonPlay.setEnabled(True)
-        self.toolBar.toolButtonPlay.setStyleSheet("background-color : rgb(240, 240, 240)")
-
-        # Ensure shared process_boolean is set to True
-        # TODO: Unsure whether it's necessary to lock this? Ask Steve?
-        # with self.process_flag.get_lock():
-        #     self.process_flag.value = False
-        #
-        # self.__stopSystemProcess()
-        # self.__stopPlotterProcess()
-
         self.waterColumn.stopProcesses()
-        # print("stop")
-        # for i in range(1000000):
-        #     print(self.waterColumn.plotterMain.process_flag.value)
-        #     self.waterColumn.plotterMain.plotter.printhi()
-
-    def __stopSystemProcess(self):
-        """
-        Probably unnecessary. self.process_boolean = False should allow these processes to end.
-        """
-        pass
-
-    def __stopPlotterProcess(self):
-        """
-        Probably unnecessary. self.process_boolean = False should allow these processes to end.
-        """
-        #self.plotterMain.stop()
-        #pass
+        self.plot_update_timer.stop()
 
     def updatePlot(self):
-        print("In update plot.")
-        print("Raw buffer indices: (", self.waterColumn.raw_buffer_indices[0], ",",
-              self.waterColumn.raw_buffer_indices[1], ")")
-        print("Processed buffer indices: (", self.waterColumn.processed_buffer_indices[0], ",",
-              self.waterColumn.processed_buffer_indices[1], ")")
-        temp_pie = self.waterColumn.get_pie()
-        if temp_pie.any():
-            print("temp_pie.shape", temp_pie.shape)
-        temp_vertical = self.waterColumn.get_vertical_slice()
-        if temp_vertical.any():
-            print("temp_vertical.shape", temp_vertical.shape)
-        temp_horizontal = self.waterColumn.get_horizontal_slice()
-        if temp_horizontal.any():
-            print("temp_horizontal.shape", temp_horizontal.shape)
-
-        if temp_pie.any():
-            self.mdi.pieWidget.pie_plot.setImage(temp_pie.T, autoRange=False,
+        if self.waterColumn.get_raw_buffer_length() > 0:
+            temp_pie = self.waterColumn.get_pie()
+            if temp_pie.any():  # For debugging
+                print("temp_pie.shape", temp_pie.shape)
+            #if temp_pie.any():
+            self.mdi.pieWidget.pie_plot.setImage(temp_pie.T, autoRange=True,
                                                  autoLevels=False, levels=(-95, 35),
                                                  autoHistogramRange=False,
                                                  pos=(-(self.settings['buffer_settings']['maxGridCells'] / 2), 0))
 
-        if temp_vertical.shape[0] > 0:
-            print("plotting vertical")
-            self.mdi.verticalWidget.vertical_plot.setImage(temp_vertical, autoRange=False,
+        if self.waterColumn.get_processed_buffer_length() > 0:
+
+            dgTime = self.waterColumn.shared_ring_buffer_processed.view_recent_pings(
+                self.waterColumn.shared_ring_buffer_processed.timestamp_buffer_avg, 1)
+            print("Current time: {}; plotting timestamp: {}".format(datetime.datetime.now(),
+                                            datetime.datetime.utcfromtimestamp(int(dgTime[0]))))
+
+            temp_vertical = self.waterColumn.get_vertical_slice()
+            if temp_vertical.any():  # For debugging
+                print("temp_vertical.shape", temp_vertical.shape)
+            # if temp_vertical.shape[0] > 0:
+            # print("plotting vertical")
+            self.mdi.verticalWidget.vertical_plot.setImage(temp_vertical, autoRange=True,
                                                            autoLevels=False, levels=(-95, 35),
                                                            autoHistogramRange=False,
                                                            pos=(-temp_vertical.shape[0], 0))
-        if temp_horizontal.shape[0] > 0:
-            print("plotting horizontal")
-            self.mdi.horizontalWidget.horizontal_plot.setImage(temp_horizontal, autoRange=False,
+
+            temp_horizontal = self.waterColumn.get_horizontal_slice()
+            if temp_horizontal.any():  # For debugging
+                print("temp_horizontal.shape", temp_horizontal.shape)
+            # if temp_horizontal.shape[0] > 0:
+            # print("plotting horizontal")
+            self.mdi.horizontalWidget.horizontal_plot.setImage(temp_horizontal, autoRange=True,
                                                                autoLevels=False, levels=(-95, 35),
                                                                autoHistogramRange=False,
                                                                pos=(-temp_horizontal.shape[0],
                                                                     -temp_horizontal.shape[1] / 2))
-
-        # images = self.plotterMain.plotter.retrieve_plot_matrices()
-        #
-        # self.mdi.pieWidget.pie_plot.setImage(images[0], autoRange=False,
-        #                                      autoLevels=False, levels=(-95, 35),
-        #                                      autoHistogramRange=False,
-        #                                      pos=(-(self.settings['pie_settings']['maxGridCells'] / 2), 0))
-        #
-        # self.mdi.verticalWidget.vertical_plot.setImage(images[1], autoRange=False,
-        #                                                autoLevels=False, levels=(-95, 35),
-        #                                                autoHistogramRange=False,
-        #                                                pos=(-len(images[1]), 0))
-        #
-        # # TODO: Confirm that setPos y position is correct:
-        # self.mdi.horizontalWidget.horizontal_plot.setImage(images[2], autoRange=False,
-        #                                                    autoLevels=False, levels=(-95, 35),
-        #                                                    autoHistogramRange=False,
-        #                                                    pos=(-len(images[2]),
-        #                                                         -(self.settings['pie_settings']['maxGridCells'] / 2)))
-        pass
-
-    def __initMenuBar(self):
-        menuBar = self.menuBar()
-
-        # (Sample menu bar...)
-        # Menu bar - File:
-        # file = menuBar.addMenu("File")
-        # newAction = QAction("New", self)
-        # cascadeAction = QAction("Cascade", self)
-        # tileAction = QAction("Tile", self)
-        # file.addAction(newAction)
-        # file.addAction(cascadeAction)
-        # file.addAction(tileAction)
-        # newAction.triggered.connect(self.newActionSlot)
-        # cascadeAction.triggered.connect(self.cascadeActionSlot)
-        # tileAction.triggered.connect(self.tileActionSlot)
-
-        # Menu bar - Settings:
-        settings = menuBar.addMenu("Settings")
-
-        allSettingsAction = QAction("All Settings", self)
-        saveSettingsAction = QAction("Save Settings", self)
-        loadSettingsAction = QAction("Load Settings", self)
-
-        settings.addAction(allSettingsAction)
-        settings.addSeparator()
-        settings.addAction(saveSettingsAction)
-        settings.addAction(loadSettingsAction)
-
-        # Signals / SLots
-        allSettingsAction.triggered.connect(self.testSettingsDialog)
-        #allSettingsAction.triggered.connect(self.displaySettingsDialog)
-        saveSettingsAction.triggered.connect(self.displaySaveSettingsDialog)
-        self.tempdialog = AllSettingsDialog2(self.settings)
-        loadSettingsAction.triggered.connect(lambda: self.displayLoadSettingsDialog(self.tempdialog))
-
-    def __initToolBar(self):
-        toolBar = GUI_Toolbar(self.settings, parent=self)
-        self.addToolBar(toolBar)
-
-        # Signals / Slots
-        toolBar.signalPlay.connect(self.startProcesses)
-        toolBar.signalStop.connect(self.stopProcesses)
-        toolBar.signalSettings.connect(self.displaySettingsDialog)
-
-        return toolBar
-
-    def __initMDI(self):
-        mdi = GUI_MDI(self.settings, parent=self)
-
-        # Signals / Slots
-        mdi.verticalWidget.signalAcrossTrackAvgEdited.connect(self.acrossTrackAvgEdited)
-        mdi.pieWidget.signalbinSizeEdited.connect(self.binSizeEdited)
-        mdi.horizontalWidget.signalDepthEdited.connect(self.depthEdited)
-        mdi.horizontalWidget.signalDepthAvgEdited.connect(self.depthAvgEdited)
-
-        return mdi
-
-    # def __initSettingsDialog(self):
-    #     settingsDialog = AllSettingsDialog(self.settings, parent=self)
-    #
-    #     # Signals / Slots
-    #     settingsDialog.pushButtonLoadSettings.clicked.connect(lambda: self.displayLoadSettingsDialog(settingsDialog))
-    #     settingsDialog.signalSystemEdited.connect(self.systemEdited)
-    #     settingsDialog.signalIPEdited.connect(self.ipEdited)
-    #     settingsDialog.signalPortEdited.connect(self.portEdited)
-    #     settingsDialog.signalBinSizeEdited.connect(lambda: self.binSizeEdited(fromSettingsDialog=True))
-    #     settingsDialog.signalAcrossTrackAvgEdited.connect(lambda: self.acrossTrackAvgEdited(fromSettingsDialog=True))
-    #     settingsDialog.signalDepthEdited.connect(lambda: self.depthEdited(fromSettingsDialog=True))
-    #     settingsDialog.signalDepthAvgEdited.connect(lambda: self.depthAvgEdited(fromSettingsDialog=True))
-    #     settingsDialog.signalAlongTrackAvgEdited.connect(self.alongTrackAvgEdited)
-    #     settingsDialog.signalDualSwathPolicyEdited.connect(self.dualSwathAvgEdited)
-    #
-    #     return settingsDialog
-
 
     def systemEdited(self):
         print("SYSTEM EDITED")
@@ -438,16 +269,67 @@ class MainWindow(QMainWindow):
 
         event.accept()
 
-    def run(self):
-        print("LaunchProcesses run")
-        self.sonarMain.run()
-        self.plottingMain.run()
+    def _initMenuBar(self):
+        menuBar = self.menuBar()
+
+        # (Sample menu bar...)
+        # Menu bar - File:
+        # file = menuBar.addMenu("File")
+        # newAction = QAction("New", self)
+        # cascadeAction = QAction("Cascade", self)
+        # tileAction = QAction("Tile", self)
+        # file.addAction(newAction)
+        # file.addAction(cascadeAction)
+        # file.addAction(tileAction)
+        # newAction.triggered.connect(self.newActionSlot)
+        # cascadeAction.triggered.connect(self.cascadeActionSlot)
+        # tileAction.triggered.connect(self.tileActionSlot)
+
+        # Menu bar - Settings:
+        settings = menuBar.addMenu("Settings")
+
+        allSettingsAction = QAction("All Settings", self)
+        saveSettingsAction = QAction("Save Settings", self)
+        loadSettingsAction = QAction("Load Settings", self)
+
+        settings.addAction(allSettingsAction)
+        settings.addSeparator()
+        settings.addAction(saveSettingsAction)
+        settings.addAction(loadSettingsAction)
+
+        # Signals / SLots
+        allSettingsAction.triggered.connect(self.testSettingsDialog)
+        #allSettingsAction.triggered.connect(self.displaySettingsDialog)
+        saveSettingsAction.triggered.connect(self.displaySaveSettingsDialog)
+        self.tempdialog = AllSettingsDialog2(self.settings)
+        loadSettingsAction.triggered.connect(lambda: self.displayLoadSettingsDialog(self.tempdialog))
+
+    def _initToolBar(self):
+        toolBar = GUI_Toolbar(self.settings, parent=self)
+        self.addToolBar(toolBar)
+
+        # Signals / Slots
+        toolBar.signalPlay.connect(self.startProcesses)
+        toolBar.signalStop.connect(self.stopProcesses)
+        toolBar.signalSettings.connect(self.displaySettingsDialog)
+
+        return toolBar
+
+    def _initMDI(self):
+        mdi = GUI_MDI(self.settings, parent=self)
+
+        # Signals / Slots
+        mdi.verticalWidget.signalAcrossTrackAvgEdited.connect(self.acrossTrackAvgEdited)
+        mdi.pieWidget.signalbinSizeEdited.connect(self.binSizeEdited)
+        mdi.horizontalWidget.signalDepthEdited.connect(self.depthEdited)
+        mdi.horizontalWidget.signalDepthAvgEdited.connect(self.depthAvgEdited)
+
+        return mdi
 
 def main():
     app = QApplication(sys.argv)
     form = MainWindow()
     form.show()
-    #form.displaySettingsDialog()
     sys.exit(app.exec_())
 
 if __name__ == '__main__':

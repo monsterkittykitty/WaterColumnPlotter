@@ -18,7 +18,8 @@ import datetime
 import io
 from KmallReaderForMDatagrams import KmallReaderForMDatagrams as k
 import logging
-from multiprocessing import Process, Value
+from multiprocessing import Process
+import multiprocessing as mp
 import socket
 import struct
 import sys
@@ -26,7 +27,6 @@ import sys
 logger = logging.getLogger(__name__)
 
 class KongsbergDGCaptureFromSonar(Process):
-    #class KongsbergDGCaptureFromSonar:
     def __init__(self, rx_ip, rx_port, connection="Multicast", queue_datagram=None, process_flag=None, out_file=None):
         super().__init__()
 
@@ -50,11 +50,11 @@ class KongsbergDGCaptureFromSonar(Process):
         self.SOCKET_TIMEOUT = 5  # Seconds
         self.MAX_DATAGRAM_SIZE = 2 ** 16
         self.sock_in = self.__init_socket()
-        #self.print_settings()
 
-        self.MAX_NUM_PINGS_TO_BUFFER = 5
+        self.MAX_NUM_PINGS_TO_BUFFER = 20
 
-        self.REQUIRED_DATAGRAMS = [b'#MRZ', b'#MWC', b'#SKM', b'#SPO']
+        # self.REQUIRED_DATAGRAMS = [b'#MRZ', b'#MWC', b'#SKM', b'#SPO']
+        self.REQUIRED_DATAGRAMS = [b'#MWC']
 
         self.buffer = {'dgmType': [None] * self.MAX_NUM_PINGS_TO_BUFFER,
                        'dgmVersion': [None] * self.MAX_NUM_PINGS_TO_BUFFER,
@@ -67,6 +67,8 @@ class KongsbergDGCaptureFromSonar(Process):
 
         # TODO: FOR TESTING
         self.dgms_rxed = 0
+        self.all_data_rxed = 0
+        self.data_overwrite = 0
 
     def __init_socket(self):
         if self.connection == "TCP":
@@ -114,11 +116,10 @@ class KongsbergDGCaptureFromSonar(Process):
         """
         file_io = open(self.out_file, 'wb')
 
-        #while True:
         while self.process_flag.value:
             try:
                 data, address = self.sock_in.recvfrom(self.MAX_DATAGRAM_SIZE)
-                #print(data)  # For debugging
+                print(data)  # For debugging
                 file_io.write(data)
             except socket.timeout:
                 logger.exception("Socket timeout exception.")
@@ -126,16 +127,12 @@ class KongsbergDGCaptureFromSonar(Process):
                 file_io.close()
                 break
 
-    # TODO: Delete this
-    def printCapture(self):
-        print("CAPTURE")
-
     def receive_dg_and_queue(self):
         """
         Receives data at specified socket; places data in specified queue (multiprocessing.Queue).
         """
 
-        print("DGCapture: receive_dg_and_queue")  # For debugging
+        #print("DGCapture: receive_dg_and_queue")  # For debugging
 
         first_tx_time = None  # For testing
         dg_counter = 0  # For testing
@@ -146,7 +143,6 @@ class KongsbergDGCaptureFromSonar(Process):
 
         # while True:
         while self.process_flag.value:
-            # print("Capture, self.receive_data_and_queue: ", self.process_flag.value)
             try:
                 data, address = self.sock_in.recvfrom(self.MAX_DATAGRAM_SIZE)
 
@@ -175,9 +171,9 @@ class KongsbergDGCaptureFromSonar(Process):
                 if header['dgmType'] == b'#MRZ' or header['dgmType'] == b'#MWC':  # Datagrams may be partitioned
 
                     # For testing:
-                    # if header['dgmType'] == b'#MWC':
-                    #     mwc_counter += 1
-                    #     print("dgm_timestamp: ", header['dgdatetime'], "mwc_counter: ", mwc_counter)
+                    if header['dgmType'] == b'#MWC':
+                        mwc_counter += 1
+                        #print("dgm_timestamp: ", header['dgdatetime'], "mwc_counter: ", mwc_counter)
 
                     partition = k.read_EMdgmMpartition(bytes_io, header['dgmType'], header['dgmVersion'])
 
@@ -198,14 +194,16 @@ class KongsbergDGCaptureFromSonar(Process):
                             self.buffer['data'][index][partition['dgmNum'] - 1] = data
 
                             # For debugging:
-                            # print("Inserting existing datagram {}, {} into index {}. Part {} of {}."
-                            #       .format(header['dgmType'], header['dgTime'], index,
-                            #               partition['dgmNum'], partition['numOfDgms']))
+                            print("Inserting existing datagram {}, {} into index {}. Part {} of {}."
+                                  .format(header['dgmType'], header['dgTime'], index,
+                                          partition['dgmNum'], partition['numOfDgms']))
                             # print("Existing: self.buffer['dgmsRxed'][index]:", self.buffer['dgmsRxed'][index])
                             # print("Existing: self.buffer['numOfDgms'][index]:", self.buffer['numOfDgms'][index])
 
                             # Check if all data received:
                             if self.buffer['dgmsRxed'][index] == self.buffer['numOfDgms'][index]:
+                                print("!!!!!!!!!!!!ALL DATA RXED!!!!!!!!!!!!!!")
+                                self.all_data_rxed +=1
 
                                 # For testing:
                                 # print("All data received: {}, {}, ping: ".format(self.buffer['dgmType'],
@@ -286,6 +284,9 @@ class KongsbergDGCaptureFromSonar(Process):
                                                                self.buffer['numOfDgms'][next_index],
                                                                self.MAX_NUM_PINGS_TO_BUFFER))
 
+                                        self.data_overwrite += 1
+                                        print("All data rx to data overwrite: {}:{}".format(self.all_data_rxed, self.data_overwrite))
+
                                 # For testing:
                                 # print("Next index: {}. Timestamp index and timestamp: {}, {}. All timestamps: {}"
                                 #       .format(next_index, timestamp_index,
@@ -316,7 +317,12 @@ class KongsbergDGCaptureFromSonar(Process):
                             # Insert data at appropriate position
                             self.buffer['data'][next_index][partition['dgmNum'] - 1] = data
 
+                            print("header:", header)
+                            print("partition:", partition)
+                            print("cmnPart:", cmnPart)
                             # For debugging:
+                            # print("dgmVersion:", header['dgmVersion'])
+                            # print("numBytesCmnPart:", cmnPart['numBytesCmnPart'])
                             # print("Inserting new datagram {}, {} into index {}. Part {} of {}."
                             #       .format(header['dgmType'], header['dgTime'], next_index,
                             #               partition['dgmNum'], partition['numOfDgms']))
@@ -450,7 +456,7 @@ class KongsbergDGCaptureFromSonar(Process):
         return flat_buffer
 
     def run(self):
-        print("Running KongsbergDGCapture process.")
+        #print("Running KongsbergDGCapture process.")
         if self.queue_datagram:
             # print(self.queue_datagram)
             # print(type(self.queue_datagram))
