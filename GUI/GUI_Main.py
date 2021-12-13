@@ -97,10 +97,10 @@ class MainWindow(QMainWindow):
             if temp_pie.any():  # For debugging
                 print("temp_pie.shape", temp_pie.shape)
             #if temp_pie.any():
-            self.mdi.pieWidget.pie_plot.setImage(temp_pie.T, autoRange=True,
+            self.mdi.pieWidget.pie_plot.setImage(temp_pie.T, autoRange=False,
                                                  autoLevels=False, levels=(-95, 35),
                                                  autoHistogramRange=False,
-                                                 pos=(-(self.settings['buffer_settings']['maxGridCells'] / 2), 0))
+                                                 pos=(-(temp_pie.shape[1] / 2), 0))
 
         if self.waterColumn.get_processed_buffer_length() > 0:
 
@@ -114,7 +114,7 @@ class MainWindow(QMainWindow):
                 print("temp_vertical.shape", temp_vertical.shape)
             # if temp_vertical.shape[0] > 0:
             # print("plotting vertical")
-            self.mdi.verticalWidget.vertical_plot.setImage(temp_vertical, autoRange=True,
+            self.mdi.verticalWidget.vertical_plot.setImage(temp_vertical, autoRange=False,
                                                            autoLevels=False, levels=(-95, 35),
                                                            autoHistogramRange=False,
                                                            pos=(-temp_vertical.shape[0], 0))
@@ -124,7 +124,7 @@ class MainWindow(QMainWindow):
                 print("temp_horizontal.shape", temp_horizontal.shape)
             # if temp_horizontal.shape[0] > 0:
             # print("plotting horizontal")
-            self.mdi.horizontalWidget.horizontal_plot.setImage(temp_horizontal, autoRange=True,
+            self.mdi.horizontalWidget.horizontal_plot.setImage(temp_horizontal, autoRange=False,
                                                                autoLevels=False, levels=(-95, 35),
                                                                autoHistogramRange=False,
                                                                pos=(-temp_horizontal.shape[0],
@@ -255,7 +255,7 @@ class MainWindow(QMainWindow):
             settingsDialog.validateAndSetValuesFromFile(tempSettings)
 
     def closeEvent(self, event):
-        if self.waterColumn.process_flag.value == True:
+        if self.waterColumn.process_flag.value:
             self.waterColumn.process_flag.value = False
             self.waterColumn.sonarMain.dg_capture.join()
             self.waterColumn.sonarMain.dg_process.join()

@@ -164,6 +164,10 @@ class GUI_PlotItem(pg.PlotItem):
         """
         # This ensures that full, specified x, y range will be displayed, but 1:1 aspect ratio may not be maintained.
         self.vb.state['aspectLocked'] = False
-        self.setXRange(-(self.settings['buffer_settings']['maxBufferSize'] /
-                         self.settings['processing_settings']['alongTrackAvg_ping']), 0)
-        self.setYRange(self.settings['buffer_settings']['maxGridCells'], 0)
+
+        # self.setXRange(-(self.settings['buffer_settings']['maxBufferSize'] /
+        #                  self.settings['processing_settings']['alongTrackAvg_ping']), 0)
+        # self.setYRange(self.settings['buffer_settings']['maxGridCells'], 0)
+
+        self.enableAutoRange()
+        self.autoBtn.hide()

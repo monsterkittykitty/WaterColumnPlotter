@@ -47,13 +47,13 @@ class KongsbergDGCaptureFromSonar(Process):
         else:
             self.process_flag = mp.Value(ctypes.c_bool, True)
 
-        self.SOCKET_TIMEOUT = 5  # Seconds
+        self.SOCKET_TIMEOUT = 10  # Seconds
         self.MAX_DATAGRAM_SIZE = 2 ** 16
         self.sock_in = self.__init_socket()
 
         self.MAX_NUM_PINGS_TO_BUFFER = 20
 
-        # self.REQUIRED_DATAGRAMS = [b'#MRZ', b'#MWC', b'#SKM', b'#SPO']
+        #self.REQUIRED_DATAGRAMS = [b'#MRZ', b'#MWC', b'#SKM', b'#SPO']
         self.REQUIRED_DATAGRAMS = [b'#MWC']
 
         self.buffer = {'dgmType': [None] * self.MAX_NUM_PINGS_TO_BUFFER,
@@ -117,6 +117,7 @@ class KongsbergDGCaptureFromSonar(Process):
         file_io = open(self.out_file, 'wb')
 
         while self.process_flag.value:
+            self.print_settings()
             try:
                 data, address = self.sock_in.recvfrom(self.MAX_DATAGRAM_SIZE)
                 print(data)  # For debugging
@@ -168,6 +169,8 @@ class KongsbergDGCaptureFromSonar(Process):
             #print("header[numBytesDgm]: ", header['numBytesDgm'], type(header['dgmType']))
 
             if header['dgmType'] in self.REQUIRED_DATAGRAMS:
+                print("header['dgmType']", header['dgmType'])
+                print("header['dgTime']", header['dgTime'])
                 if header['dgmType'] == b'#MRZ' or header['dgmType'] == b'#MWC':  # Datagrams may be partitioned
 
                     # For testing:
@@ -197,6 +200,7 @@ class KongsbergDGCaptureFromSonar(Process):
                             print("Inserting existing datagram {}, {} into index {}. Part {} of {}."
                                   .format(header['dgmType'], header['dgTime'], index,
                                           partition['dgmNum'], partition['numOfDgms']))
+                            print("datagrams rxed: ", self.buffer['dgmsRxed'][index])
                             # print("Existing: self.buffer['dgmsRxed'][index]:", self.buffer['dgmsRxed'][index])
                             # print("Existing: self.buffer['numOfDgms'][index]:", self.buffer['numOfDgms'][index])
 
@@ -216,7 +220,7 @@ class KongsbergDGCaptureFromSonar(Process):
                                 if index == timestamp_index:
 
                                     # For testing:
-                                    # print("Reconstructing datagram.")
+                                    print("Reconstructing datagram.")
 
                                     # Earliest timestamp index is complete! Reconstruct data and place in queue
                                     data_reconstruct, data_size = self.reconstruct_data(
@@ -305,6 +309,11 @@ class KongsbergDGCaptureFromSonar(Process):
                             # Insert new data into self.buffer, overwriting existing data if present:
                             cmnPart = k.read_EMdgmMbody(bytes_io, header['dgmType'], header['dgmVersion'])
 
+                            # For debugging:
+                            print("Inserting new datagram {}, {} into index {}. Part {} of {}."
+                                  .format(header['dgmType'], header['dgTime'], next_index,
+                                          partition['dgmNum'], partition['numOfDgms']))
+
                             self.buffer['dgmType'][next_index] = header['dgmType']
                             self.buffer['dgmVersion'][next_index] = header['dgmVersion']
                             self.buffer['dgTime'][next_index] = header['dgTime']
@@ -317,9 +326,9 @@ class KongsbergDGCaptureFromSonar(Process):
                             # Insert data at appropriate position
                             self.buffer['data'][next_index][partition['dgmNum'] - 1] = data
 
-                            print("header:", header)
-                            print("partition:", partition)
-                            print("cmnPart:", cmnPart)
+                            # print("header:", header)
+                            # print("partition:", partition)
+                            # print("cmnPart:", cmnPart)
                             # For debugging:
                             # print("dgmVersion:", header['dgmVersion'])
                             # print("numBytesCmnPart:", cmnPart['numBytesCmnPart'])
@@ -356,6 +365,43 @@ class KongsbergDGCaptureFromSonar(Process):
 
         print("BOOLEAN STOPPED.")
         self.sock_in.close()
+
+    # # TODO: FOR TESTING:
+    # def receive_dg_and_queue(self):
+    #     """
+    #     Receives data at specified socket; places data in specified queue (multiprocessing.Queue).
+    #     """
+    #
+    #     # while True:
+    #     while self.process_flag.value:
+    #         try:
+    #             data, address = self.sock_in.recvfrom(self.MAX_DATAGRAM_SIZE)
+    #
+    #         except BlockingIOError:
+    #             continue
+    #         except socket.timeout:
+    #             logger.exception("Socket timeout exception.")
+    #             self.sock_in.close()
+    #             break
+    #
+    #         # TODO: FOR TESTING:
+    #         self.dgms_rxed += 1
+    #
+    #         # print(data)
+    #         # exit()
+    #         bytes_io = io.BytesIO(data)
+    #
+    #         header = k.read_EMdgmHeader(bytes_io)
+    #
+    #         if header['dgmType'] in self.REQUIRED_DATAGRAMS:
+    #             partition = k.read_EMdgmMpartition(bytes_io, header['dgmType'], header['dgmVersion'])
+    #             print("header['dgmType']", header['dgmType'])
+    #             print("Time: {}. Part {} of {}.".format(header['dgTime'],
+    #                                                     partition['dgmNum'],
+    #                                                     partition['numOfDgms']))
+    #
+    #     print("BOOLEAN STOPPED.")
+    #     self.sock_in.close()
 
     def advance_timestamp_index(self):
         """
@@ -418,7 +464,7 @@ class KongsbergDGCaptureFromSonar(Process):
         # Revision I updated #MRZ datagram to version 3 and #MWC datagram to version 2.
         if (dgmType == b'#MRZ' and dgmVersion >= 3) or (dgmType == b'#MWC' and dgmVersion >= 2):
             # Length to strip for Kongsberg *.kmall datagram format revisions I+.
-            length_to_strip += cmnPart_struct_format
+            length_to_strip += struct.calcsize(cmnPart_struct_format)
 
         for i in range(len(data)):
             if i == 0:  # First dgm must have last 4 bytes removed

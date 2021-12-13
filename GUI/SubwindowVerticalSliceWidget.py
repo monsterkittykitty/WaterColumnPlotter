@@ -36,9 +36,27 @@ class SubwindowVerticalSliceWidget(QWidget):
 
         self.vertical_plot = pg.ImageView(self, view=self.plot)
 
-        # temp_image = np.empty((500, 100))
-        # temp_image[:] = np.nan
-        # self.vertical_plot.setImage(temp_image, autoRange=False, autoLevels=False, levels=(-95, 35), autoHistogramRange=False)
+
+
+
+        # # TODO: TEST
+        # https://stackoverflow.com/questions/63619065/pyqtgraph-use-arbitrary-values-for-axis-with-imageitem
+        # self.xval = np.linspace(0, self.settings['processing_settings']['alongTrackAvg_ping'],
+        #                           self.settings['buffer_settings']['maxBufferSize'])
+        # self.yval = np.linspace(0, self.settings['processing_settings']['binSize_m'],
+        #                         self.settings['buffer_settings']['maxGridCells'])
+        #
+        # # image_width = abs(self.xval_h[0]-self.xval_h[0])
+        # # image_height = abs(self.xval_h[0]-self.xval_h[0])  # if x and y-scales are the same
+        # image_
+        # pixel_size = image_width/(self.xval_h.size-1)
+        # self.image_h.setRect(QRectF(self.xval_h[0]-pixel_size/2, self.xval_h[0]-pixel_size/2, image_width, image_height))
+        # # TODO: END TEST
+
+
+
+
+
         # Disable ROI button:
         self.vertical_plot.ui.roiBtn.hide()
         # Disable Norm button:
@@ -48,21 +66,6 @@ class SubwindowVerticalSliceWidget(QWidget):
         self.vertical_plot.ui.histogram.item.vb.setMenuEnabled(False)
         #self.vertical_plot.ui.histogram.item.vb.setRange(disableAutoRange=True)
 
-        # Initialize plot with blank matrix of max size:
-        # temp_image = np.empty((self.settings['buffer_settings']['maxGridCells'],
-        #                        self.settings['buffer_settings']['maxBufferSize'],))
-        # temp_image.fill(np.nan)
-        # temp_image = np.zeros((self.settings['buffer_settings']['maxBufferSize'],
-        #                        self.settings['buffer_settings']['maxGridCells'], ))
-        # autoRange = Auto scale and pan the view around the image such that the image fills the view.
-        # autoLevels = Set the min/max intensity levels automatically to match the image data.
-        # autoHistogramRange = If True, the histogram y-range is automatically scaled to fit the image data.
-        # self.vertical_plot.setImage(temp_image, autoRange=False, autoLevels=False, levels=(-95, 35),
-        #                               autoHistogramRange=False)
-
-        #self.resize(400, 200)
-
-        #layout = QtWidgets.QVBoxLayout()
         layout = QGridLayout()
         layout.setColumnMinimumWidth(0, 25)
         layout.setColumnMinimumWidth(1, 25)
@@ -137,6 +140,10 @@ class GUI_PlotItem(pg.PlotItem):
         """
         # This ensures that full, specified x, y range will be displayed, but 1:1 aspect ratio may not be maintained.
         self.vb.state['aspectLocked'] = False
-        self.setXRange(-(self.settings['buffer_settings']['maxBufferSize'] /
-                         self.settings['processing_settings']['alongTrackAvg_ping']), 0)
-        self.setYRange(self.settings['buffer_settings']['maxGridCells'], 0)
+
+        # self.setXRange(-(self.settings['buffer_settings']['maxBufferSize'] /
+        #                  self.settings['processing_settings']['alongTrackAvg_ping']), 0)
+        # self.setYRange(self.settings['buffer_settings']['maxGridCells'], 0)
+
+        self.enableAutoRange()
+        self.autoBtn.hide()
