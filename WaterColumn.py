@@ -22,6 +22,9 @@ class WaterColumn:
         self.queue_datagram = Queue()  # .put() by KongsbergDGCaptureFromSonar; .get() by KongsbergDGProcess
         self.queue_pie_object = Queue()  # .put() by KongsbergDGProcess; .get() by Plotter
 
+        self.full_ping_count = Value(ctypes.c_uint32, 0, lock=True)  # multiprocessing.Value
+        self.discard_ping_count = Value(ctypes.c_uint32, 0, lock=True)  # multiprocessing.Value
+
         self.process_flag = Value(ctypes.c_bool, False, lock=True)  # multiprocessing.Value
         self.raw_buffer_full_flag = Value(ctypes.c_bool, False, lock=True)  # multiprocessing.Value
         self.processed_buffer_full_flag = Value(ctypes.c_bool, False, lock=True)  # multiprocessing.Value
@@ -58,7 +61,8 @@ class WaterColumn:
         """
         if self.settings["system_settings"]["system"] == "Kongsberg":  # Kongsberg system
             self.sonarMain = KongsbergDGMain(self.settings, self.queue_datagram,
-                                             self.queue_pie_object, self.process_flag)
+                                             self.queue_pie_object, self.full_ping_count,
+                                             self.discard_ping_count, self.process_flag)
             self.sonarMain.run()
 
         else:  # Other system
@@ -107,22 +111,48 @@ class WaterColumn:
         return self.shared_ring_buffer_processed.get_num_elements_in_buffer()
 
     def get_pie(self):
+
         with self.raw_buffer_count.get_lock():
-            temp_amp = self.shared_ring_buffer_raw.view_recent_pings(self.shared_ring_buffer_raw.amplitude_buffer, 1)
-            temp_cnt = self.shared_ring_buffer_raw.view_recent_pings(self.shared_ring_buffer_raw.count_buffer, 1)
-        with np.errstate(divide='ignore', invalid='ignore'):
-            pie = temp_amp / temp_cnt
-        return self._trim_nans_pie(pie[0])
+
+        # This pulls most recent single ping from 'raw' buffer:
+        #     temp_amp = self.shared_ring_buffer_raw.view_recent_pings(self.shared_ring_buffer_raw.amplitude_buffer, 1)
+        #     temp_cnt = self.shared_ring_buffer_raw.view_recent_pings(self.shared_ring_buffer_raw.count_buffer, 1)
+        #     with np.errstate(divide='ignore', invalid='ignore'):
+        #         pie = temp_amp / temp_cnt
+        # # Check that temp arrays are not all NaNs (from 'discarded' pings)
+        # if not np.all(np.isnan(pie)):
+        #     return self._trim_nans_pie(pie[0])
+        # return None  # If temp arrays are all zero
+
+
+        # This pulls most recent alongTrackAvg_ping from 'raw' buffer:
+            pie = self.shared_ring_buffer_raw.view_recent_pings_as_pie(
+                self.settings['processing_settings']['alongTrackAvg_ping'])
+            print("pie.shape: ", pie.shape)
+        # Check that temp arrays are not all NaNs (from 'discarded' pings)
+        if not np.all(np.isnan(pie)):
+            return self._trim_nans_pie(pie)
+        return None  # If temp arrays are all zero
 
     def get_vertical_slice(self):
         temp_slice = self.shared_ring_buffer_processed.view_buffer_elements(
             self.shared_ring_buffer_processed.vertical_slice_buffer)
-        return self._trim_nans_vertical(temp_slice)
+        # if np.any(temp_slice):
+        #     return self._trim_nans_vertical(temp_slice)
+        # return None  # If temp arrays are all zero
+        if not np.all(np.isnan(temp_slice)):
+            return self._trim_nans_vertical(temp_slice)
+        return None
 
     def get_horizontal_slice(self):
         temp_slice = self.shared_ring_buffer_processed.view_buffer_elements(
             self.shared_ring_buffer_processed.horizontal_slice_buffer)
-        return self._trim_nans_horizontal(temp_slice)
+        # if np.any(temp_slice):
+        #     return self._trim_nans_horizontal(temp_slice)
+        # return None  # If temp arrays are all zero
+        if not np.all(np.isnan(temp_slice)):
+            return self._trim_nans_horizontal(temp_slice)
+        return None
 
     def _trim_nans_pie(self, slice):
         # Trim NaNs from matrices to be plotted:

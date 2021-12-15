@@ -9,13 +9,15 @@ import datetime
 import json
 import multiprocessing
 import psutil
-from PyQt5.QtWidgets import QAction, QApplication, QFileDialog, QMainWindow, QMdiSubWindow, QTextEdit
+from PyQt5.QtWidgets import QAction, QApplication, QFileDialog, QMainWindow, QMdiSubWindow, QStatusBar, QTextEdit
 from PyQt5.QtCore import QTimer
 import sys
 from WaterColumn import WaterColumn
 
 from GUI.Dialogs.PYFiles.AllSettingsDialog2 import AllSettingsDialog2
 from GUI_MDI import GUI_MDI
+from GUI_StatusBar import GUI_StatusBar
+# from GUI_StatusBar_Kongsberg import GUI_StatusBar_Kongsberg
 from GUI_Toolbar import GUI_Toolbar
 
 from KongsbergDGMain import KongsbergDGMain
@@ -55,8 +57,11 @@ class MainWindow(QMainWindow):
         self.PLOT_UPDATE_INTERVAL = 1000  # Milliseconds
 
         # Window setup:
-        self.resize(1200, 800)
+        self.resize(1200, 820)
         self.setWindowTitle("Water Column Plotter")
+
+        self.waterColumn = WaterColumn(self.settings)
+        self.update_timer = QTimer()
 
         # Menu Bar
         #self._initMenuBar()
@@ -64,79 +69,117 @@ class MainWindow(QMainWindow):
         # Tool Bar
         self.toolBar = self._initToolBar()
 
+        # Status Bar
+        #self.status = None
+        # self.setStatusBar(self.status)
+        #self.status_update_timer = QTimer()
+        self.status = self._initStatusBar()
+        self.setStatusBar(self.status)
+
         # Multiple Document Interface
+        #self.plot_update_timer = QTimer()
         self.mdi = self._initMDI()
         self.setCentralWidget(self.mdi)
-
-        self.waterColumn = WaterColumn(self.settings)
 
         self.show()
 
         self.displaySettingsDialog()  # This will block until OK or Close / Cancel is selected in settings dialog
 
-        self.plot_update_timer = QTimer()
-        self.plot_update_timer.timeout.connect(self.updatePlot)
+
+        # self.plot_update_timer.timeout.connect(self.updatePlot)
+
+
+
+        # Wait for "OK" / "Cancel" clicked on settings dialog; configuration of status bar depends on system.
+        # This implementation probably doesn't need to be system specific...
+        # self.status = self._initStatusBar()
+        # self.setStatusBar(self.status)
 
     def startProcesses(self):
         """
         This method called when toolbar's play button is pressed. Activates processes in WaterColumn class.
         """
         self.waterColumn.startProcesses()
-        self.plot_update_timer.start(self.PLOT_UPDATE_INTERVAL)
+        self.update_timer.start(self.PLOT_UPDATE_INTERVAL)
+        #self.update_timer.start(self.PLOT_UPDATE_INTERVAL)
 
     def stopProcesses(self):
         """
         This method called when toolbar's stop button is pressed. Deactivates processes in WaterColumn class.
         """
         self.waterColumn.stopProcesses()
-        self.plot_update_timer.stop()
+        self.update_timer.stop()
+        #self.update_timer.stop()
+
+    def updateStatusBar(self):
+        # This implementation probably doesn't need to be system specific...
+        # def updateStatusBarKongsberg(self):
+        print("updateStatusBar")
+        self.status.set_ping_counts(self.waterColumn.full_ping_count.value, self.waterColumn.discard_ping_count.value)
 
     def updatePlot(self):
+        # self.toolBar.labelRxToLostValues.setText("BI")
+        # print("update discard: ", self.waterColumn.discard_ping_count.value)
+        # self.toolBar.labelRxToLostValues.setText(str(self.waterColumn.full_ping_count.value) + ":"
+        #                                          + str(self.waterColumn.discard_ping_count.value))
+
+        print("updatePlot")
+        # TODO: Check that this is working! Should I make an update plot function
+        #  specifically for Kongsberg, so this doesn't need to be checked every time?
+        # if isinstance(self.status, GUI_StatusBar_Kongsberg):
+        #     self.status.set_ping_counts(self.waterColumn.full_ping_count.value, self.waterColumn.discard_ping_count.value)
+
         if self.waterColumn.get_raw_buffer_length() > 0:
             temp_pie = self.waterColumn.get_pie()
-            if temp_pie.any():  # For debugging
-                print("temp_pie.shape", temp_pie.shape)
-            #if temp_pie.any():
-            self.mdi.pieWidget.pie_plot.setImage(temp_pie.T, autoRange=False,
-                                                 autoLevels=False, levels=(-95, 35),
-                                                 autoHistogramRange=False,
-                                                 pos=(-(temp_pie.shape[1] / 2), 0))
+            if temp_pie is not None:
+                if temp_pie.any():  # For debugging
+                    print("temp_pie.shape", temp_pie.shape)
+                #if temp_pie.any():
+                self.mdi.pieWidget.pie_plot.setImage(temp_pie.T, autoRange=False,
+                                                     autoLevels=False, levels=(-95, 35),
+                                                     autoHistogramRange=False,
+                                                     pos=(-(temp_pie.shape[1] / 2), 0))
 
         print("proc buffer length: ", self.waterColumn.get_processed_buffer_length())
         if self.waterColumn.get_processed_buffer_length() > 0:
 
             dgTime = self.waterColumn.shared_ring_buffer_processed.view_recent_pings(
                 self.waterColumn.shared_ring_buffer_processed.timestamp_buffer_avg, 1)
-            print("Current time: {}; plotting timestamp: {}".format(datetime.datetime.now(),
+            print("Current time: {}; plotting timestamp: {}".format(datetime.datetime.utcnow(),
                                             datetime.datetime.utcfromtimestamp(int(dgTime[0]))))
 
             temp_vertical = self.waterColumn.get_vertical_slice()
-            if temp_vertical.any():  # For debugging
-                print("temp_vertical.shape", temp_vertical.shape)
-            # if temp_vertical.shape[0] > 0:
-            # print("plotting vertical")
-            self.mdi.verticalWidget.vertical_plot.setImage(temp_vertical, autoRange=False,
-                                                           autoLevels=False, levels=(-95, 35),
-                                                           autoHistogramRange=False,
-                                                           pos=(-temp_vertical.shape[0], 0))
-
-            temp_horizontal = self.waterColumn.get_horizontal_slice()
-            if temp_horizontal.any():  # For debugging
-                print("temp_horizontal.shape", temp_horizontal.shape)
-            # if temp_horizontal.shape[0] > 0:
-            # print("plotting horizontal")
-            self.mdi.horizontalWidget.horizontal_plot.setImage(temp_horizontal, autoRange=False,
+            if temp_vertical is not None:
+                if temp_vertical.any():  # For debugging
+                    print("temp_vertical.shape", temp_vertical.shape)
+                # if temp_vertical.shape[0] > 0:
+                # print("plotting vertical")
+                self.mdi.verticalWidget.vertical_plot.setImage(temp_vertical, autoRange=False,
                                                                autoLevels=False, levels=(-95, 35),
                                                                autoHistogramRange=False,
-                                                               pos=(-temp_horizontal.shape[0],
-                                                                    -temp_horizontal.shape[1] / 2))
+                                                               pos=(-temp_vertical.shape[0], 0))
+
+            temp_horizontal = self.waterColumn.get_horizontal_slice()
+            if temp_horizontal is not None:
+                if temp_horizontal.any():  # For debugging
+                    print("temp_horizontal.shape", temp_horizontal.shape)
+                # if temp_horizontal.shape[0] > 0:
+                # print("plotting horizontal")
+                self.mdi.horizontalWidget.horizontal_plot.setImage(temp_horizontal, autoRange=False,
+                                                                   autoLevels=False, levels=(-95, 35),
+                                                                   autoHistogramRange=False,
+                                                                   pos=(-temp_horizontal.shape[0],
+                                                                        -temp_horizontal.shape[1] / 2))
 
     def systemEdited(self):
         print("SYSTEM EDITED")
         # self.mdi.subwindowSettingsDisplay.setSystem(self.settings)
         self.toolBar.setSystem(self.settings['system_settings']['system'])
 
+        # self._initStatusBar()
+
         # if self.settings["system_settings"]["system"] == "Kongsberg":
+        #     self.setStatusBar(self._initKongsberStatusBar())
         #     # Launch Kongsberg thread:
         #     if self.sonarMain is None:
         #         # Note: Must maintain reference to this with 'self.':
@@ -316,6 +359,25 @@ class MainWindow(QMainWindow):
 
         return toolBar
 
+    def _initStatusBar(self):
+        statusBar = GUI_StatusBar()
+        self.update_timer.timeout.connect(self.updateStatusBar)
+
+        # This implementation probably doesn't need to be system specific...
+        # if self.settings['system_settings']['system'] == "Kongsberg":
+        #     statusBar = GUI_StatusBar_Kongsberg()
+        #     self.status_update_timer.timeout.connect(self.updateStatusBarKongsberg)
+        # else:  # Another system
+        #     statusBar = QStatusBar()
+        #     # self.status_update_timer.timeout.connect([<some_other_system_update_function>])
+
+        return statusBar
+
+    # def _initKongsberStatusBar(self):
+    #     statusBar = GUI_StatusBar_Kongsberg()
+    #
+    #     return statusBar
+
     def _initMDI(self):
         mdi = GUI_MDI(self.settings, parent=self)
 
@@ -324,6 +386,8 @@ class MainWindow(QMainWindow):
         mdi.pieWidget.signalbinSizeEdited.connect(self.binSizeEdited)
         mdi.horizontalWidget.signalDepthEdited.connect(self.depthEdited)
         mdi.horizontalWidget.signalDepthAvgEdited.connect(self.depthAvgEdited)
+
+        self.update_timer.timeout.connect(self.updatePlot)
 
         return mdi
 

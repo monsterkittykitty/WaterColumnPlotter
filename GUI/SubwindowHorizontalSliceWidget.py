@@ -170,4 +170,6 @@ class GUI_PlotItem(pg.PlotItem):
         # self.setYRange(self.settings['buffer_settings']['maxGridCells'], 0)
 
         self.enableAutoRange()
+        self.setXRange(-(self.settings['buffer_settings']['maxBufferSize'] /
+                         self.settings['processing_settings']['alongTrackAvg_ping']), 0)
         self.autoBtn.hide()

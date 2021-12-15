@@ -5,7 +5,7 @@
 # November 2021
 
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QGroupBox, QLabel, QSizePolicy, QStyle, QToolBar, QToolButton, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QGridLayout, QGroupBox, QLabel, QSizePolicy, QStyle, QToolBar, QToolButton, QVBoxLayout, QWidget
 
 class GUI_Toolbar(QToolBar):
 
@@ -59,7 +59,25 @@ class GUI_Toolbar(QToolBar):
         self.addWidget(self.toolButtonPlay)
         self.addWidget(self.toolButtonStop)
 
-        # For adding additional settngs to toolbar. Note: This is incomplete and signals / slots are not enabled.
+        # Spacer Widget:
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.addWidget(spacer)
+
+        # Create display mechanism for rxed to lost pings
+        # groupBoxPings = QGroupBox("Pings: ", parent=self)
+        # layoutPings = QGridLayout()
+        #
+        # labelRxToLost = QLabel("Rxed:Lost", parent=self)
+        # layoutPings.addWidget(labelRxToLost, 0, 0)
+        # self.labelRxToLostValues = QLabel("0:0", parent=self)
+        # layoutPings.addWidget(self.labelRxToLostValues, 0, 1)
+        #
+        # groupBoxPings.setLayout(layoutPings)
+        #
+        # self.addWidget(groupBoxPings)
+
+        # For adding additional settings to toolbar. Note: This is incomplete and signals / slots are not enabled.
         # # Settings:
         # groupBoxSettings = QGroupBox("Additional Settings: ", parent=self)
         #
@@ -122,10 +140,10 @@ class GUI_Toolbar(QToolBar):
         # Connect signals / slots
         self.toolButtonSettings.clicked.connect(self.settingsClicked.emit)
 
-        # Spacer Widget:
-        spacer = QWidget()
-        spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.addWidget(spacer)
+        # # Spacer Widget:
+        # spacer = QWidget()
+        # spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # self.addWidget(spacer)
 
         self.addWidget(self.toolButtonSettings)
 

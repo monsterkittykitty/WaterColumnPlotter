@@ -16,13 +16,17 @@ __appname__ = "KongsbergDGMain"
 
 
 class KongsbergDGMain:
-    def __init__(self, settings, queue_datagram, queue_pie_object, process_flag):
+    def __init__(self, settings, queue_datagram, queue_pie_object, full_ping_count, discard_ping_count, process_flag):
 
         self.settings = settings
 
         # multiprocessing.Queues
         self.queue_datagram = queue_datagram
         self.queue_pie_object = queue_pie_object
+
+        # multiprocessing.Values
+        self.full_ping_count = full_ping_count
+        self.discard_ping_count = discard_ping_count
 
         self.process_flag = process_flag
 
@@ -37,8 +41,9 @@ class KongsbergDGMain:
         self.dg_capture = KongsbergDGCaptureFromSonar(rx_ip=self.settings["ip_settings"]["ip"],
                                                       rx_port=self.settings["ip_settings"]["port"],
                                                       connection="UDP", queue_datagram=self.queue_datagram,
+                                                      full_ping_count=self.full_ping_count,
+                                                      discard_ping_count=self.discard_ping_count,
                                                       process_flag=self.process_flag)
-
 
         self.dg_process = KongsbergDGProcess(bin_size=self.settings["processing_settings"]["binSize_m"],
                                              max_heave=self.settings["buffer_settings"]["maxHeave_m"],

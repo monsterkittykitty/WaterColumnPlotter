@@ -297,6 +297,8 @@ class KongsbergDGProcess(Process):
             # ###################### END NEW - OUTSIDE ###################### #
 
             pie_object = KongsbergDGPie(pie_chart_values, pie_chart_count, dg['header']['dgTime'])
+            # pie_object = KongsbergDGPie(np.flip(pie_chart_values, axis=0),
+            #                             np.flip(pie_chart_count, axis=0), dg['header']['dgTime'])
 
         return pie_object
 

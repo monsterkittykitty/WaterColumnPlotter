@@ -27,7 +27,8 @@ import sys
 logger = logging.getLogger(__name__)
 
 class KongsbergDGCaptureFromSonar(Process):
-    def __init__(self, rx_ip, rx_port, connection="Multicast", queue_datagram=None, process_flag=None, out_file=None):
+    def __init__(self, rx_ip, rx_port, connection="Multicast", queue_datagram=None,
+                 full_ping_count=None, discard_ping_count=None, process_flag=None, out_file=None):
         super().__init__()
 
         print("New instance of KongsbergDGCapture.")
@@ -40,6 +41,17 @@ class KongsbergDGCaptureFromSonar(Process):
         # when run with multiprocessing, queue is required (multiprocessing.Queue)
         self.queue_datagram = queue_datagram
         self.out_file = out_file
+
+        # TODO: Not sure if this is the best way to do it?
+        if full_ping_count:
+            self.full_ping_count = full_ping_count
+        else:
+            self.full_ping_count = mp.Value(ctypes.c_uint32, 0)
+
+        if discard_ping_count:
+            self.discard_ping_count = discard_ping_count
+        else:
+            self.discard_ping_count = mp.Value(ctypes.c_uint32, 0)
 
         # Boolean shared across processes (multiprocessing.Value)
         if process_flag:
@@ -150,6 +162,9 @@ class KongsbergDGCaptureFromSonar(Process):
         timestamp_index = 0  # Index of oldest timestamp in buffer
         next_index = 0  # Index of next position in buffer to be filled
 
+        pack_one = 0
+        pack_two = 0
+
         # while True:
         while self.process_flag.value:
             try:
@@ -168,6 +183,7 @@ class KongsbergDGCaptureFromSonar(Process):
                 self.sock_in.close()
                 break
 
+            #print("data rxed")
             # TODO: FOR TESTING:
             self.dgms_rxed += 1
 
@@ -190,8 +206,10 @@ class KongsbergDGCaptureFromSonar(Process):
                     partition = k.read_EMdgmMpartition(bytes_io, header['dgmType'], header['dgmVersion'])
 
                     if partition['numOfDgms'] == 1:  # Only one datagram; no need to reconstruct
-                        print("Num MWC partitions is 1.")
+                        print("Num {} partitions is 1.".format(header['dgmType']))
                         self.queue_datagram.put(data)
+                        with self.full_ping_count.get_lock():
+                            self.full_ping_count.value += 1
 
                     else:  # Greater than one datagram; needs to be reconstructed
                         # Check for timestamp in buffer:
@@ -218,11 +236,11 @@ class KongsbergDGCaptureFromSonar(Process):
                             if self.buffer['dgmsRxed'][index] == self.buffer['numOfDgms'][index]:
 
                                 self.all_data_rxed +=1
-                                print("!!!!!!!!!!!!ALL DATA RXED!!!!!!!!!!!!!!", self.all_data_rxed)
-                                print("index, timestamp: ", index, timestamp_index)
-                                print(self.buffer['dgTime'][index])
-                                print(self.buffer['dgTime'][timestamp_index])
-                                print(self.buffer['dgTime'])
+                                # print("!!!!!!!!!!!!ALL DATA RXED!!!!!!!!!!!!!!", self.all_data_rxed)
+                                # print("index, timestamp: ", index, timestamp_index)
+                                # print(self.buffer['dgTime'][index])
+                                # print(self.buffer['dgTime'][timestamp_index])
+                                # print(self.buffer['dgTime'])
 
                                 # For testing:
                                 # print("All data received: {}, {}, ping: ".format(self.buffer['dgmType'],
@@ -235,7 +253,7 @@ class KongsbergDGCaptureFromSonar(Process):
                                 if index == timestamp_index:
 
                                     # For testing:
-                                    print("Reconstructing datagram.")
+                                    # print("Reconstructing datagram.")
 
                                     # Earliest timestamp index is complete! Reconstruct data and place in queue
                                     data_reconstruct, data_size = self.reconstruct_data(
@@ -244,6 +262,8 @@ class KongsbergDGCaptureFromSonar(Process):
                                         self.buffer['data'][timestamp_index])
 
                                     self.queue_datagram.put(data_reconstruct)
+                                    with self.full_ping_count.get_lock():
+                                        self.full_ping_count.value += 1
 
                                     # For debugging:
                                     # print("Complete datablock: {}, {}, {} bytes"
@@ -280,6 +300,8 @@ class KongsbergDGCaptureFromSonar(Process):
                                             self.buffer['data'][timestamp_index])
 
                                         self.queue_datagram.put(data_reconstruct)
+                                        with self.full_ping_count.get_lock():
+                                            self.full_ping_count.value += 1
 
                                         # Clear entry
                                         # TODO: Practically, do I need to clear any more than this?
@@ -300,6 +322,9 @@ class KongsbergDGCaptureFromSonar(Process):
                                             self.buffer['data'][next_index])
 
                                         self.queue_datagram.put(empty_data_reconstruct)
+                                        with self.discard_ping_count.get_lock():
+                                            self.discard_ping_count.value += 1
+                                            print("discard value: ", self.discard_ping_count.value)
 
                                         logger.warning("Data block incomplete. Discarding {}, {}. (Ping {}, {} of {} datagrams.) "
                                                        "\nConsidering increasing size of buffer. (Current buffer size: {}.)"
@@ -348,9 +373,6 @@ class KongsbergDGCaptureFromSonar(Process):
                             # Insert data at appropriate position
                             self.buffer['data'][next_index][partition['dgmNum'] - 1] = data
 
-                            print("header:", header)
-                            print("partition:", partition)
-                            print("cmnPart:", cmnPart)
                             # For debugging:
                             # print("dgmVersion:", header['dgmVersion'])
                             # print("numBytesCmnPart:", cmnPart['numBytesCmnPart'])
@@ -385,7 +407,7 @@ class KongsbergDGCaptureFromSonar(Process):
                 print("DGCAPTURE, First transmit: {}; Final transmit: {}; Total time: {}"
                       .format(first_tx_time, last_tx_time, (last_tx_time - first_tx_time).total_seconds()))
 
-        print("BOOLEAN STOPPED.")
+        print("BOOLEAN STOPPED.", mwc_counter)
         self.sock_in.close()
 
     # # TODO: FOR TESTING:
@@ -425,6 +447,57 @@ class KongsbergDGCaptureFromSonar(Process):
     #     print("BOOLEAN STOPPED.")
     #     self.sock_in.close()
 
+    # # TODO: FOR TESTING:
+    # def receive_dg_and_queue(self):
+    #     """
+    #     Receives data at specified socket; places data in specified queue (multiprocessing.Queue).
+    #     """
+    #     count = 0
+    #     time_array = []
+    #     partition_count_array = []
+    #     boolean_array = []
+    #
+    #     while count < 1000:  # Rx 1000 datagrams, then stop
+    #         try:
+    #             data, address = self.sock_in.recvfrom(self.MAX_DATAGRAM_SIZE)
+    #
+    #         except BlockingIOError:
+    #             continue
+    #         except socket.timeout:
+    #             logger.exception("Socket timeout exception.")
+    #             self.sock_in.close()
+    #             break
+    #
+    #         count += 1
+    #         print(count)
+    #
+    #         bytes_io = io.BytesIO(data)
+    #
+    #         header = k.read_EMdgmHeader(bytes_io)
+    #
+    #         if header['dgmType'] == b'#MWC':
+    #             partition = k.read_EMdgmMpartition(bytes_io, header['dgmType'], header['dgmVersion'])
+    #
+    #             if partition['numOfDgms'] > 1:
+    #                 time_array.append(header['dgTime'])
+    #                 partition_count_array.append(partition['numOfDgms'])
+    #
+    #     count_array = []  # Count the number of times each timestamp appears in time_array and add counts to count_array
+    #     d = {}
+    #     for i in range(len(time_array)):
+    #         count_time = time_array.count(time_array[i])
+    #         if count_time == partition_count_array[i]:
+    #             d[str(time_array[i])] = True
+    #         else:
+    #             d[str(time_array[i])] = False
+    #
+    #     print(d)
+    #     d_values = list(d.values())
+    #     true_count = d_values.count(True)
+    #     false_count = d_values.count(False)
+    #     print("count true: {}, count false: {}".format(true_count, false_count))
+    #     self.sock_in.close()
+
     def advance_timestamp_index(self):
         """
         Recursive method to advance timestamp_index (index of earliest active timestamp in self.buffer) and check if
@@ -450,6 +523,8 @@ class KongsbergDGCaptureFromSonar(Process):
 
                 # Add reconstructed data to queue
                 self.queue_datagram.put(data_reconstruct)
+                with self.full_ping_count.get_lock():
+                    self.full_ping_count.value += 1
 
                 # For debugging:
                 print("Advancing timestamp; complete datablock: {}, {}, {} bytes"
@@ -498,22 +573,16 @@ class KongsbergDGCaptureFromSonar(Process):
 
         # Adjust header values
         numBytesDgm_packed = struct.pack("I", numBytesDgm)  # Returns type <class 'bytes'>
-        print("numBytesDgmPacked: ", numBytesDgm_packed)
         temp_buffer[0][:struct.calcsize("I")] = numBytesDgm_packed
 
         # Adjust partition values
         partition_packed = struct.pack("2H", 1, 1)  # Returns type <class 'bytes'>
-        print("partition packed: ", partition_packed)
-
         temp_buffer[0][struct.calcsize(header_struct_format):
                        (struct.calcsize(header_struct_format) +
                         struct.calcsize(partition_struct_format))] = partition_packed
 
         # Flatten buffer
         flat_buffer = self.flatten_buffer(temp_buffer)
-
-        print("data before flatten: ", data[index][:length_to_strip])
-        print("flat buffer: ", flat_buffer)
 
         return flat_buffer, numBytesDgm
 

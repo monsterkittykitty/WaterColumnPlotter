@@ -122,6 +122,24 @@ class SharedRingBufferRaw:
             return temp[-pings:]
             # return buffer[self.counter.value:][:self.SIZE_BUFFER][-self.counter.value:][-pings:]
 
+    def view_recent_pings_as_pie(self, pings):
+        with self.counter.get_lock():
+            temp_amp = self.view_recent_pings(self.amplitude_buffer, pings)
+            temp_cnt = self.view_recent_pings(self.count_buffer, pings)
+            print("temp.shape before collapse: ", temp_amp.shape)
+
+            # "Collapse" arrays by adding every self.num_pings_to_average so that
+            temp_amp = np.sum(temp_amp, axis=0)
+            temp_cnt = np.sum(temp_cnt, axis=0)
+            print("temp.shape after collapse: ", temp_amp.shape)
+
+            # Ignore divide by zero warnings. Division by zero results in NaN, which is what we want.
+            with np.errstate(divide='ignore', invalid='ignore'):
+                temp_avg = temp_amp / temp_cnt
+
+            return temp_avg
+
+
     def compact_all(self):
         """
         note: only when this function is called, is an O(size) performance hit incurred,
