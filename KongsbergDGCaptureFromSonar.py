@@ -51,9 +51,11 @@ class KongsbergDGCaptureFromSonar(Process):
         self.MAX_DATAGRAM_SIZE = 2 ** 16
         self.sock_in = self.__init_socket()
 
-        self.MAX_NUM_PINGS_TO_BUFFER = 20
+        # TODO: Make this a configurable setting. When it is very large and ping rates are slow,
+        #  it can cause delays in sending datagrams.
+        self.MAX_NUM_PINGS_TO_BUFFER = 50
 
-        #self.REQUIRED_DATAGRAMS = [b'#MRZ', b'#MWC', b'#SKM', b'#SPO']
+        # self.REQUIRED_DATAGRAMS = [b'#MRZ', b'#MWC', b'#SKM', b'#SPO']
         self.REQUIRED_DATAGRAMS = [b'#MWC']
 
         self.buffer = {'dgmType': [None] * self.MAX_NUM_PINGS_TO_BUFFER,
@@ -114,14 +116,20 @@ class KongsbergDGCaptureFromSonar(Process):
         Receives data at specified socket; writes binary data to specified file.
         *** Note, this does NOT reconstruct partitioned datagrams. ***
         """
+        print("writing")
         file_io = open(self.out_file, 'wb')
 
         while self.process_flag.value:
             self.print_settings()
             try:
                 data, address = self.sock_in.recvfrom(self.MAX_DATAGRAM_SIZE)
-                print(data)  # For debugging
-                file_io.write(data)
+
+                bytes_io = io.BytesIO(data)
+                header = k.read_EMdgmHeader(bytes_io)
+
+                if header['dgmType'] == b'#MWC':
+                    file_io.write(data)
+
             except socket.timeout:
                 logger.exception("Socket timeout exception.")
                 self.sock_in.close()
@@ -133,7 +141,7 @@ class KongsbergDGCaptureFromSonar(Process):
         Receives data at specified socket; places data in specified queue (multiprocessing.Queue).
         """
 
-        #print("DGCapture: receive_dg_and_queue")  # For debugging
+        print("DGCapture: receive_dg_and_queue")  # For debugging
 
         first_tx_time = None  # For testing
         dg_counter = 0  # For testing
@@ -155,6 +163,7 @@ class KongsbergDGCaptureFromSonar(Process):
             except BlockingIOError:
                 continue
             except socket.timeout:
+                # TODO: When timeout occurs, go through buffer and send all completed datagrams.
                 logger.exception("Socket timeout exception.")
                 self.sock_in.close()
                 break
@@ -169,8 +178,8 @@ class KongsbergDGCaptureFromSonar(Process):
             #print("header[numBytesDgm]: ", header['numBytesDgm'], type(header['dgmType']))
 
             if header['dgmType'] in self.REQUIRED_DATAGRAMS:
-                print("header['dgmType']", header['dgmType'])
-                print("header['dgTime']", header['dgTime'])
+                # print("header['dgmType']", header['dgmType'])
+                # print("header['dgTime']", header['dgTime'])
                 if header['dgmType'] == b'#MRZ' or header['dgmType'] == b'#MWC':  # Datagrams may be partitioned
 
                     # For testing:
@@ -181,6 +190,7 @@ class KongsbergDGCaptureFromSonar(Process):
                     partition = k.read_EMdgmMpartition(bytes_io, header['dgmType'], header['dgmVersion'])
 
                     if partition['numOfDgms'] == 1:  # Only one datagram; no need to reconstruct
+                        print("Num MWC partitions is 1.")
                         self.queue_datagram.put(data)
 
                     else:  # Greater than one datagram; needs to be reconstructed
@@ -188,7 +198,7 @@ class KongsbergDGCaptureFromSonar(Process):
                         if header['dgTime'] in self.buffer['dgTime']:  # Timestamp in buffer
 
                             # For testing:
-                            # print("Timestamp in buffer: {}, {}".format(header['dgmType'], header['dgTime']))
+                            #print("Timestamp in buffer: {}, {}".format(header['dgmType'], header['dgTime']))
 
                             index = self.buffer['dgTime'].index(header['dgTime'])
 
@@ -200,14 +210,19 @@ class KongsbergDGCaptureFromSonar(Process):
                             print("Inserting existing datagram {}, {} into index {}. Part {} of {}."
                                   .format(header['dgmType'], header['dgTime'], index,
                                           partition['dgmNum'], partition['numOfDgms']))
-                            print("datagrams rxed: ", self.buffer['dgmsRxed'][index])
+                            # print("datagrams rxed: ", self.buffer['dgmsRxed'][index])
                             # print("Existing: self.buffer['dgmsRxed'][index]:", self.buffer['dgmsRxed'][index])
                             # print("Existing: self.buffer['numOfDgms'][index]:", self.buffer['numOfDgms'][index])
 
                             # Check if all data received:
                             if self.buffer['dgmsRxed'][index] == self.buffer['numOfDgms'][index]:
-                                print("!!!!!!!!!!!!ALL DATA RXED!!!!!!!!!!!!!!")
+
                                 self.all_data_rxed +=1
+                                print("!!!!!!!!!!!!ALL DATA RXED!!!!!!!!!!!!!!", self.all_data_rxed)
+                                print("index, timestamp: ", index, timestamp_index)
+                                print(self.buffer['dgTime'][index])
+                                print(self.buffer['dgTime'][timestamp_index])
+                                print(self.buffer['dgTime'])
 
                                 # For testing:
                                 # print("All data received: {}, {}, ping: ".format(self.buffer['dgmType'],
@@ -279,6 +294,13 @@ class KongsbergDGCaptureFromSonar(Process):
                                         # print("Overwriting data at index {}. This timestamp: {}. All timestamps: {}"
                                         #       .format(next_index, self.buffer['dgTime'][next_index], self.buffer['dgTime']))
 
+                                        empty_data_reconstruct, data_size = self.reconstruct_empty_data(
+                                            self.buffer['dgmType'][next_index],
+                                            self.buffer['dgmVersion'][next_index],
+                                            self.buffer['data'][next_index])
+
+                                        self.queue_datagram.put(empty_data_reconstruct)
+
                                         logger.warning("Data block incomplete. Discarding {}, {}. (Ping {}, {} of {} datagrams.) "
                                                        "\nConsidering increasing size of buffer. (Current buffer size: {}.)"
                                                        .format(self.buffer['dgmType'][next_index],
@@ -326,9 +348,9 @@ class KongsbergDGCaptureFromSonar(Process):
                             # Insert data at appropriate position
                             self.buffer['data'][next_index][partition['dgmNum'] - 1] = data
 
-                            # print("header:", header)
-                            # print("partition:", partition)
-                            # print("cmnPart:", cmnPart)
+                            print("header:", header)
+                            print("partition:", partition)
+                            print("cmnPart:", cmnPart)
                             # For debugging:
                             # print("dgmVersion:", header['dgmVersion'])
                             # print("numBytesCmnPart:", cmnPart['numBytesCmnPart'])
@@ -428,19 +450,72 @@ class KongsbergDGCaptureFromSonar(Process):
 
                 # Add reconstructed data to queue
                 self.queue_datagram.put(data_reconstruct)
+
+                # For debugging:
+                print("Advancing timestamp; complete datablock: {}, {}, {} bytes"
+                      .format(self.buffer['dgmType'][timestamp_index],
+                              self.buffer['dgTime'][timestamp_index], data_size))
+
                 # Clear entry
                 self.buffer['dgTime'][timestamp_index] = None
                 self.buffer['complete'][timestamp_index] = False
-
-                # For debugging:
-                print("Complete datablock: {}, {}, {} bytes"
-                      .format(self.buffer['dgmType'][timestamp_index],
-                              self.buffer['dgTime'][timestamp_index], data_size))
 
                 # Advance timestamp again
                 self.advance_timestamp_index()
 
         return timestamp_index
+
+    def reconstruct_empty_data(self, dgmType, dgmVersion, data):
+        temp_buffer = []
+        numBytesDgm = 0
+
+        header_struct_format = k.read_EMdgmHeader(None, return_format=True)
+        partition_struct_format = k.read_EMdgmMpartition(None, dgmType, dgmVersion, return_format=True)
+        # cmnPart_struct_format = k.read_EMdgmMbody(data, dgmType, dgmVersion, return_format=True)
+
+        length_to_strip = struct.calcsize(header_struct_format) + \
+                          struct.calcsize(partition_struct_format)
+
+        index = 0
+        temp_datagram = data[index]
+
+        while not temp_datagram:
+            index += 1
+            if index < len(data):
+                temp_datagram = data[index]
+            else:
+                # This should never occur. If this method is being called, there should always be *something* present.
+                return None
+
+        # Add header and partition data to temp_buffer
+        temp_buffer.append(bytearray(temp_datagram[:length_to_strip]))
+        # temp_buffer.append(bytearray(b''))
+        numBytesDgm += len(temp_datagram[:length_to_strip])
+
+        print("numBytesDgm: ", numBytesDgm)
+        print("temp_buffer before adjust: ", temp_buffer)
+        print("temp_buffer[0]: ", temp_buffer[0])
+
+        # Adjust header values
+        numBytesDgm_packed = struct.pack("I", numBytesDgm)  # Returns type <class 'bytes'>
+        print("numBytesDgmPacked: ", numBytesDgm_packed)
+        temp_buffer[0][:struct.calcsize("I")] = numBytesDgm_packed
+
+        # Adjust partition values
+        partition_packed = struct.pack("2H", 1, 1)  # Returns type <class 'bytes'>
+        print("partition packed: ", partition_packed)
+
+        temp_buffer[0][struct.calcsize(header_struct_format):
+                       (struct.calcsize(header_struct_format) +
+                        struct.calcsize(partition_struct_format))] = partition_packed
+
+        # Flatten buffer
+        flat_buffer = self.flatten_buffer(temp_buffer)
+
+        print("data before flatten: ", data[index][:length_to_strip])
+        print("flat buffer: ", flat_buffer)
+
+        return flat_buffer, numBytesDgm
 
     def reconstruct_data(self, dgmType, dgmVersion, data):
         """
@@ -452,9 +527,9 @@ class KongsbergDGCaptureFromSonar(Process):
         temp_buffer = []
         numBytesDgm = 0
 
-        header_struct_format = k.read_EMdgmHeader(data, return_format=True)
-        partition_struct_format = k.read_EMdgmMpartition(data, dgmType, dgmVersion, return_format=True)
-        cmnPart_struct_format = k.read_EMdgmMbody(data, dgmType, dgmVersion, return_format=True)
+        header_struct_format = k.read_EMdgmHeader(None, return_format=True)
+        partition_struct_format = k.read_EMdgmMpartition(None, dgmType, dgmVersion, return_format=True)
+        cmnPart_struct_format = k.read_EMdgmMbody(None, dgmType, dgmVersion, return_format=True)
 
         # Length to strip for Kongsberg *.kmall datagram format revisions A - H.
         length_to_strip = struct.calcsize(header_struct_format) + struct.calcsize(partition_struct_format)

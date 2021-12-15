@@ -102,6 +102,7 @@ class MainWindow(QMainWindow):
                                                  autoHistogramRange=False,
                                                  pos=(-(temp_pie.shape[1] / 2), 0))
 
+        print("proc buffer length: ", self.waterColumn.get_processed_buffer_length())
         if self.waterColumn.get_processed_buffer_length() > 0:
 
             dgTime = self.waterColumn.shared_ring_buffer_processed.view_recent_pings(

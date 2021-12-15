@@ -179,6 +179,9 @@ class ReadTestLog:
         kmall = KMALL.kmall(self.in_file)
         kmall.index_file()
 
+        print(kmall.Index)
+        exit()
+
         # Keep track of total number of MWC datagrams
         mwc_count = 0
         # Keep track of how many datagrams are dropped by comparing timestamps
