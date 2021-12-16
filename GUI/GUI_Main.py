@@ -41,7 +41,7 @@ class MainWindow(QMainWindow):
         # TODO: Set 'buffer_settings' in settings dialog?
         # maxBufferSize based on ~1000 MWC datagrams per minute for 10 minutes (~16 per second).
         self.settings = {'system_settings': {'system': "Kongsberg"},
-                         'ip_settings': {'ip': '225.255.255.255', 'port': 6020},
+                         'ip_settings': {'ip': '225.255.255.255', 'port': 6020, 'protocol': "UDP"},
                          'processing_settings': {'binSize_m': 0.20, 'acrossTrackAvg_m': 10, 'depth_m': 2,
                                                  'depthAvg_m': 2, 'alongTrackAvg_ping': 5, 'dualSwathPolicy': 0},
                          'buffer_settings': {'maxHeave_m': 5, 'maxGridCells': 500, 'maxBufferSize': 1000}}
@@ -219,6 +219,9 @@ class MainWindow(QMainWindow):
         #self.mdi.subwindowSettingsDisplay.setIPPort(self.settings)
         self.toolBar.setIPPort(self.settings['ip_settings']['ip'], self.settings['ip_settings']['port'])
 
+    def protocolEdited(self):
+        pass
+
     def binSizeEdited(self, fromSettingsDialog=False):
         print("in binsize edited slot")
         print(fromSettingsDialog)
@@ -275,6 +278,7 @@ class MainWindow(QMainWindow):
         settingsDialog.signalSystemEdited.connect(self.systemEdited)
         settingsDialog.signalIPEdited.connect(self.ipEdited)
         settingsDialog.signalPortEdited.connect(self.portEdited)
+        settingsDialog.signalIPEdited.connect(self.protocolEdited)
         settingsDialog.signalBinSizeEdited.connect(lambda: self.binSizeEdited(fromSettingsDialog=True))
         settingsDialog.signalAcrossTrackAvgEdited.connect(lambda: self.acrossTrackAvgEdited(fromSettingsDialog=True))
         settingsDialog.signalDepthEdited.connect(lambda: self.depthEdited(fromSettingsDialog=True))
