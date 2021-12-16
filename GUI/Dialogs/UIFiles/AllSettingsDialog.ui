@@ -51,7 +51,7 @@
     </sizepolicy>
    </property>
    <property name="currentIndex">
-    <number>0</number>
+    <number>2</number>
    </property>
    <widget class="QWidget" name="tabSystem">
     <property name="sizePolicy">
@@ -150,7 +150,7 @@
            <string>Enter IP address to recieve datagrams.</string>
           </property>
           <property name="text">
-           <string>127.0.0.1</string>
+           <string/>
           </property>
           <property name="placeholderText">
            <string>Ex: 127.0.0.1</string>
@@ -163,7 +163,7 @@
            <string>Enter port to receive datagrams.</string>
           </property>
           <property name="text">
-           <string>8080</string>
+           <string/>
           </property>
           <property name="placeholderText">
            <string>Ex: 8080</string>
@@ -192,7 +192,7 @@
      <property name="checkable">
       <bool>false</bool>
      </property>
-     <widget class="QWidget" name="">
+     <widget class="QWidget" name="layoutWidget">
       <property name="geometry">
        <rect>
         <x>11</x>
@@ -252,7 +252,7 @@
       <double>0.100000000000000</double>
      </property>
      <property name="value">
-      <double>0.200000000000000</double>
+      <double>0.000000000000000</double>
      </property>
     </widget>
     <widget class="QLabel" name="labelBinSize">
@@ -299,7 +299,7 @@
        <number>100</number>
       </property>
       <property name="value">
-       <number>5</number>
+       <number>1</number>
       </property>
      </widget>
      <widget class="QLabel" name="labelAlongTrackAvg">
@@ -405,7 +405,7 @@
        <double>0.500000000000000</double>
       </property>
       <property name="value">
-       <double>10.000000000000000</double>
+       <double>1.000000000000000</double>
       </property>
      </widget>
      <widget class="QLabel" name="labelAcrossTrackAvg">
@@ -456,7 +456,7 @@
        <double>0.500000000000000</double>
       </property>
       <property name="value">
-       <double>10.000000000000000</double>
+       <double>1.000000000000000</double>
       </property>
      </widget>
      <widget class="QLabel" name="labelDepthAvg">
@@ -507,7 +507,7 @@
        <double>0.500000000000000</double>
       </property>
       <property name="value">
-       <double>10.000000000000000</double>
+       <double>1.000000000000000</double>
       </property>
      </widget>
     </widget>
