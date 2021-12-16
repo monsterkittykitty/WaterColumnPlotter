@@ -27,7 +27,7 @@ import sys
 logger = logging.getLogger(__name__)
 
 class KongsbergDGCaptureFromSonar(Process):
-    def __init__(self, rx_ip, rx_port, connection="Multicast", queue_datagram=None,
+    def __init__(self, rx_ip, rx_port, ip_protocol="UDP", queue_datagram=None,
                  full_ping_count=None, discard_ping_count=None, process_flag=None, out_file=None):
         super().__init__()
 
@@ -35,7 +35,7 @@ class KongsbergDGCaptureFromSonar(Process):
 
         self.rx_ip = rx_ip
         self.rx_port = rx_port
-        self.connection = connection
+        self.ip_protocol = ip_protocol
 
         # When run as main, out_file is required;
         # when run with multiprocessing, queue is required (multiprocessing.Queue)
@@ -85,12 +85,12 @@ class KongsbergDGCaptureFromSonar(Process):
         self.data_overwrite = 0
 
     def __init_socket(self):
-        if self.connection == "TCP":
+        if self.ip_protocol == "TCP":
             # temp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             logger.warning("Only UDP and Multicast connections supported at this time.")
             sys.exit(1)
 
-        elif self.connection == "UDP":
+        elif self.ip_protocol == "UDP":
             temp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             # Allow reuse of addresses
             temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -98,7 +98,7 @@ class KongsbergDGCaptureFromSonar(Process):
             temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.MAX_DATAGRAM_SIZE * 2 * 2)
             temp_sock.bind((self.rx_ip, self.rx_port))
 
-        elif self.connection == "Multicast":
+        elif self.ip_protocol == "Multicast":
             temp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
             # Allow reuse of addresses
             temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -118,7 +118,7 @@ class KongsbergDGCaptureFromSonar(Process):
         return temp_sock
 
     def print_settings(self):
-        print("Receive (IP:Port, Connection): ", self.rx_ip, ":", self.rx_port, ",", self.connection)
+        print("Receive (IP:Port, Connection): ", self.rx_ip, ":", self.rx_port, ",", self.ip_protocol)
 
     def print_packet_details(self, data):
         pass

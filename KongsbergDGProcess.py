@@ -76,7 +76,6 @@ class KongsbergDGProcess(Process):
             except queue.Empty:
                 # TODO: Shutdown processes when queue is empty?
                 logger.exception("Datagram queue empty exception.")
-
                 break
 
             # if self.queue_datagram.qsize() == 0:

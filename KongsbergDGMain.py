@@ -40,7 +40,8 @@ class KongsbergDGMain:
 
         self.dg_capture = KongsbergDGCaptureFromSonar(rx_ip=self.settings["ip_settings"]["ip"],
                                                       rx_port=self.settings["ip_settings"]["port"],
-                                                      connection="Multicast", queue_datagram=self.queue_datagram,
+                                                      ip_protocol=self.settings["ip_settings"]["protocol"],
+                                                      queue_datagram=self.queue_datagram,
                                                       full_ping_count=self.full_ping_count,
                                                       discard_ping_count=self.discard_ping_count,
                                                       process_flag=self.process_flag)

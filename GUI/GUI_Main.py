@@ -41,7 +41,7 @@ class MainWindow(QMainWindow):
         # TODO: Set 'buffer_settings' in settings dialog?
         # maxBufferSize based on ~1000 MWC datagrams per minute for 10 minutes (~16 per second).
         self.settings = {'system_settings': {'system': "Kongsberg"},
-                         'ip_settings': {'ip': '225.255.255.255', 'port': 6020, 'protocol': "UDP"},
+                         'ip_settings': {'ip': '225.255.255.255', 'port': 6020, 'protocol': "Multicast"},
                          'processing_settings': {'binSize_m': 0.20, 'acrossTrackAvg_m': 10, 'depth_m': 2,
                                                  'depthAvg_m': 2, 'alongTrackAvg_ping': 5, 'dualSwathPolicy': 0},
                          'buffer_settings': {'maxHeave_m': 5, 'maxGridCells': 500, 'maxBufferSize': 1000}}
