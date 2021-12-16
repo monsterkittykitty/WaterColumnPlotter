@@ -201,7 +201,7 @@
         <height>44</height>
        </rect>
       </property>
-      <layout class="QVBoxLayout" name="verticalLayout">
+      <layout class="QVBoxLayout" name="verticalLayoutProtocol">
        <item>
         <widget class="QRadioButton" name="radioButtonUDP">
          <property name="text">

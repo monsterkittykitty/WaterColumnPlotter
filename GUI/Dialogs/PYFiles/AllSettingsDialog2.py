@@ -16,6 +16,7 @@ class AllSettingsDialog2(QtWidgets.QDialog):
     signalSystemEdited = pyqtSignal(name="systemEdited")
     signalIPEdited = pyqtSignal(name="ipEdited")
     signalPortEdited = pyqtSignal(name="portEdited")
+    signalProtocolEdited = pyqtSignal(name="protocolEdited")
     signalBinSizeEdited = pyqtSignal(name="binSizeEdited")
     signalAcrossTrackAvgEdited = pyqtSignal(name="acrossTrackAvgEdited")
     signalDepthEdited = pyqtSignal(name="depthEdited")
@@ -88,6 +89,10 @@ class AllSettingsDialog2(QtWidgets.QDialog):
         # IP Settings:
         self.ui.lineEditIP.setText(self.settings['ip_settings']['ip'])
         self.ui.lineEditPort.setText(str(self.settings['ip_settings']['port']))
+        if self.settings['ip_settings']['protocol'] == "UDP":
+            self.ui.radioButtonUDP.setChecked(True)
+        else:  # Multicast
+            self.ui.radioButtonMulticast.setChecked(True)
 
         # Processing Settings:
         self.ui.doubleSpinBoxBinSize.setValue(round(self.settings['processing_settings']['binSize_m'], 2))
@@ -112,6 +117,7 @@ class AllSettingsDialog2(QtWidgets.QDialog):
         systemEdited = False
         ipEdited = False
         portEdited = False
+        protocolEdited = False
         binSizeEdited = False
         acrossTrackAvgEdited = False
         depthEdited = False
@@ -179,6 +185,15 @@ class AllSettingsDialog2(QtWidgets.QDialog):
                                                                "\nPort reset to {}."
                                               .format(str(self.settings['ip_settings']['port'])))
 
+        # If IP protocol has changed:
+        if self.settings['ip_settings']['protocol'] != loadSettings['ip_settings']['protocol']:
+            self.settings['ip_settings']['protocol'] = loadSettings['ip_settings']['protocol']
+            if self.settings['ip_settings']['protocol'] == "UDP":
+                self.ui.radioButtonUDP.setChecked(True)
+            else:
+                self.ui.radioButtonMulticast.setChecked(True)
+            protocolEdited = True
+
         # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
         # Processing Settings:
 
@@ -241,7 +256,7 @@ class AllSettingsDialog2(QtWidgets.QDialog):
             dualSwathPolicyEdited = True
 
         # Only emit signals after all values in dictionary have been updated:
-        self.emitSignals(systemEdited, ipEdited, portEdited, binSizeEdited, acrossTrackAvgEdited, depthEdited,
+        self.emitSignals(systemEdited, ipEdited, portEdited, protocolEdited, binSizeEdited, acrossTrackAvgEdited, depthEdited,
                          depthAvgEdited, alongTrackAvgEdited, dualSwathPolicyEdited)
 
     def validateAndSetValuesFromDialog(self):
@@ -252,6 +267,7 @@ class AllSettingsDialog2(QtWidgets.QDialog):
         systemEdited = False
         ipEdited = False
         portEdited = False
+        protocolEdited = False
         binSizeEdited = False
         acrossTrackAvgEdited = False
         depthEdited = False
@@ -314,6 +330,14 @@ class AllSettingsDialog2(QtWidgets.QDialog):
                                               .format(str(self.settings['ip_settings']['port'])))
                 return False
 
+        # If IP protocol has changed:
+        if self.ui.radioButtonUDP.isChecked() and self.settings['ip_settings']['protocol'] != "UDP":
+            self.settings['ip_settings']['protocol'] = "UDP"
+            protocolEdited = True
+        elif self.ui.radioButtonMulticast.isChecked() and self.settings['ip_settings']['protocol'] != "Multicast":
+            self.settings['ip_settings']['protocol'] = "Multicast"
+            protocolEdited = True
+
         # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
         # Processing Settings:
 
@@ -359,13 +383,13 @@ class AllSettingsDialog2(QtWidgets.QDialog):
             dualSwathPolicyEdited = True
 
         # Only emit signals after all values in dictionary have been updated:
-        self.emitSignals(systemEdited, ipEdited, portEdited, binSizeEdited, acrossTrackAvgEdited, depthEdited,
-                         depthAvgEdited, alongTrackAvgEdited, dualSwathPolicyEdited)
+        self.emitSignals(systemEdited, ipEdited, portEdited, protocolEdited, binSizeEdited, acrossTrackAvgEdited,
+                         depthEdited, depthAvgEdited, alongTrackAvgEdited, dualSwathPolicyEdited)
 
         return True
 
-    def emitSignals(self, systemEdited, ipEdited, portEdited, binSizeEdited, acrossTrackAvgEdited, depthEdited,
-                    depthAvgEdited, alongTrackAvgEdited, dualSwathPolicyEdited):
+    def emitSignals(self, systemEdited, ipEdited, portEdited, protocolEdited, binSizeEdited, acrossTrackAvgEdited,
+                    depthEdited, depthAvgEdited, alongTrackAvgEdited, dualSwathPolicyEdited):
         """
         Emits signals for all True parameters.
         :param systemEdited: Boolean indicating whether field was edited.
@@ -384,8 +408,9 @@ class AllSettingsDialog2(QtWidgets.QDialog):
             self.ipEdited.emit()
         if portEdited:
             self.portEdited.emit()
+        if protocolEdited:
+            self.protocolEdited.emit()
         if binSizeEdited:
-            print("binsizeedited")
             self.binSizeEdited.emit()
         if acrossTrackAvgEdited:
             self.acrossTrackAvgEdited.emit()
