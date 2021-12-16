@@ -567,10 +567,6 @@ class KongsbergDGCaptureFromSonar(Process):
         # temp_buffer.append(bytearray(b''))
         numBytesDgm += len(temp_datagram[:length_to_strip])
 
-        print("numBytesDgm: ", numBytesDgm)
-        print("temp_buffer before adjust: ", temp_buffer)
-        print("temp_buffer[0]: ", temp_buffer[0])
-
         # Adjust header values
         numBytesDgm_packed = struct.pack("I", numBytesDgm)  # Returns type <class 'bytes'>
         temp_buffer[0][:struct.calcsize("I")] = numBytesDgm_packed
