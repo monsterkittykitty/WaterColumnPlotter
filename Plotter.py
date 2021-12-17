@@ -243,7 +243,9 @@ class Plotter(Process):
 
         while self.process_flag.value:
             try:
+                print("trying get item from queue_pie_object, size: ", self.queue_pie_object.qsize())
                 pie_object = self.queue_pie_object.get(block=True, timeout=self.QUEUE_RX_TIMEOUT)
+                print("got item from queue_pie_object")
 
                 with self.raw_buffer_count.get_lock():
                     self.shared_ring_buffer_raw.append_all([pie_object.pie_chart_values],
@@ -373,6 +375,7 @@ class Plotter(Process):
             pie_lat_lon_average = np.empty(2)
             pie_lat_lon_average[:] = np.nan
 
+        print("appending data to processed buffer")
         with self.processed_buffer_count.get_lock():
             self.shared_ring_buffer_processed.append_all([pie_values_vertical_average], [pie_values_horizontal_average],
                                               [pie_timestamp_average], [pie_lat_lon_average])

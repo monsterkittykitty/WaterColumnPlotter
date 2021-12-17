@@ -291,6 +291,10 @@ class KongsbergDGProcess(Process):
 
             # This method of indexing based on:
             # https://stackoverflow.com/questions/47015578/numpy-assigning-values-to-2d-array-with-list-of-indices
+            print("y_z_indices.shape: ", y_z_indices.shape)
+            print("pie_chart_values.shape: ",  pie_chart_values.shape)
+            #print("pie_chart_count.shape: ", pie_chart_count.shape)
+            print("amplitude_np.shape: ", amplitude_np.shape)
             pie_chart_values[tuple(y_z_indices)] += amplitude_np
             pie_chart_count[tuple(y_z_indices)] += 1
             # ###################### END NEW - OUTSIDE ###################### #

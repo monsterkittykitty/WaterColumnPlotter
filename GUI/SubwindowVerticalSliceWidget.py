@@ -32,7 +32,7 @@ class SubwindowVerticalSliceWidget(QWidget):
         # Adding axis labels based on:
         # https://stackoverflow.com/questions/58516639/add-axes-labels-and-title-to-pyqtgraph-imageview
         self.plot.setLabel(axis='left', text='Depth')
-        self.plot.setLabel(axis='bottom', text='Along-Track')
+        self.plot.setLabel(axis='bottom', text='Pings')
 
         self.vertical_plot = pg.ImageView(self, view=self.plot)
 

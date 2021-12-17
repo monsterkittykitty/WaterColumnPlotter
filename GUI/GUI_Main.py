@@ -8,6 +8,7 @@
 import datetime
 import json
 import multiprocessing
+import numpy as np
 # import psutil
 from PyQt5.QtWidgets import QAction, QApplication, QFileDialog, QMainWindow, QMdiSubWindow, QStatusBar, QTextEdit
 from PyQt5.QtCore import QTimer
@@ -19,6 +20,10 @@ from GUI_MDI import GUI_MDI
 from GUI_StatusBar import GUI_StatusBar
 # from GUI_StatusBar_Kongsberg import GUI_StatusBar_Kongsberg
 from GUI_Toolbar import GUI_Toolbar
+
+# TODO: Testing
+from PyQt5.QtGui import QPen
+from PyQt5.QtCore import Qt
 
 from KongsbergDGMain import KongsbergDGMain
 
@@ -122,6 +127,27 @@ class MainWindow(QMainWindow):
         # if isinstance(self.status, GUI_StatusBar_Kongsberg):
         #     self.status.set_ping_counts(self.waterColumn.full_ping_count.value, self.waterColumn.discard_ping_count.value)
 
+        # Look into this: https://groups.google.com/g/pyqtgraph/c/HAFx-wIpmGA
+        # test = np.ones((50, 100))
+        # test[:] = 50
+        # self.mdi.pieWidget.pie_plot.setImage(test, autoRange=False,
+        #                                      autoLevels=False, autoHistogramRange=False,
+        #                                      pos=(-(test.shape[1] / 2), 0))
+        # This does kind of work! Find way to make linear overlay!
+        # # circle overlay
+        # pen = QPen(Qt.red, 0.1)
+        # r = MyCircleOverlay(pos=(-20, 20), size=10, pen=pen, movable=False)
+        # self.mdi.pieWidget.pie_plot.getView().addItem(r)
+
+        # This just replaces image...
+        # test2 = np.empty((50, 100))
+        # test2[:] = np.nan
+        # test2[:, 20] = 100
+        # self.mdi.pieWidget.pie_plot.setImage(test2, autoRange=False,
+        #                                      autoLevels=False, autoHistogramRange=False,
+        #                                      pos=(-(test2.shape[1] / 2), 0))
+
+
         if self.waterColumn.get_raw_buffer_length() > 0:
             temp_pie = self.waterColumn.get_pie()
             if temp_pie is not None:
@@ -130,7 +156,9 @@ class MainWindow(QMainWindow):
                 #if temp_pie.any():
                 self.mdi.pieWidget.pie_plot.setImage(temp_pie.T, autoRange=False,
                                                      autoLevels=False, autoHistogramRange=False,
-                                                     pos=(-(temp_pie.shape[1] / 2), 0))
+                                                     pos=(-(temp_pie.shape[1] / 2),
+                                                          -(self.settings['buffer_settings']['maxHeave_m'] /
+                                                            self.settings['processing_settings']['binSize_m'])))
                 # # Plots vertical line
                 # y = [0, 50]
                 # x = [0, 0]
@@ -158,7 +186,9 @@ class MainWindow(QMainWindow):
                 # print("plotting vertical")
                 self.mdi.verticalWidget.vertical_plot.setImage(temp_vertical, autoRange=False,
                                                                autoLevels=False, autoHistogramRange=False,
-                                                               pos=(-temp_vertical.shape[0], 0))
+                                                               pos=(-temp_vertical.shape[0],
+                                                                    -(self.settings['buffer_settings']['maxHeave_m'] /
+                                                                    self.settings['processing_settings']['binSize_m'])))
 
             temp_horizontal = self.waterColumn.get_horizontal_slice()
             if temp_horizontal is not None:
@@ -170,6 +200,8 @@ class MainWindow(QMainWindow):
                                                                    autoLevels=False, autoHistogramRange=False,
                                                                    pos=(-temp_horizontal.shape[0],
                                                                         -temp_horizontal.shape[1] / 2))
+            else:
+                print("temp_horizontal is none")
 
     def systemEdited(self):
         print("SYSTEM EDITED")
@@ -396,6 +428,13 @@ class MainWindow(QMainWindow):
         self.update_timer.timeout.connect(self.updatePlot)
 
         return mdi
+
+# TODO: Test:
+import pyqtgraph as pg
+class MyCircleOverlay(pg.EllipseROI):
+    def __init__(self, pos, size, **args):
+        pg.ROI.__init__(self, pos, size, **args)
+        self.aspectLocked = True
 
 def main():
     app = QApplication(sys.argv)
