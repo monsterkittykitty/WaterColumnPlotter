@@ -85,15 +85,8 @@ class MainWindow(QMainWindow):
 
         self.displaySettingsDialog()  # This will block until OK or Close / Cancel is selected in settings dialog
 
-
-        # self.plot_update_timer.timeout.connect(self.updatePlot)
-
-
-
-        # Wait for "OK" / "Cancel" clicked on settings dialog; configuration of status bar depends on system.
-        # This implementation probably doesn't need to be system specific...
-        # self.status = self._initStatusBar()
-        # self.setStatusBar(self.status)
+        # For testing:
+        self.plot_update_count = 0
 
     def startProcesses(self):
         """
@@ -136,21 +129,26 @@ class MainWindow(QMainWindow):
                     print("temp_pie.shape", temp_pie.shape)
                 #if temp_pie.any():
                 self.mdi.pieWidget.pie_plot.setImage(temp_pie.T, autoRange=False,
-                                                     autoLevels=False, levels=(-95, 35),
-                                                     autoHistogramRange=False,
+                                                     autoLevels=False, autoHistogramRange=False,
                                                      pos=(-(temp_pie.shape[1] / 2), 0))
-                # Plots vertical line
+                # # Plots vertical line
                 # y = [0, 50]
                 # x = [0, 0]
-                # self.mdi.pieWidget.plot.plot(x, y)
+                # self.mdi.verticalWidget.plot.plot(x, y)
 
         print("proc buffer length: ", self.waterColumn.get_processed_buffer_length())
         if self.waterColumn.get_processed_buffer_length() > 0:
+            self.plot_update_count += 1
 
-            dgTime = self.waterColumn.shared_ring_buffer_processed.view_recent_pings(
-                self.waterColumn.shared_ring_buffer_processed.timestamp_buffer_avg, 1)
-            print("Current time: {}; plotting timestamp: {}".format(datetime.datetime.utcnow(),
-                                            datetime.datetime.utcfromtimestamp(int(dgTime[0]))))
+            if self.plot_update_count == 300:
+                dgTime_proc = self.waterColumn.shared_ring_buffer_processed.view_recent_pings(
+                    self.waterColumn.shared_ring_buffer_processed.timestamp_buffer_avg, 1)
+                dgTime_raw = self.waterColumn.shared_ring_buffer_raw.view_recent_pings(
+                    self.waterColumn.shared_ring_buffer_raw.timestamp_buffer, 1)
+                print("Current time: {}; dgTime_proc: {}, {}; dgTime_raw: {}, {}".format(datetime.datetime.utcnow(),
+                                                                                         dgTime_proc[0],
+                                                datetime.datetime.utcfromtimestamp(float(dgTime_proc[0])), dgTime_raw[0],
+                                                datetime.datetime.utcfromtimestamp(float(dgTime_raw[0]))))
 
             temp_vertical = self.waterColumn.get_vertical_slice()
             if temp_vertical is not None:
@@ -159,8 +157,7 @@ class MainWindow(QMainWindow):
                 # if temp_vertical.shape[0] > 0:
                 # print("plotting vertical")
                 self.mdi.verticalWidget.vertical_plot.setImage(temp_vertical, autoRange=False,
-                                                               autoLevels=False, levels=(-95, 35),
-                                                               autoHistogramRange=False,
+                                                               autoLevels=False, autoHistogramRange=False,
                                                                pos=(-temp_vertical.shape[0], 0))
 
             temp_horizontal = self.waterColumn.get_horizontal_slice()
@@ -170,8 +167,7 @@ class MainWindow(QMainWindow):
                 # if temp_horizontal.shape[0] > 0:
                 # print("plotting horizontal")
                 self.mdi.horizontalWidget.horizontal_plot.setImage(temp_horizontal, autoRange=False,
-                                                                   autoLevels=False, levels=(-95, 35),
-                                                                   autoHistogramRange=False,
+                                                                   autoLevels=False, autoHistogramRange=False,
                                                                    pos=(-temp_horizontal.shape[0],
                                                                         -temp_horizontal.shape[1] / 2))
 
@@ -307,13 +303,15 @@ class MainWindow(QMainWindow):
             settingsDialog.validateAndSetValuesFromFile(tempSettings)
 
     def closeEvent(self, event):
-        if self.waterColumn.process_flag.value:
+        with self.waterColumn.process_flag.get_lock():
             self.waterColumn.process_flag.value = False
-            self.waterColumn.sonarMain.dg_capture.join()
-            self.waterColumn.sonarMain.dg_process.join()
-            self.waterColumn.plotterMain.plotter.join()
-        if self.waterColumn.sonarMain:
-            self.waterColumn.sonarMain.dg_capture.sock_in.close()
+        # if self.waterColumn.process_flag.value:
+        #     self.waterColumn.process_flag.value = False
+        #     self.waterColumn.sonarMain.dg_capture.join()
+        #     self.waterColumn.sonarMain.dg_process.join()
+        #     self.waterColumn.plotterMain.plotter.join()
+        # if self.waterColumn.sonarMain:
+        #     self.waterColumn.sonarMain.dg_capture.sock_in.close()
         # Quit using shared memory in the frontend
         self.waterColumn.closeSharedMemory()
         # Release shared memory definitely

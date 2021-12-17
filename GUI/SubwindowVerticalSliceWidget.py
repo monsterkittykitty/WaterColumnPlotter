@@ -36,7 +36,7 @@ class SubwindowVerticalSliceWidget(QWidget):
 
         self.vertical_plot = pg.ImageView(self, view=self.plot)
 
-
+        self.vertical_plot.ui.histogram.setLevels(min=-95, max=35)
 
 
         # # TODO: TEST
@@ -64,7 +64,6 @@ class SubwindowVerticalSliceWidget(QWidget):
         # Disable right-click context menu:
         self.vertical_plot.view.setMenuEnabled(False)
         self.vertical_plot.ui.histogram.item.vb.setMenuEnabled(False)
-        #self.vertical_plot.ui.histogram.item.vb.setRange(disableAutoRange=True)
 
         layout = QGridLayout()
         layout.setColumnMinimumWidth(0, 25)

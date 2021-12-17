@@ -38,6 +38,9 @@ class SubwindowHorizontalSliceWidget(QWidget):
         self.plot.setLabel(axis='bottom', text='Along-Track')
 
         self.horizontal_plot = pg.ImageView(self, view=self.plot)
+
+        self.horizontal_plot.ui.histogram.setLevels(min=-95, max=35)
+
         # Disable ROI button:
         self.horizontal_plot.ui.roiBtn.hide()
         # Disable Norm button:

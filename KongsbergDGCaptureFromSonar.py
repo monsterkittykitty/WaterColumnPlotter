@@ -65,7 +65,7 @@ class KongsbergDGCaptureFromSonar(Process):
 
         # TODO: Make this a configurable setting. When it is very large and ping rates are slow,
         #  it can cause delays in sending datagrams.
-        self.MAX_NUM_PINGS_TO_BUFFER = 50
+        self.MAX_NUM_PINGS_TO_BUFFER = 20
 
         # self.REQUIRED_DATAGRAMS = [b'#MRZ', b'#MWC', b'#SKM', b'#SPO']
         self.REQUIRED_DATAGRAMS = [b'#MWC']
@@ -136,11 +136,15 @@ class KongsbergDGCaptureFromSonar(Process):
             try:
                 data, address = self.sock_in.recvfrom(self.MAX_DATAGRAM_SIZE)
 
-                bytes_io = io.BytesIO(data)
-                header = k.read_EMdgmHeader(bytes_io)
+                # To write only #MWC data:
+                # bytes_io = io.BytesIO(data)
+                # header = k.read_EMdgmHeader(bytes_io)
+                #
+                # if header['dgmType'] == b'#MWC':
+                #     file_io.write(data)
 
-                if header['dgmType'] == b'#MWC':
-                    file_io.write(data)
+                # To write all data:
+                file_io.write(data)
 
             except socket.timeout:
                 logger.exception("Socket timeout exception.")
@@ -178,8 +182,8 @@ class KongsbergDGCaptureFromSonar(Process):
             except BlockingIOError:
                 continue
             except socket.timeout:
-                # TODO: When timeout occurs, go through buffer and send all completed datagrams.
                 logger.exception("Socket timeout exception.")
+                self.flush_buffer()
                 self.sock_in.close()
                 break
 
@@ -360,6 +364,9 @@ class KongsbergDGCaptureFromSonar(Process):
                             print("Inserting new datagram {}, {} into index {}. Part {} of {}."
                                   .format(header['dgmType'], header['dgTime'], next_index,
                                           partition['dgmNum'], partition['numOfDgms']))
+                            print("Current time: {}; dg_timestamp: {}; difference: {}".format(
+                                datetime.datetime.now(), datetime.datetime.utcfromtimestamp(header['dgTime']),
+                                (datetime.datetime.now() - datetime.datetime.utcfromtimestamp(header['dgTime'])).total_seconds()))
 
                             self.buffer['dgmType'][next_index] = header['dgmType']
                             self.buffer['dgmVersion'][next_index] = header['dgmVersion']
@@ -408,7 +415,48 @@ class KongsbergDGCaptureFromSonar(Process):
                       .format(first_tx_time, last_tx_time, (last_tx_time - first_tx_time).total_seconds()))
 
         print("BOOLEAN STOPPED.", mwc_counter)
+        self.flush_buffer()
         self.sock_in.close()
+
+    def flush_buffer(self):
+        """
+        Recursive method to flush all complete records from buffer after stop command or socket timeout.
+        """
+        # For debugging:
+        print("Flushing buffer. Timestamps: ", self.buffer['dgTime'])
+        temp_index = 0
+
+        # If all items in self.buffer['dgTime'] are None:
+        if self.buffer['dgTime'] == [None] * len(self.buffer['dgTime']):
+            return
+        else:
+            # Advance temp_index to oldest timestamp in buffer
+            temp_index = self.buffer['dgTime'] \
+                .index(min(time for time in self.buffer['dgTime'] if time is not None))
+
+            # When advancing index to existing entry, check if complete:
+            if self.buffer['complete'][temp_index]:  # Data at temp_index is complete!
+                data_reconstruct, data_size = self.reconstruct_data(
+                    self.buffer['dgmType'][temp_index],
+                    self.buffer['dgmVersion'][temp_index],
+                    self.buffer['data'][temp_index])
+
+                # Add reconstructed data to queue
+                self.queue_datagram.put(data_reconstruct)
+                with self.full_ping_count.get_lock():
+                    self.full_ping_count.value += 1
+
+                # For debugging:
+                print("Flushing buffer; complete datablock: {}, {}, {} bytes"
+                      .format(self.buffer['dgmType'][temp_index],
+                              self.buffer['dgTime'][temp_index], data_size))
+
+            # Whether or not data block is complete, clear entry:
+            self.buffer['dgTime'][temp_index] = None
+            self.buffer['complete'][temp_index] = False
+
+            # Advance timestamp again to continue flushing buffer
+            self.flush_buffer()
 
     # # TODO: FOR TESTING:
     # def receive_dg_and_queue(self):
@@ -514,7 +562,7 @@ class KongsbergDGCaptureFromSonar(Process):
             timestamp_index = self.buffer['dgTime'] \
                 .index(min(time for time in self.buffer['dgTime'] if time is not None))
 
-            # When advancing timestamp to existing entry, check if complete:
+            # When advancing index to existing entry, check if complete:
             if self.buffer['complete'][timestamp_index]:  # Data at timestamp_index is complete!
                 data_reconstruct, data_size = self.reconstruct_data(
                     self.buffer['dgmType'][timestamp_index],

@@ -36,6 +36,9 @@ class SubwindowPieSliceWidget(QWidget):
         self.plot.setLabel(axis='bottom', text='Across-Track')
 
         self.pie_plot = pg.ImageView(self, view=self.plot)
+
+        self.pie_plot.ui.histogram.setLevels(min=-95, max=35)
+
         # Disable ROI button:
         self.pie_plot.ui.roiBtn.hide()
         # Disable Norm button:

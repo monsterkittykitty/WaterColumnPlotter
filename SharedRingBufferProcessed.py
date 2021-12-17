@@ -25,7 +25,7 @@ class SharedRingBufferProcessed:
         self.create_shmem = create_shmem
 
         self.slice_dtype = np.dtype((np.float16, self.MAX_NUM_GRID_CELLS))
-        self.timestamp_dtype = np.dtype(np.float32)
+        self.timestamp_dtype = np.dtype(np.float64)
         self.lat_lon_dtype = np.dtype((np.float32, 2))
 
         self.shmem_vertical_slice_buffer = None

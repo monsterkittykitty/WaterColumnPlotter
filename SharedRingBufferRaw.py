@@ -27,7 +27,7 @@ class SharedRingBufferRaw:
 
         self.amplitude_dtype = np.dtype((np.float16, (self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS)))
         self.count_dtype = np.dtype((np.uint16, (self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS)))
-        self.timestamp_dtype = np.dtype(np.float32)
+        self.timestamp_dtype = np.dtype(np.float64)
         self.lat_lon_dtype = np.dtype((np.float32, 2))
 
         self.shmem_amplitude_buffer = None
