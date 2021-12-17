@@ -183,8 +183,9 @@ class KongsbergDGCaptureFromSonar(Process):
                 continue
             except socket.timeout:
                 logger.exception("Socket timeout exception.")
-                self.flush_buffer()
-                self.sock_in.close()
+                # These are called outside of while loop; they will be accessed when break is called.
+                # self.flush_buffer()
+                # self.sock_in.close()
                 break
 
             #print("data rxed")
