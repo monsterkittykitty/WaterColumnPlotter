@@ -28,7 +28,7 @@ class SubwindowHorizontalSliceWidget(QWidget):
         # self.plot = pg.PlotItem()
         # self.plot.hideButtons()
         self.plot.vb.state['aspectLocked'] = False
-        self.plot.setXRange(-(self.settings['buffer_settings']['maxBufferSize'] /
+        self.plot.setXRange(-(self.settings['buffer_settings']['maxBufferSize_ping'] /
                               self.settings['processing_settings']['alongTrackAvg_ping']), 0)
         self.plot.setYRange(self.settings['buffer_settings']['maxGridCells'], 0)
 

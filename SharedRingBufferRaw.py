@@ -18,11 +18,11 @@ class SharedRingBufferRaw:
 
         self.ALONG_TRACK_PINGS = self.settings['processing_settings']['alongTrackAvg_ping']
         self.MAX_NUM_GRID_CELLS = settings['buffer_settings']['maxGridCells']
-        self.SIZE_BUFFER = settings['buffer_settings']['maxBufferSize']
+        self.SIZE_BUFFER = settings['buffer_settings']['maxBufferSize_ping']
         self.FULL_SIZE_BUFFER = self.SIZE_BUFFER * 2
 
-        self.counter = counter
-        self.full_flag = full_flag
+        self.counter = counter  # multiprocessing.Value
+        self.full_flag = full_flag  # multiprocessing.Value
         self.create_shmem = create_shmem
 
         self.amplitude_dtype = np.dtype((np.float16, (self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS)))

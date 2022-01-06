@@ -43,7 +43,7 @@ class Plotter(Process):
         self.shared_ring_buffer_processed = None
 
         self.MAX_NUM_GRID_CELLS = self.settings['buffer_settings']['maxGridCells']
-        self.MAX_LENGTH_BUFFER = self.settings['buffer_settings']['maxBufferSize']
+        self.MAX_LENGTH_BUFFER = self.settings['buffer_settings']['maxBufferSize_ping']
         self.ALONG_TRACK_PINGS = self.settings['processing_settings']['alongTrackAvg_ping']
 
         # TODO: Add constants to setting dictionary?

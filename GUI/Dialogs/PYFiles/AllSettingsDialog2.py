@@ -17,12 +17,16 @@ class AllSettingsDialog2(QtWidgets.QDialog):
     signalIPEdited = pyqtSignal(name="ipEdited")
     signalPortEdited = pyqtSignal(name="portEdited")
     signalProtocolEdited = pyqtSignal(name="protocolEdited")
+    signalSocketBufferEdited = pyqtSignal(name="socketBufferEdited")
     signalBinSizeEdited = pyqtSignal(name="binSizeEdited")
     signalAcrossTrackAvgEdited = pyqtSignal(name="acrossTrackAvgEdited")
     signalDepthEdited = pyqtSignal(name="depthEdited")
     signalDepthAvgEdited = pyqtSignal(name="depthAvgEdited")
     signalAlongTrackAvgEdited = pyqtSignal(name="alongTrackAvgEdited")
     signalDualSwathPolicyEdited = pyqtSignal(name="dualSwathPolicyEdited")
+    signalHeaveEdited = pyqtSignal(name="heaveEdited")
+    signalGridCellsEdited = pyqtSignal(name="gridCellsEdited")
+    signalPingBufferEdited = pyqtSignal(name="pingBufferEdited")
 
     def __init__(self, settings, parent=None):
         super(AllSettingsDialog2, self).__init__(parent)
@@ -93,19 +97,25 @@ class AllSettingsDialog2(QtWidgets.QDialog):
             self.ui.radioButtonUDP.setChecked(True)
         else:  # Multicast
             self.ui.radioButtonMulticast.setChecked(True)
+        self.ui.spinBoxSocketBuffer.setValue(int(self.settings['ip_settings']['socketBufferMultiplier']))
 
         # Processing Settings:
         self.ui.doubleSpinBoxBinSize.setValue(round(self.settings['processing_settings']['binSize_m'], 2))
         self.ui.doubleSpinBoxAcrossTrackAvg.setValue(round(self.settings['processing_settings']['acrossTrackAvg_m'], 2))
         self.ui.doubleSpinBoxDepth.setValue(round(self.settings['processing_settings']['depth_m'], 2))
         self.ui.doubleSpinBoxDepthAvg.setValue(round(self.settings['processing_settings']['depthAvg_m'], 2))
-        self.ui.spinBoxAlongTrackAvg.setValue(self.settings['processing_settings']['alongTrackAvg_ping'])
+        self.ui.spinBoxAlongTrackAvg.setValue(int(self.settings['processing_settings']['alongTrackAvg_ping']))
         if self.settings['processing_settings']['dualSwathPolicy'] == 0:
             self.ui.radioButtonAllPings.setChecked(True)
         elif self.settings['processing_settings']['dualSwathPolicy'] == 1:
             self.ui.radioButtonFirstPing.setChecked(True)
         elif self.settings['processing_settings']['dualSwathPolicy'] == 2:
             self.ui.radioButtonSecondPing.setChecked(True)
+
+        # Buffer Settings
+        self.ui.doubleSpinBoxMaxHeave.setValue(round(self.settings['buffer_settings']['maxHeave_m'], 2))
+        self.ui.spinBoxMaxGridCells.setValue(int(self.settings['buffer_settings']['maxGridCells']))
+        self.ui.spinBoxMaxPingBuffer.setValue(int(self.settings['buffer_settings']['maxBufferSize_ping']))
 
     def validateAndSetValuesFromFile(self, loadSettings):
         """
@@ -118,12 +128,16 @@ class AllSettingsDialog2(QtWidgets.QDialog):
         ipEdited = False
         portEdited = False
         protocolEdited = False
+        socketBufferEdited = False
         binSizeEdited = False
         acrossTrackAvgEdited = False
         depthEdited = False
         depthAvgEdited = False
         alongTrackAvgEdited = False
         dualSwathPolicyEdited = False
+        heaveEdited = False
+        gridCellsEdited = False
+        pingBufferEdited = False
 
         # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
         # System Settings:
@@ -194,6 +208,14 @@ class AllSettingsDialog2(QtWidgets.QDialog):
                 self.ui.radioButtonMulticast.setChecked(True)
             protocolEdited = True
 
+        # If socket buffer multiplier has changed:
+        if self.settings['ip_settings']['socketBufferMultiplier'] != \
+                loadSettings['ip_settings']['socketBufferMultiplier']:
+            self.settings['ip_settings']['socketBufferMultiplier'] = \
+                loadSettings['ip_settings']['socketBufferMultiplier']
+            self.ui.spinBoxSocketBuffer.setValue(self.settings['ip_settings']['socketBufferMultiplier'])
+            socketBufferEdited = True
+
         # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
         # Processing Settings:
 
@@ -255,9 +277,33 @@ class AllSettingsDialog2(QtWidgets.QDialog):
                 self.ui.radioButtonSecondPing.setChecked(True)
             dualSwathPolicyEdited = True
 
+        # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+        # Buffer Settings:
+
+        # maxHeave_m
+        if self.settings['buffer_settings']['maxHeave_m'] != loadSettings['buffer_settings']['maxHeave_m']:
+            self.settings['buffer_settings']['maxHeave_m'] = loadSettings['buffer_settings']['maxHeave_m']
+            self.ui.doubleSpinBoxMaxHeave.setValue(round(self.settings['buffer_settings']['maxHeave_m'], 2))
+            heaveEdited = True
+
+        # maxGridCells
+        if self.settings['buffer_settings']['maxGridCells'] != loadSettings['buffer_settings']['maxGridCells']:
+            self.settings['buffer_settings']['maxGridCells'] = loadSettings['buffer_settings']['maxGridCells']
+            self.ui.spinBoxMaxGridCells.setValue(int(self.settings['buffer_settings']['maxGridCells']))
+            gridCellsEdited = True
+
+        # maxBufferSize_ping
+        if self.settings['buffer_settings']['maxBufferSize_ping'] != \
+                loadSettings['buffer_settings']['maxBufferSize_ping']:
+            self.settings['buffer_settings']['maxBufferSize_ping'] = \
+                loadSettings['buffer_settings']['maxBufferSize_ping']
+            self.ui.spinBoxMaxPingBuffer.setValue(int(self.settings['buffer_settings']['maxBufferSize_ping']))
+            pingBufferEdited = True
+
         # Only emit signals after all values in dictionary have been updated:
-        self.emitSignals(systemEdited, ipEdited, portEdited, protocolEdited, binSizeEdited, acrossTrackAvgEdited, depthEdited,
-                         depthAvgEdited, alongTrackAvgEdited, dualSwathPolicyEdited)
+        self.emitSignals(systemEdited, ipEdited, portEdited, protocolEdited, socketBufferEdited, binSizeEdited,
+                         acrossTrackAvgEdited, depthEdited, depthAvgEdited, alongTrackAvgEdited, dualSwathPolicyEdited,
+                         heaveEdited, gridCellsEdited, pingBufferEdited)
 
     def validateAndSetValuesFromDialog(self):
         """
@@ -268,13 +314,16 @@ class AllSettingsDialog2(QtWidgets.QDialog):
         ipEdited = False
         portEdited = False
         protocolEdited = False
+        socketBufferEdited = False
         binSizeEdited = False
         acrossTrackAvgEdited = False
         depthEdited = False
         depthAvgEdited = False
         alongTrackAvgEdited = False
         dualSwathPolicyEdited = False
-
+        heaveEdited = False
+        gridCellsEdited = False
+        pingBufferEdited = False
 
         # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
         # System Settings:
@@ -338,6 +387,11 @@ class AllSettingsDialog2(QtWidgets.QDialog):
             self.settings['ip_settings']['protocol'] = "Multicast"
             protocolEdited = True
 
+        # If socket buffer multiplier has changed:
+        if self.settings['ip_settings']['socketBufferMultiplier'] != self.ui.spinBoxSocketBuffer.value():
+            self.settings['ip_settings']['socketBufferMultiplier'] = self.ui.spinBoxSocketBuffer.value()
+            socketBufferEdited = True
+
         # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
         # Processing Settings:
 
@@ -382,25 +436,48 @@ class AllSettingsDialog2(QtWidgets.QDialog):
             self.settings['processing_settings']['dualSwathPolicy'] = 2
             dualSwathPolicyEdited = True
 
+        # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+        # Buffer Settings:
+        # maxHeave_m
+        if self.settings['buffer_settings']['maxHeave_m'] != self.ui.doubleSpinBoxMaxHeave.value():
+            self.settings['buffer_settings']['maxHeave_m'] = round(self.ui.doubleSpinBoxMaxHeave.value(), 2)
+            heaveEdited = True
+
+        # maxGridCells
+        if self.settings['buffer_settings']['maxGridCells'] != self.ui.spinBoxMaxGridCells.value():
+            self.settings['buffer_settings']['maxGridCells'] = int(self.ui.spinBoxMaxGridCells.value())
+            gridCellsEdited = True
+
+        # maxBufferSize_ping
+        if self.settings['buffer_settings']['maxBufferSize_ping'] != self.ui.spinBoxMaxPingBuffer.value():
+            self.settings['buffer_settings']['maxBufferSize_ping'] = int(self.ui.spinBoxMaxPingBuffer.value())
+            pingBufferEdited = True
+
         # Only emit signals after all values in dictionary have been updated:
-        self.emitSignals(systemEdited, ipEdited, portEdited, protocolEdited, binSizeEdited, acrossTrackAvgEdited,
-                         depthEdited, depthAvgEdited, alongTrackAvgEdited, dualSwathPolicyEdited)
+        self.emitSignals(systemEdited, ipEdited, portEdited, protocolEdited, socketBufferEdited, binSizeEdited,
+                         acrossTrackAvgEdited, depthEdited, depthAvgEdited, alongTrackAvgEdited, dualSwathPolicyEdited,
+                         heaveEdited, gridCellsEdited, pingBufferEdited)
 
         return True
 
-    def emitSignals(self, systemEdited, ipEdited, portEdited, protocolEdited, binSizeEdited, acrossTrackAvgEdited,
-                    depthEdited, depthAvgEdited, alongTrackAvgEdited, dualSwathPolicyEdited):
+    def emitSignals(self, systemEdited, ipEdited, portEdited, protocolEdited, socketBufferEdited, binSizeEdited,
+                    acrossTrackAvgEdited, depthEdited, depthAvgEdited, alongTrackAvgEdited, dualSwathPolicyEdited,
+                    heaveEdited, gridCellsEdited, pingBufferEdited):
         """
         Emits signals for all True parameters.
         :param systemEdited: Boolean indicating whether field was edited.
         :param ipEdited: Boolean indicating whether field was edited.
         :param portEdited: Boolean indicating whether field was edited.
+        :param protocolEdited: Boolean indicating whether field was edited.
         :param binSizeEdited: Boolean indicating whether field was edited.
         :param acrossTrackAvgEdited: Boolean indicating whether field was edited.
         :param depthEdited: Boolean indicating whether field was edited.
         :param depthAvgEdited: Boolean indicating whether field was edited.
         :param alongTrackAvgEdited: Boolean indicating whether field was edited.
         :param dualSwathPolicyEdited: Boolean indicating whether field was edited.
+        :param heaveEdited: Boolean indicating whether field was edited.
+        :param gridCellsEdited: Boolean indicating whether field was edited.
+        :param pingBufferEdited: Boolean indicating whether field was edited.
         """
         if systemEdited:
             self.systemEdited.emit()
@@ -410,6 +487,8 @@ class AllSettingsDialog2(QtWidgets.QDialog):
             self.portEdited.emit()
         if protocolEdited:
             self.protocolEdited.emit()
+        if socketBufferEdited:
+            self.socketBufferEdited.emit()
         if binSizeEdited:
             self.binSizeEdited.emit()
         if acrossTrackAvgEdited:
@@ -422,3 +501,9 @@ class AllSettingsDialog2(QtWidgets.QDialog):
             self.alongTrackAvgEdited.emit()
         if dualSwathPolicyEdited:
             self.dualSwathPolicyEdited.emit()
+        if heaveEdited:
+            self.heaveEdited.emit()
+        if gridCellsEdited:
+            self.gridCellsEdited.emit()
+        if pingBufferEdited:
+            self.pingBufferEdited.emit()

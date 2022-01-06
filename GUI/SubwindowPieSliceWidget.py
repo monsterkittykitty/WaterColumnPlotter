@@ -89,7 +89,7 @@ class SubwindowPieSliceWidget(QWidget):
         # pushButtonApply = QPushButton("Apply")
         iconApply = self.style().standardIcon(QStyle.SP_DialogApplyButton)
         pushButtonApply = QPushButton()
-        pushButtonApply.setToolTip("Apply")
+        pushButtonApply.setToolTip("Apply (Note: Changes in bin size cannot be applied retroactively.)")
         pushButtonApply.setIcon(iconApply)
         pushButtonApply.clicked.connect(self.binSizeEditedFunction)
         layout.addWidget(pushButtonApply, 0, 4)

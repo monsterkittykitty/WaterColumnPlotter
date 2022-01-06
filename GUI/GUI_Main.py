@@ -46,10 +46,11 @@ class MainWindow(QMainWindow):
         # TODO: Set 'buffer_settings' in settings dialog?
         # maxBufferSize based on ~1000 MWC datagrams per minute for 10 minutes (~16 per second).
         self.settings = {'system_settings': {'system': "Kongsberg"},
-                         'ip_settings': {'ip': '225.255.255.255', 'port': 6020, 'protocol': "Multicast"},
+                         'ip_settings': {'ip': '225.255.255.255', 'port': 6020, 'protocol': "Multicast",
+                                         'socketBufferMultiplier': 4},
                          'processing_settings': {'binSize_m': 0.20, 'acrossTrackAvg_m': 10, 'depth_m': 2,
                                                  'depthAvg_m': 2, 'alongTrackAvg_ping': 5, 'dualSwathPolicy': 0},
-                         'buffer_settings': {'maxHeave_m': 5, 'maxGridCells': 500, 'maxBufferSize': 1000}}
+                         'buffer_settings': {'maxHeave_m': 5, 'maxGridCells': 500, 'maxBufferSize_ping': 1000}}
 
         # TODO: Check available memory to assign buffer sizes?
         # available_mem_gb = psutil.virtual_memory().available / 1024 / 1024 / 1024
@@ -101,11 +102,11 @@ class MainWindow(QMainWindow):
         self.update_timer.start(self.PLOT_UPDATE_INTERVAL)
         #self.update_timer.start(self.PLOT_UPDATE_INTERVAL)
 
-    def stopProcesses(self):
+    def pauseProcesses(self):
         """
         This method called when toolbar's stop button is pressed. Deactivates processes in WaterColumn class.
         """
-        self.waterColumn.stopProcesses()
+        self.waterColumn.pauseProcesses()
         self.update_timer.stop()
         #self.update_timer.stop()
 
@@ -204,36 +205,9 @@ class MainWindow(QMainWindow):
                 print("temp_horizontal is none")
 
     def systemEdited(self):
-        print("SYSTEM EDITED")
-        # self.mdi.subwindowSettingsDisplay.setSystem(self.settings)
         self.toolBar.setSystem(self.settings['system_settings']['system'])
-
-        # self._initStatusBar()
-
-        # if self.settings["system_settings"]["system"] == "Kongsberg":
-        #     self.setStatusBar(self._initKongsberStatusBar())
-        #     # Launch Kongsberg thread:
-        #     if self.sonarMain is None:
-        #         # Note: Must maintain reference to this with 'self.':
-        #         # self.sonarProcess = LaunchSonarProcess(KongsbergDGMain(self.settings, self.queue_pie))
-        #         # self.sonarProcess.start()
-        #         self.sonarMain = KongsbergDGMain(self.settings, self.queue_pie)
-        #         self.threadPool.start(self.sonarMain)
-        #
-        #         print(self.settings["ip_settings"]["ip"])
-        #         print("Launching KongsbergMain")
-        #     else:
-        #         # TODO: Error checking. Do you really want to change systems? If yes, close previous thread.
-        #         pass
-        #     # while True:
-        #     #     print(self.queue_pie.qsize())
-        #     pass
-        # else:  # self.settings["system_settings"]["system"] == "Other"
-        #     # Launch other processing code: XXX
-        #     # Note: This is currently disabled by error checks in
-        #     # SettingsDialog.py that do now allow selection of "Other"
-        #     # EX: self.sonarProcess = ResonThread(), self.sonarProcess = r2SonicThread()
-        #     pass
+        # TODO: Reset sonar main:
+        # 1. end all currently running processing and relauch watercolumn?
 
     def ipEdited(self):
         # print("IP HAS BEEN EDITED: {}".format(self.settings["ip_settings"]["ip"]))
@@ -248,6 +222,9 @@ class MainWindow(QMainWindow):
         self.toolBar.setIPPort(self.settings['ip_settings']['ip'], self.settings['ip_settings']['port'])
 
     def protocolEdited(self):
+        pass
+
+    def socketBufferEdited(self):
         pass
 
     def binSizeEdited(self, fromSettingsDialog=False):
@@ -284,6 +261,15 @@ class MainWindow(QMainWindow):
         #self.mdi.subwindowSettingsDisplay.setDualSwathPolicy(self.settings)
         pass
 
+    def heaveEdited(self):
+        pass
+
+    def gridCellsEdited(self):
+        pass
+
+    def pingBufferEdited(self):
+        pass
+
     def newActionSlot(self):
         sub = QMdiSubWindow()
         sub.setWidget(QTextEdit())
@@ -306,13 +292,17 @@ class MainWindow(QMainWindow):
         settingsDialog.signalSystemEdited.connect(self.systemEdited)
         settingsDialog.signalIPEdited.connect(self.ipEdited)
         settingsDialog.signalPortEdited.connect(self.portEdited)
-        settingsDialog.signalIPEdited.connect(self.protocolEdited)
+        settingsDialog.signalProtocolEdited.connect(self.protocolEdited)
+        settingsDialog.signalSocketBufferEdited.connect(self.socketBufferEdited)
         settingsDialog.signalBinSizeEdited.connect(lambda: self.binSizeEdited(fromSettingsDialog=True))
         settingsDialog.signalAcrossTrackAvgEdited.connect(lambda: self.acrossTrackAvgEdited(fromSettingsDialog=True))
         settingsDialog.signalDepthEdited.connect(lambda: self.depthEdited(fromSettingsDialog=True))
         settingsDialog.signalDepthAvgEdited.connect(lambda: self.depthAvgEdited(fromSettingsDialog=True))
         settingsDialog.signalAlongTrackAvgEdited.connect(self.alongTrackAvgEdited)
         settingsDialog.signalDualSwathPolicyEdited.connect(self.dualSwathAvgEdited)
+        settingsDialog.signalHeaveEdited.connect(self.heaveEdited)
+        settingsDialog.signalGridCellsEdited.connect(self.gridCellsEdited)
+        settingsDialog.signalPingBufferEdited.connect(self.pingBufferEdited)
 
         settingsDialog.exec_()
 
@@ -392,7 +382,7 @@ class MainWindow(QMainWindow):
 
         # Signals / Slots
         toolBar.signalPlay.connect(self.startProcesses)
-        toolBar.signalStop.connect(self.stopProcesses)
+        toolBar.signalPause.connect(self.pauseProcesses)
         toolBar.signalSettings.connect(self.displaySettingsDialog)
 
         return toolBar

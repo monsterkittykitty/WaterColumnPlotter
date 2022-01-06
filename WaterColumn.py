@@ -33,7 +33,7 @@ class WaterColumn:
         self.processed_buffer_count = Value(ctypes.c_uint16, 0, lock=True)  # multiprocessing.Value
 
         self.MAX_NUM_GRID_CELLS = self.settings['buffer_settings']['maxGridCells']
-        self.MAX_LENGTH_BUFFER = self.settings['buffer_settings']['maxBufferSize']
+        self.MAX_LENGTH_BUFFER = self.settings['buffer_settings']['maxBufferSize_ping']
         self.ALONG_TRACK_PINGS = self.settings['processing_settings']['alongTrackAvg_ping']
 
         self.shared_ring_buffer_raw = SharedRingBufferRaw(self.settings, self.raw_buffer_count,
@@ -82,23 +82,23 @@ class WaterColumn:
 
         self.plotterMain.run()
 
-    def stopProcesses(self):
+    def pauseProcesses(self):
         # TODO: Some sort of error handling and graceful closing of threads
         #  if system is changed while another system thread is running!
         # TODO: Unsure whether lock is needed here?
         with self.process_flag.get_lock():
             self.process_flag.value = False
 
-        self.__stopSonarMain()
-        self.__stopPlotterMain()
+        self._pauseSonarMain()
+        self._pausePlotterMain()
 
-    def __stopSonarMain(self):
+    def _pauseSonarMain(self):
         # I don't think we actually want this. Method join() will block...
         # if self.sonarMain.is_alive():
         #     self.sonarMain.join()
         pass
 
-    def __stopPlotterMain(self):
+    def _pausePlotterMain(self):
         # I don't think we actually want this. Method join() will block...
         # if self.plotterMain.is_alive():
         #     self.plotterMain.join()

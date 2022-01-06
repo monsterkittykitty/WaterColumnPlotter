@@ -17,7 +17,7 @@ class SharedRingBufferProcessed:
 
         self.ALONG_TRACK_PINGS = self.settings['processing_settings']['alongTrackAvg_ping']
         self.MAX_NUM_GRID_CELLS = settings['buffer_settings']['maxGridCells']
-        self.SIZE_BUFFER = settings['buffer_settings']['maxBufferSize'] // self.ALONG_TRACK_PINGS
+        self.SIZE_BUFFER = settings['buffer_settings']['maxBufferSize_ping'] // self.ALONG_TRACK_PINGS
         self.FULL_SIZE_BUFFER = self.SIZE_BUFFER * 2
 
         self.counter = counter

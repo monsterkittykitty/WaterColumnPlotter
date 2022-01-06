@@ -38,16 +38,18 @@ class KongsbergDGMain:
         # https://stackoverflow.com/questions/25391025/what-exactly-is-python-multiprocessing-modules-join-method-doing
         # https://stonesoupprogramming.com/2017/09/11/python-multiprocessing-producer-consumer-pattern/comment-page-1/
 
-        self.dg_capture = KongsbergDGCaptureFromSonar(rx_ip=self.settings["ip_settings"]["ip"],
-                                                      rx_port=self.settings["ip_settings"]["port"],
-                                                      ip_protocol=self.settings["ip_settings"]["protocol"],
+        self.dg_capture = KongsbergDGCaptureFromSonar(rx_ip=self.settings['ip_settings']['ip'],
+                                                      rx_port=self.settings['ip_settings']['port'],
+                                                      ip_protocol=self.settings['ip_settings']['protocol'],
+                                                      socket_buffer_multiplier=
+                                                      self.settings['ip_settings']['socketBufferMultiplier'],
                                                       queue_datagram=self.queue_datagram,
                                                       full_ping_count=self.full_ping_count,
                                                       discard_ping_count=self.discard_ping_count,
                                                       process_flag=self.process_flag)
 
-        self.dg_process = KongsbergDGProcess(bin_size=self.settings["processing_settings"]["binSize_m"],
-                                             max_heave=self.settings["buffer_settings"]["maxHeave_m"],
+        self.dg_process = KongsbergDGProcess(bin_size=self.settings['processing_settings']['binSize_m'],
+                                             max_heave=self.settings['buffer_settings']['maxHeave_m'],
                                              queue_datagram=self.queue_datagram,
                                              queue_pie_object=self.queue_pie_object,
                                              process_flag=self.process_flag)

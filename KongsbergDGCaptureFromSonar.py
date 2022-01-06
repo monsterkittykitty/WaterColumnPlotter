@@ -26,8 +26,9 @@ import sys
 
 logger = logging.getLogger(__name__)
 
+
 class KongsbergDGCaptureFromSonar(Process):
-    def __init__(self, rx_ip, rx_port, ip_protocol="UDP", queue_datagram=None,
+    def __init__(self, rx_ip, rx_port, ip_protocol="UDP", socket_buffer_multiplier=4, queue_datagram=None,
                  full_ping_count=None, discard_ping_count=None, process_flag=None, out_file=None):
         super().__init__()
 
@@ -36,6 +37,7 @@ class KongsbergDGCaptureFromSonar(Process):
         self.rx_ip = rx_ip
         self.rx_port = rx_port
         self.ip_protocol = ip_protocol
+        self.socket_buffer_multiplier = socket_buffer_multiplier
 
         # When run as main, out_file is required;
         # when run with multiprocessing, queue is required (multiprocessing.Queue)
@@ -95,7 +97,8 @@ class KongsbergDGCaptureFromSonar(Process):
             # Allow reuse of addresses
             temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             # TODO: Change buffer size if packets are being lost:
-            temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.MAX_DATAGRAM_SIZE * 2 * 2)
+            temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF,
+                                 self.MAX_DATAGRAM_SIZE * self.socket_buffer_multiplier)
             temp_sock.bind((self.rx_ip, self.rx_port))
 
         elif self.ip_protocol == "Multicast":
@@ -103,7 +106,8 @@ class KongsbergDGCaptureFromSonar(Process):
             # Allow reuse of addresses
             temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             # TODO: Change buffer size if packets are being lost:
-            temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.MAX_DATAGRAM_SIZE * 2 * 2)
+            temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF,
+                                 self.MAX_DATAGRAM_SIZE * self.socket_buffer_multiplier)
             temp_sock.bind(('', self.rx_port))
             # Tell the operating system to add the socket to the multicast group on all interfaces.
             # (From: https://pymotw.com/2/socket/multicast.html)
