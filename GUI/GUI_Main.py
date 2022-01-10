@@ -43,14 +43,14 @@ class MainWindow(QMainWindow):
 
         # Default settings:
         # TODO: Are we doing anything with maxHeave?
-        # TODO: Set 'buffer_settings' in settings dialog?
         # maxBufferSize based on ~1000 MWC datagrams per minute for 10 minutes (~16 per second).
         self.settings = {'system_settings': {'system': "Kongsberg"},
-                         'ip_settings': {'ip': '225.255.255.255', 'port': 6020, 'protocol': "Multicast",
+                         'ip_settings': {'ip': '127.0.0.1', 'port': 8080, 'protocol': "UDP",
                                          'socketBufferMultiplier': 4},
                          'processing_settings': {'binSize_m': 0.20, 'acrossTrackAvg_m': 10, 'depth_m': 2,
-                                                 'depthAvg_m': 2, 'alongTrackAvg_ping': 5, 'dualSwathPolicy': 0},
-                         'buffer_settings': {'maxHeave_m': 5, 'maxGridCells': 500, 'maxBufferSize_ping': 1000}}
+                                                 'depthAvg_m': 2, 'alongTrackAvg_ping': 5, 'dualSwathPolicy': 0,
+                                                 'maxHeave_m': 5},
+                         'buffer_settings': {'maxGridCells': 500, 'maxBufferSize_ping': 1000}}
 
         # TODO: Check available memory to assign buffer sizes?
         # available_mem_gb = psutil.virtual_memory().available / 1024 / 1024 / 1024
@@ -150,6 +150,7 @@ class MainWindow(QMainWindow):
 
 
         if self.waterColumn.get_raw_buffer_length() > 0:
+            print("raw buffer greater than zero")
             temp_pie = self.waterColumn.get_pie()
             if temp_pie is not None:
                 if temp_pie.any():  # For debugging
@@ -158,7 +159,7 @@ class MainWindow(QMainWindow):
                 self.mdi.pieWidget.pie_plot.setImage(temp_pie.T, autoRange=False,
                                                      autoLevels=False, autoHistogramRange=False,
                                                      pos=(-(temp_pie.shape[1] / 2),
-                                                          -(self.settings['buffer_settings']['maxHeave_m'] /
+                                                          -(self.settings['processing_settings']['maxHeave_m'] /
                                                             self.settings['processing_settings']['binSize_m'])))
                 # # Plots vertical line
                 # y = [0, 50]
@@ -188,8 +189,9 @@ class MainWindow(QMainWindow):
                 self.mdi.verticalWidget.vertical_plot.setImage(temp_vertical, autoRange=False,
                                                                autoLevels=False, autoHistogramRange=False,
                                                                pos=(-temp_vertical.shape[0],
-                                                                    -(self.settings['buffer_settings']['maxHeave_m'] /
+                                                                    -(self.settings['processing_settings']['maxHeave_m'] /
                                                                     self.settings['processing_settings']['binSize_m'])))
+                print("updating vertical plot: maxHeave: {}, binSize: {}".format(self.settings['processing_settings']['maxHeave_m'], self.settings['processing_settings']['binSize_m']))
 
             temp_horizontal = self.waterColumn.get_horizontal_slice()
             if temp_horizontal is not None:
@@ -204,11 +206,15 @@ class MainWindow(QMainWindow):
             else:
                 print("temp_horizontal is none")
 
+    # SYSTEM SETTINGS SLOTS:
+    # TODO: Link to other processes
     def systemEdited(self):
         self.toolBar.setSystem(self.settings['system_settings']['system'])
         # TODO: Reset sonar main:
         # 1. end all currently running processing and relauch watercolumn?
 
+    # IP SETTINGS SLOTS:
+    # TODO: Link to other processes
     def ipEdited(self):
         # print("IP HAS BEEN EDITED: {}".format(self.settings["ip_settings"]["ip"]))
         # print("default ip: {}".format(self.defaultSettings["ip_settings"]["ip"]))
@@ -227,61 +233,89 @@ class MainWindow(QMainWindow):
     def socketBufferEdited(self):
         pass
 
+    # PROCESSING SETTINGS SLOTS:
     def binSizeEdited(self, fromSettingsDialog=False):
-        print("in binsize edited slot")
-        print(fromSettingsDialog)
+        print("binSizeEdited")
+        #print(fromSettingsDialog)
         # self.mdi.subwindowSettingsDisplay.setBinSize(self.settings)
         # Only need to update MDI windows if setting was updated in settings dialog:
         if fromSettingsDialog:
             self.mdi.pieWidget.setBinSize(self.settings['processing_settings']['binSize_m'])
+        with self.waterColumn.bin_size.get_lock():
+            self.waterColumn.bin_size.value = self.settings['processing_settings']['binSize_m']
 
     def acrossTrackAvgEdited(self, fromSettingsDialog=False):
+        print("acrossTrackAvgEdited")
         #self.mdi.subwindowSettingsDisplay.setAcrossTrackAvg(self.settings)
         # Only need to update MDI windows if setting was updated in settings dialog:
         if fromSettingsDialog:
             self.mdi.verticalWidget.setAcrossTrackAvg(self.settings['processing_settings']['acrossTrackAvg_m'])
+        with self.waterColumn.across_track_avg.get_lock():
+            self.waterColumn.across_track_avg.value = self.settings['processing_settings']['acrossTrackAvg_m']
 
     def depthEdited(self, fromSettingsDialog=False):
+        print("depthEdited")
         #self.mdi.subwindowSettingsDisplay.setDepth(self.settings)
         # Only need to update MDI windows if setting was updated in settings dialog:
         if fromSettingsDialog:
             self.mdi.horizontalWidget.setDepth(self.settings['processing_settings']['depth_m'])
+        with self.waterColumn.depth.get_lock():
+            self.waterColumn.depth.value = self.settings['processing_settings']['depth_m']
 
     def depthAvgEdited(self, fromSettingsDialog=False):
+        print("depthAvgEdited")
         #self.mdi.subwindowSettingsDisplay.setDepthAvg(self.settings)
         # Only need to update MDI windows if setting was updated in settings dialog:
         if fromSettingsDialog:
             self.mdi.horizontalWidget.setDepthAvg(self.settings['processing_settings']['depthAvg_m'])
+        with self.waterColumn.depth_avg.get_lock():
+            self.waterColumn.depth_avg.value = self.settings['processing_settings']['depthAvg_m']
 
     def alongTrackAvgEdited(self):
+        print("alongTrackAvgEdited")
         #self.mdi.subwindowSettingsDisplay.setAlongTrackAvg(self.settings)
+        with self.waterColumn.along_track_avg.get_lock():
+            self.waterColumn.along_track_avg.value = self.settings['processing_settings']['alongTrackAvg_ping']
         pass
 
+    # TODO: Remove this?
     def dualSwathAvgEdited(self):
         #self.mdi.subwindowSettingsDisplay.setDualSwathPolicy(self.settings)
         pass
 
     def heaveEdited(self):
+        with self.waterColumn.max_heave.get_lock():
+            self.waterColumn.max_heave.value = self.settings['processing_settings']['maxHeave_m']
         pass
 
+    def processingSettingsEdited(self):
+        print("IN PROCESSING SETTINGS EDITED SLOT")
+        with self.waterColumn.processing_settings_edited.get_lock():
+            self.waterColumn.processing_settings_edited.value = True
+
+        self.waterColumn.settingsChanged()
+        pass
+
+    # BUFFER SETTINGS SLOTS:
+    # TODO: Link to other processes
     def gridCellsEdited(self):
         pass
 
     def pingBufferEdited(self):
         pass
 
-    def newActionSlot(self):
-        sub = QMdiSubWindow()
-        sub.setWidget(QTextEdit())
-        sub.setWindowTitle("subwindow" + str(MainWindow.count))
-        self.mdi.addSubWindow(sub)
-        sub.show()
-
-    def cascadeActionSlot(self):
-        self.mdi.cascadeSubWindows()
-
-    def tileActionSlot(self):
-        self.mdi.tileSubWindows()
+    # def newActionSlot(self):
+    #     sub = QMdiSubWindow()
+    #     sub.setWidget(QTextEdit())
+    #     sub.setWindowTitle("subwindow" + str(MainWindow.count))
+    #     self.mdi.addSubWindow(sub)
+    #     sub.show()
+    #
+    # def cascadeActionSlot(self):
+    #     self.mdi.cascadeSubWindows()
+    #
+    # def tileActionSlot(self):
+    #     self.mdi.tileSubWindows()
 
     def displaySettingsDialog(self):
         settingsDialog = AllSettingsDialog2(self.settings, parent=self)
@@ -303,6 +337,8 @@ class MainWindow(QMainWindow):
         settingsDialog.signalHeaveEdited.connect(self.heaveEdited)
         settingsDialog.signalGridCellsEdited.connect(self.gridCellsEdited)
         settingsDialog.signalPingBufferEdited.connect(self.pingBufferEdited)
+
+        settingsDialog.signalProcessingSettingsEdited.connect(self.processingSettingsEdited)
 
         settingsDialog.exec_()
 
@@ -411,9 +447,12 @@ class MainWindow(QMainWindow):
 
         # Signals / Slots
         mdi.verticalWidget.signalAcrossTrackAvgEdited.connect(self.acrossTrackAvgEdited)
+        mdi.verticalWidget.signalProcessingSettingsEdited.connect(self.processingSettingsEdited)
         mdi.pieWidget.signalbinSizeEdited.connect(self.binSizeEdited)
+        mdi.pieWidget.signalProcessingSettingsEdited.connect(self.processingSettingsEdited)
         mdi.horizontalWidget.signalDepthEdited.connect(self.depthEdited)
         mdi.horizontalWidget.signalDepthAvgEdited.connect(self.depthAvgEdited)
+        mdi.horizontalWidget.signalProcessingSettingsEdited.connect(self.processingSettingsEdited)
 
         self.update_timer.timeout.connect(self.updatePlot)
 

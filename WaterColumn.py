@@ -5,7 +5,7 @@
 
 import ctypes
 from KongsbergDGMain import KongsbergDGMain
-from multiprocessing import Array, Process, Queue, shared_memory, Value
+from multiprocessing import Array, Process, Queue, RLock, shared_memory, Value
 import numpy as np
 from PlotterMain import PlotterMain
 from PyQt5.QtWidgets import QMessageBox
@@ -18,6 +18,21 @@ class WaterColumn:
 
         self.settings = settings
 
+        # self.processing_settings_lock = RLock()
+        self.processing_settings_edited = Value(ctypes.c_bool, False, lock=True)  # multiprocessing.Value
+        self.sonar_main_settings_edited = Value(ctypes.c_bool, False, lock=True)  # multiprocessing.Value
+        self.plotter_main_settings_edited = Value(ctypes.c_bool, False, lock=True)  # multiprocessing.Value
+
+        # Break out individual settings so they can be shared / updated across processes
+        # multiprocessing.Values
+        self.bin_size = Value(ctypes.c_float, self.settings['processing_settings']['binSize_m'], lock=True)
+        self.across_track_avg = Value(ctypes.c_float, self.settings['processing_settings']['acrossTrackAvg_m'], lock=True)
+        self.depth = Value(ctypes.c_float, self.settings['processing_settings']['depth_m'], lock=True)
+        self.depth_avg = Value(ctypes.c_float, self.settings['processing_settings']['depthAvg_m'], lock=True)
+        self.along_track_avg = Value(ctypes.c_ubyte, self.settings['processing_settings']['alongTrackAvg_ping'], lock=True)
+        # self.dual_swath_policy = Value(ctypes.c_ubyte, self.settings['processing_settings']['dualSwathPolicy'], lock=True)
+        self.max_heave = Value(ctypes.c_float, self.settings['processing_settings']['maxHeave_m'], lock=True)
+
         # multiprocessing.Queues
         self.queue_datagram = Queue()  # .put() by KongsbergDGCaptureFromSonar; .get() by KongsbergDGProcess
         self.queue_pie_object = Queue()  # .put() by KongsbergDGProcess; .get() by Plotter
@@ -25,7 +40,10 @@ class WaterColumn:
         self.full_ping_count = Value(ctypes.c_uint32, 0, lock=True)  # multiprocessing.Value
         self.discard_ping_count = Value(ctypes.c_uint32, 0, lock=True)  # multiprocessing.Value
 
+        # TODO
         self.process_flag = Value(ctypes.c_bool, False, lock=True)  # multiprocessing.Value
+        self.sonar_process_flag = Value(ctypes.c_bool, False, lock=True)  # multiprocessing.Value
+        self.plotter_process_flag = Value(ctypes.c_bool, False, lock=True)  # multiprocessing.Value
         self.raw_buffer_full_flag = Value(ctypes.c_bool, False, lock=True)  # multiprocessing.Value
         self.processed_buffer_full_flag = Value(ctypes.c_bool, False, lock=True)  # multiprocessing.Value
 
@@ -44,6 +62,12 @@ class WaterColumn:
         self.sonarMain = None
         self.plotterMain = None
 
+    def settingsChanged(self):
+        if self.sonarMain:
+            self.sonarMain.settings_changed()
+        if self.plotterMain:
+            self.plotterMain.settings_changed()
+
     def startProcesses(self):
         """
         Initiates both self.sonarMain and self.plotterMain processes.
@@ -52,17 +76,23 @@ class WaterColumn:
         with self.process_flag.get_lock():
             self.process_flag.value = True
 
-        self.__startSonarMain()
-        self.__startPlotterMain()
+        self._startSonarMain()
+        self._startPlotterMain()
 
-    def __startSonarMain(self):
+    def _startSonarMain(self):
         """
         Initiates and runs self.sonarMain process.
         """
         if self.settings["system_settings"]["system"] == "Kongsberg":  # Kongsberg system
-            self.sonarMain = KongsbergDGMain(self.settings, self.queue_datagram,
+            # self.sonarMain = KongsbergDGMain(self.settings, self.queue_datagram,
+            #                                  self.queue_pie_object, self.full_ping_count,
+            #                                  self.discard_ping_count, self.process_flag)
+            self.sonarMain = KongsbergDGMain(self.settings, self.bin_size, self.max_heave, self.queue_datagram,
                                              self.queue_pie_object, self.full_ping_count,
                                              self.discard_ping_count, self.process_flag)
+
+            self.sonarMain.start_processes()
+
             self.sonarMain.run()
 
         else:  # Other system
@@ -71,14 +101,17 @@ class WaterColumn:
             # self.sonarMain = <SystemMain>
             # self.sonarMain.run()
 
-    def __startPlotterMain(self):
+    def _startPlotterMain(self):
         """
         Initiates and runs self.plotterMain process.
         """
-        self.plotterMain = PlotterMain(self.settings, self.queue_pie_object,
+        self.plotterMain = PlotterMain(self.settings, self.bin_size, self.across_track_avg, self.depth, self.depth_avg,
+                                       self.along_track_avg, self.max_heave, self.queue_pie_object,
                                        self.raw_buffer_count, self.processed_buffer_count,
                                        self.raw_buffer_full_flag, self.processed_buffer_full_flag,
                                        self.process_flag)
+
+        self.plotterMain.start_processes()
 
         self.plotterMain.run()
 
@@ -96,13 +129,15 @@ class WaterColumn:
         # I don't think we actually want this. Method join() will block...
         # if self.sonarMain.is_alive():
         #     self.sonarMain.join()
-        pass
+        if self.sonarMain:
+            self.sonarMain.stop_processes()
 
     def _pausePlotterMain(self):
         # I don't think we actually want this. Method join() will block...
         # if self.plotterMain.is_alive():
         #     self.plotterMain.join()
-        pass
+        if self.plotterMain:
+            self.plotterMain.stop_processes()
 
     def get_raw_buffer_length(self):
         return self.shared_ring_buffer_raw.get_num_elements_in_buffer()

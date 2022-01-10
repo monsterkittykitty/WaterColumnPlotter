@@ -13,6 +13,7 @@ import sys
 class SubwindowVerticalSliceWidget(QWidget):
 
     signalAcrossTrackAvgEdited = pyqtSignal(name="acrossTrackAvgEdited")
+    signalProcessingSettingsEdited = pyqtSignal(name="processingSettingsEdited")
 
     def __init__(self, settings, parent=None):
         super(SubwindowVerticalSliceWidget, self).__init__(parent)
@@ -124,7 +125,7 @@ class SubwindowVerticalSliceWidget(QWidget):
         if self.settings['processing_settings']['acrossTrackAvg_m'] != self.spinboxAcrossTrackAvg.value():
             self.settings['processing_settings']['acrossTrackAvg_m'] = round(self.spinboxAcrossTrackAvg.value(), 2)
             self.acrossTrackAvgEdited.emit()
-
+            self.processingSettingsEdited.emit()
 
 class GUI_PlotItem(pg.PlotItem):
     def __init__(self, settings, parent=None):
@@ -145,6 +146,6 @@ class GUI_PlotItem(pg.PlotItem):
         # self.setYRange(self.settings['buffer_settings']['maxGridCells'], 0)
 
         self.enableAutoRange()
-        self.setXRange(-(self.settings['buffer_settings']['maxBufferSize'] /
+        self.setXRange(-(self.settings['buffer_settings']['maxBufferSize_ping'] /
                          self.settings['processing_settings']['alongTrackAvg_ping']), 0)
         self.autoBtn.hide()

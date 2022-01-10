@@ -28,6 +28,8 @@ class AllSettingsDialog2(QtWidgets.QDialog):
     signalGridCellsEdited = pyqtSignal(name="gridCellsEdited")
     signalPingBufferEdited = pyqtSignal(name="pingBufferEdited")
 
+    signalProcessingSettingsEdited = pyqtSignal(name="processingSettingsEdited")
+
     def __init__(self, settings, parent=None):
         super(AllSettingsDialog2, self).__init__(parent)
 
@@ -105,15 +107,17 @@ class AllSettingsDialog2(QtWidgets.QDialog):
         self.ui.doubleSpinBoxDepth.setValue(round(self.settings['processing_settings']['depth_m'], 2))
         self.ui.doubleSpinBoxDepthAvg.setValue(round(self.settings['processing_settings']['depthAvg_m'], 2))
         self.ui.spinBoxAlongTrackAvg.setValue(int(self.settings['processing_settings']['alongTrackAvg_ping']))
-        if self.settings['processing_settings']['dualSwathPolicy'] == 0:
-            self.ui.radioButtonAllPings.setChecked(True)
-        elif self.settings['processing_settings']['dualSwathPolicy'] == 1:
-            self.ui.radioButtonFirstPing.setChecked(True)
-        elif self.settings['processing_settings']['dualSwathPolicy'] == 2:
-            self.ui.radioButtonSecondPing.setChecked(True)
+        self.ui.doubleSpinBoxMaxHeave.setValue(round(self.settings['processing_settings']['maxHeave_m'], 2))
+
+        # Remove dual swath settings:
+        # if self.settings['processing_settings']['dualSwathPolicy'] == 0:
+        #     self.ui.radioButtonAllPings.setChecked(True)
+        # elif self.settings['processing_settings']['dualSwathPolicy'] == 1:
+        #     self.ui.radioButtonFirstPing.setChecked(True)
+        # elif self.settings['processing_settings']['dualSwathPolicy'] == 2:
+        #     self.ui.radioButtonSecondPing.setChecked(True)
 
         # Buffer Settings
-        self.ui.doubleSpinBoxMaxHeave.setValue(round(self.settings['buffer_settings']['maxHeave_m'], 2))
         self.ui.spinBoxMaxGridCells.setValue(int(self.settings['buffer_settings']['maxGridCells']))
         self.ui.spinBoxMaxPingBuffer.setValue(int(self.settings['buffer_settings']['maxBufferSize_ping']))
 
@@ -263,28 +267,29 @@ class AllSettingsDialog2(QtWidgets.QDialog):
             self.ui.doubleSpinBoxAlongTrackAvg.setValue(self.settings['processing_settings']['alongTrackAvg_ping'])
             alongTrackAvgEdited = True
 
-        # dualSwathPolicy (0 to keep all pings; 1 to keep first ping only; 2 to keep second ping only):
-        if self.settings['processing_settings']['dualSwathPolicy'] != \
-                loadSettings['processing_settings']['dualSwathPolicy']:
+        # maxHeave_m
+        if self.settings['processing_settings']['maxHeave_m'] != loadSettings['processing_settings']['maxHeave_m']:
+            self.settings['processing_settings']['maxHeave_m'] = loadSettings['processing_settings']['maxHeave_m']
+            self.ui.doubleSpinBoxMaxHeave.setValue(round(self.settings['processing_settings']['maxHeave_m'], 2))
+            heaveEdited = True
 
-            self.settings['processing_settings']['dualSwathPolicy'] = \
-                loadSettings['processing_settings']['dualSwathPolicy']
-            if self.settings['processing_settings']['dualSwathPolicy'] == 0:
-                self.ui.radioButtonAllPings.setChecked(True)
-            elif self.settings['processing_settings']['dualSwathPolicy'] == 1:
-                self.ui.radioButtonFirstPing.setChecked(True)
-            elif self.settings['processing_settings']['dualSwathPolicy'] == 2:
-                self.ui.radioButtonSecondPing.setChecked(True)
-            dualSwathPolicyEdited = True
+        # Remove dual swath settings:
+        # dualSwathPolicy (0 to keep all pings; 1 to keep first ping only; 2 to keep second ping only):
+        # if self.settings['processing_settings']['dualSwathPolicy'] != \
+        #         loadSettings['processing_settings']['dualSwathPolicy']:
+        #
+        #     self.settings['processing_settings']['dualSwathPolicy'] = \
+        #         loadSettings['processing_settings']['dualSwathPolicy']
+        #     if self.settings['processing_settings']['dualSwathPolicy'] == 0:
+        #         self.ui.radioButtonAllPings.setChecked(True)
+        #     elif self.settings['processing_settings']['dualSwathPolicy'] == 1:
+        #         self.ui.radioButtonFirstPing.setChecked(True)
+        #     elif self.settings['processing_settings']['dualSwathPolicy'] == 2:
+        #         self.ui.radioButtonSecondPing.setChecked(True)
+        #     dualSwathPolicyEdited = True
 
         # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
         # Buffer Settings:
-
-        # maxHeave_m
-        if self.settings['buffer_settings']['maxHeave_m'] != loadSettings['buffer_settings']['maxHeave_m']:
-            self.settings['buffer_settings']['maxHeave_m'] = loadSettings['buffer_settings']['maxHeave_m']
-            self.ui.doubleSpinBoxMaxHeave.setValue(round(self.settings['buffer_settings']['maxHeave_m'], 2))
-            heaveEdited = True
 
         # maxGridCells
         if self.settings['buffer_settings']['maxGridCells'] != loadSettings['buffer_settings']['maxGridCells']:
@@ -425,23 +430,25 @@ class AllSettingsDialog2(QtWidgets.QDialog):
                 int(self.ui.spinBoxAlongTrackAvg.value())
             alongTrackAvgEdited = True
 
+        # maxHeave_m
+        if self.settings['processing_settings']['maxHeave_m'] != self.ui.doubleSpinBoxMaxHeave.value():
+            self.settings['processing_settings']['maxHeave_m'] = round(self.ui.doubleSpinBoxMaxHeave.value(), 2)
+            heaveEdited = True
+
+        # Remove dual swath settings:
         # dualSwathPolicy (0 to keep all pings; 1 to keep first ping only; 2 to keep second ping only):
-        if self.radioButtonAllPings.isChecked() and self.settings['processing_settings']['dualSwathPolicy'] != 0:
-            self.settings['processing_settings']['dualSwathPolicy'] = 0
-            dualSwathPolicyEdited = True
-        elif self.radioButtonFirstPing.isChecked() and self.settings['processing_settings']['dualSwathPolicy'] != 1:
-            self.settings['processing_settings']['dualSwathPolicy'] = 1
-            dualSwathPolicyEdited = True
-        elif self.radioButtonSecondPing.isChecked() and self.settings['processing_settings']['dualSwathPolicy'] != 2:
-            self.settings['processing_settings']['dualSwathPolicy'] = 2
-            dualSwathPolicyEdited = True
+        # if self.radioButtonAllPings.isChecked() and self.settings['processing_settings']['dualSwathPolicy'] != 0:
+        #     self.settings['processing_settings']['dualSwathPolicy'] = 0
+        #     dualSwathPolicyEdited = True
+        # elif self.radioButtonFirstPing.isChecked() and self.settings['processing_settings']['dualSwathPolicy'] != 1:
+        #     self.settings['processing_settings']['dualSwathPolicy'] = 1
+        #     dualSwathPolicyEdited = True
+        # elif self.radioButtonSecondPing.isChecked() and self.settings['processing_settings']['dualSwathPolicy'] != 2:
+        #     self.settings['processing_settings']['dualSwathPolicy'] = 2
+        #     dualSwathPolicyEdited = True
 
         # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
         # Buffer Settings:
-        # maxHeave_m
-        if self.settings['buffer_settings']['maxHeave_m'] != self.ui.doubleSpinBoxMaxHeave.value():
-            self.settings['buffer_settings']['maxHeave_m'] = round(self.ui.doubleSpinBoxMaxHeave.value(), 2)
-            heaveEdited = True
 
         # maxGridCells
         if self.settings['buffer_settings']['maxGridCells'] != self.ui.spinBoxMaxGridCells.value():
@@ -499,11 +506,17 @@ class AllSettingsDialog2(QtWidgets.QDialog):
             self.depthAvgEdited.emit()
         if alongTrackAvgEdited:
             self.alongTrackAvgEdited.emit()
-        if dualSwathPolicyEdited:
-            self.dualSwathPolicyEdited.emit()
+        # Remove dual swath settings:
+        # if dualSwathPolicyEdited:
+        #     self.dualSwathPolicyEdited.emit()
         if heaveEdited:
             self.heaveEdited.emit()
         if gridCellsEdited:
             self.gridCellsEdited.emit()
         if pingBufferEdited:
             self.pingBufferEdited.emit()
+
+        if binSizeEdited or acrossTrackAvgEdited or depthEdited or depthAvgEdited or alongTrackAvgEdited or heaveEdited:
+            self.processingSettingsEdited.emit()
+
+        print("end of emit signals")

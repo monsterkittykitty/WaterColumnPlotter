@@ -13,6 +13,7 @@ import sys
 class SubwindowPieSliceWidget(QWidget):
 
     signalbinSizeEdited = pyqtSignal(name="binSizeEdited")
+    signalProcessingSettingsEdited = pyqtSignal(name="processingSettingsEdited")
 
     def __init__(self, settings, parent=None):
         super(SubwindowPieSliceWidget, self).__init__(parent)
@@ -120,6 +121,7 @@ class SubwindowPieSliceWidget(QWidget):
             self.settings['processing_settings']['binSize_m'] = round(self.spinboxBinSize.value(), 2)
             print("pie slice settings: ", self.settings['processing_settings']['binSize_m'])
             self.binSizeEdited.emit()
+            self.processingSettingsEdited.emit()
 
 
 class GUI_PlotItem(pg.PlotItem):

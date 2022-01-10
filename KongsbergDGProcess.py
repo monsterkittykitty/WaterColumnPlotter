@@ -19,14 +19,26 @@ import queue
 logger = logging.getLogger(__name__)
 
 class KongsbergDGProcess(Process):
-    def __init__(self, bin_size=None, max_heave=None, queue_datagram=None, queue_pie_object=None, process_flag=None):
+    # TODO: Change these to non-optional variables...
+    def __init__(self, bin_size=None, max_heave=None, settings_edited=None,
+                 queue_datagram=None, queue_pie_object=None, process_flag=None):
         super(KongsbergDGProcess, self).__init__()
 
         print("New instance of KongsbergDGProcess.")
 
         # TODO: Create a function that ensure bin size is not larger than range resolution
         #  and will not exceed max 1000 x 1000 matrix
-        self.bin_size = bin_size  # Meters
+        # multiprocessing.Values (shared between processes)
+        self.bin_size = bin_size
+        self.max_heave = max_heave
+
+        self.settings_edited = settings_edited
+
+        # Local copies of above multiprocessing.Values (to avoid frequent accessing of locks)
+        self.bin_size_local = None
+        self.max_heave_local = None
+        # Initialize above local copies
+        self.update_local_settings()
 
         # Queue shared between DGCapture and DGProcess ('get' data from this queue)
         self.queue_datagram = queue_datagram
@@ -36,9 +48,9 @@ class KongsbergDGProcess(Process):
 
         # Boolean shared across processes (multiprocessing.Value)
         if process_flag:
-            self.process_boolean = process_flag
+            self.process_flag = process_flag
         else:
-            self.process_boolean = Value(ctypes.c_bool, True)
+            self.process_flag = Value(ctypes.c_bool, True)
 
         self.mrz = None
         self.mwc = None
@@ -47,19 +59,42 @@ class KongsbergDGProcess(Process):
         self.QUEUE_DATAGRAM_TIMEOUT = 60  # Seconds
         self.MAX_NUM_GRID_CELLS = 500
 
-        self.MAX_HEAVE = max_heave  # Meter(s)
-
         self.dg_counter = 0  # For testing
         self.mwc_counter = 0  # For testing
+
+    def update_local_settings(self):
+        print("^^^^^^^ Process UPDATE LOCAL SETTINGS")
+        with self.settings_edited.get_lock():  # Outer lock to ensure atomicity of updates:
+            with self.bin_size.get_lock():
+                self.bin_size_local = self.bin_size.value
+            with self.max_heave.get_lock():
+                self.max_heave_local = self.max_heave.value
 
     def get_and_process_dg(self):
         print("DGProcess: get_and_process")  # For debugging
         first_tx_time = None  # For testing
 
         count = 0  # For testing
+        # TODO:
+        # while self.process_flag.value:
         # while True:
-        while self.process_boolean.value:
-            # print("Process, self.get_and_process_dg: ", self.process_boolean.value)
+        # with self.process_flag.get_lock():  # But all processes will be fighting over this same lock. Create individual booleans for each procress?
+        #   if not self.process_flag.value:
+        #       break
+        while True:
+            # Check for signal to end loop / exit:
+            with self.process_flag.get_lock():
+                if not self.process_flag.value:
+                    break
+
+            # TODO: Testing
+            # Check for signal to update settings:
+            with self.settings_edited.get_lock():
+                if self.settings_edited.value:
+                    self.update_local_settings()
+                    self.settings_edited.value = False
+
+            # print("Process, self.get_and_process_dg: ", self.process_flag.value)
             try:
                 dg_bytes = self.queue_datagram.get(block=True, timeout=self.QUEUE_DATAGRAM_TIMEOUT)
 
@@ -210,17 +245,30 @@ class KongsbergDGProcess(Process):
 
             # Note: For x and y, we need "(self.MAX_NUM_GRID_CELLS / 2)" to 'normalize position'--otherwise, negative
             # indices insert values at the end of the array (think negative indexing into array).
-            # Note: For z, (self.MAX_HEAVE / self.bin_size) results in number of bins allowable above '0' (neutral sea
-            # surface). For example, for a negative (upward) heave that results in a bin index of -20, if self.MAX_HEAVE
+            # Note: For z, (self.max_heave / self.bin_size) results in number of bins allowable above '0' (neutral sea
+            # surface). For example, for a negative (upward) heave that results in a bin index of -20, if self.max_heave
             # is 1 and self.bin_size is 0.05, we will add 20 to the bin index. -20 (bin_index) + 20 (adjustment) = 0
             # (*new* bin_index).
             # Note: We will approximate a swath as a 2-dimensional y, z plane rotated about the z axis.
 
             # We only need x bin index for bottom strike points (the last value in the np array).
             # (Though, I'm not sure we need the x bin index at all, given that we have actual positions (kongs_x_np).)
-            bin_index_x_np = np.floor(kongs_x_np[-1] / self.bin_size) + int(self.MAX_NUM_GRID_CELLS / 2)
-            bin_index_y_np = np.floor(kongs_y_np / self.bin_size) + int(self.MAX_NUM_GRID_CELLS / 2)
-            bin_index_z_np = np.floor(kongs_z_np / self.bin_size) + int(self.MAX_HEAVE / self.bin_size)
+            # TODO: Testing settings update:
+            # with self.bin_size.get_lock() and self.max_heave.get_lock():
+            #     bin_index_x_np = np.floor(kongs_x_np[-1] / round(self.bin_size.value, 2)) + \
+            #                      int(self.MAX_NUM_GRID_CELLS / 2)
+            #     bin_index_y_np = np.floor(kongs_y_np / round(self.bin_size.value, 2)) + \
+            #                      int(self.MAX_NUM_GRID_CELLS / 2)
+            #     bin_index_z_np = np.floor(kongs_z_np / self.bin_size.value) + \
+            #                      int(round(self.max_heave.value, 2) / round(self.bin_size.value, 2))
+
+
+            bin_index_x_np = np.floor(kongs_x_np[-1] / round(self.bin_size_local, 2)) + \
+                             int(self.MAX_NUM_GRID_CELLS / 2)
+            bin_index_y_np = np.floor(kongs_y_np / round(self.bin_size_local, 2)) + \
+                             int(self.MAX_NUM_GRID_CELLS / 2)
+            bin_index_z_np = np.floor(kongs_z_np / self.bin_size_local) + \
+                             int(round(self.max_heave_local, 2) / round(self.bin_size_local, 2))
 
             # Mask indices that fall outside of accepted values: 0 to (MAX_NUM_GRID_CELLS - 1)
             # Mask will read False for values outside of range, True for values inside range
@@ -247,9 +295,17 @@ class KongsbergDGProcess(Process):
             #  Sometimes we get a warning like: "Heave (-0.2) exceeds maximum heave (1) by 1.2 meters.
             if len(bin_index_z_np[~mask_index_z.mask]) > np.count_nonzero(np.isnan(bin_index_z_np[~mask_index_z.mask])):
                 print("Masked z values: ", bin_index_z_np[~mask_index_z.mask])
-                logger.warning("Heave ({:.5f}) exceeds maximum heave ({}) by {:.5f} meters. "
-                               "{} data points beyond maximum heave will be lost. Consider increasing maximum heave."
-                               .format(heave, self.MAX_HEAVE, (heave + self.MAX_HEAVE),
+                # with self.max_heave.get_lock():
+                #     logger.warning("Heave ({:.5f}) exceeds maximum heave ({}) by {:.5f} meters. {} data points "
+                #                    "beyond maximum heave will be lost. Consider increasing maximum heave."
+                #                    .format(heave, round(self.max_heave.value, 2),
+                #                            (heave + round(self.max_heave.value, 2)),
+                #                            len(bin_index_z_np[~mask_index_z.mask])))
+
+                logger.warning("Heave ({:.5f}) exceeds maximum heave ({}) by {:.5f} meters. {} data points "
+                               "beyond maximum heave will be lost. Consider increasing maximum heave."
+                               .format(heave, round(self.max_heave_local, 2),
+                                       (heave + round(self.max_heave_local, 2)),
                                        len(bin_index_z_np[~mask_index_z.mask])))
 
             # Combine y, z masks:

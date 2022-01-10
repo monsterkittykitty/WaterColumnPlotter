@@ -63,7 +63,7 @@ class KongsbergDGCaptureFromSonar(Process):
 
         self.SOCKET_TIMEOUT = 10  # Seconds
         self.MAX_DATAGRAM_SIZE = 2 ** 16
-        self.sock_in = self.__init_socket()
+        self.sock_in = self._init_socket()
 
         # TODO: Make this a configurable setting. When it is very large and ping rates are slow,
         #  it can cause delays in sending datagrams.
@@ -86,7 +86,7 @@ class KongsbergDGCaptureFromSonar(Process):
         self.all_data_rxed = 0
         self.data_overwrite = 0
 
-    def __init_socket(self):
+    def _init_socket(self):
         if self.ip_protocol == "TCP":
             # temp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             logger.warning("Only UDP and Multicast connections supported at this time.")
@@ -135,7 +135,11 @@ class KongsbergDGCaptureFromSonar(Process):
         print("writing")
         file_io = open(self.out_file, 'wb')
 
-        while self.process_flag.value:
+        # while self.process_flag.value:
+        while True:
+            with self.process_flag.get_lock():
+                if not self.process_flag.value:
+                    break
             self.print_settings()
             try:
                 data, address = self.sock_in.recvfrom(self.MAX_DATAGRAM_SIZE)
@@ -174,7 +178,11 @@ class KongsbergDGCaptureFromSonar(Process):
         pack_two = 0
 
         # while True:
-        while self.process_flag.value:
+        # while self.process_flag.value:
+        while True:
+            with self.process_flag.get_lock():
+                if not self.process_flag.value:
+                    break
             try:
                 data, address = self.sock_in.recvfrom(self.MAX_DATAGRAM_SIZE)
 

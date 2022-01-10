@@ -16,6 +16,7 @@ class SubwindowHorizontalSliceWidget(QWidget):
 
     signalDepthEdited = pyqtSignal(name="depthEdited")
     signalDepthAvgEdited = pyqtSignal(name="depthAvgEdited")
+    signalProcessingSettingsEdited = pyqtSignal(name="processingSettingsEdited")
 
     def __init__(self, settings, parent=None):
         super(SubwindowHorizontalSliceWidget, self).__init__(parent)
@@ -142,6 +143,7 @@ class SubwindowHorizontalSliceWidget(QWidget):
     def editedAllFunction(self):
         self.depthEditedFunction()
         self.depthAvgEditedFunction()
+        self.processingSettingsEdited.emit()
 
     def depthEditedFunction(self):
         if self.settings['processing_settings']['depth_m'] != self.spinboxDepth.value():
@@ -173,6 +175,6 @@ class GUI_PlotItem(pg.PlotItem):
         # self.setYRange(self.settings['buffer_settings']['maxGridCells'], 0)
 
         self.enableAutoRange()
-        self.setXRange(-(self.settings['buffer_settings']['maxBufferSize'] /
+        self.setXRange(-(self.settings['buffer_settings']['maxBufferSize_ping'] /
                          self.settings['processing_settings']['alongTrackAvg_ping']), 0)
         self.autoBtn.hide()

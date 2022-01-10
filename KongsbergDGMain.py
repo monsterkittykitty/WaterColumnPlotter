@@ -6,9 +6,11 @@
 # Description:
 
 import argparse
+import ctypes
 from KongsbergDGCaptureFromSonar import KongsbergDGCaptureFromSonar
 from KongsbergDGProcess import KongsbergDGProcess
 import logging
+from multiprocessing import Value
 
 logger = logging.getLogger(__name__)
 
@@ -16,9 +18,17 @@ __appname__ = "KongsbergDGMain"
 
 
 class KongsbergDGMain:
-    def __init__(self, settings, queue_datagram, queue_pie_object, full_ping_count, discard_ping_count, process_flag):
+    def __init__(self, settings, bin_size, max_heave, queue_datagram, queue_pie_object,
+                 full_ping_count, discard_ping_count, process_flag):
 
         self.settings = settings
+
+        # multiprocessing.Values
+        self.bin_size = bin_size
+        self.max_heave = max_heave
+        # Flags to indicate to processes when settings have changed in main
+        self.capture_settings_edited = Value(ctypes.c_bool, False, lock=True)
+        self.process_settings_edited = Value(ctypes.c_bool, False, lock=True)
 
         # multiprocessing.Queues
         self.queue_datagram = queue_datagram
@@ -29,14 +39,64 @@ class KongsbergDGMain:
         self.discard_ping_count = discard_ping_count
 
         self.process_flag = process_flag
+        # Flags to indicate whether processes are started, paused, or stopped in main
+        self.capture_process_flag = Value(ctypes.c_bool, False, lock=True)
+        self.process_process_flag = Value(ctypes.c_bool, False, lock=True)
 
         self.dg_capture = None
         self.dg_process = None
+
+    def settings_changed(self):
+        print("in sonarmain settings_changed")
+        with self.capture_settings_edited.get_lock():
+            self.capture_settings_edited.value = True
+        with self.process_settings_edited.get_lock():
+            self.process_settings_edited.value = True
+
+    def start_processes(self):
+        self._start_capture()
+        self._start_process()
+
+    def _start_capture(self):
+        with self.capture_process_flag.get_lock():
+            self.capture_process_flag.value = True
+
+    def _start_process(self):
+        with self.process_process_flag.get_lock():
+            self.process_process_flag.value = True
+
+    def stop_processes(self):
+        self._stop_capture()
+        self._stop_process()
+
+    def _stop_capture(self):
+        with self.capture_process_flag.get_lock():
+            self.capture_process_flag.value = False
+
+    def _stop_process(self):
+        with self.process_process_flag.get_lock():
+            self.process_process_flag.value = False
 
     def run(self):
         # With daemon flag set to True, these should be terminated when main process completes:
         # https://stackoverflow.com/questions/25391025/what-exactly-is-python-multiprocessing-modules-join-method-doing
         # https://stonesoupprogramming.com/2017/09/11/python-multiprocessing-producer-consumer-pattern/comment-page-1/
+
+        # self.dg_capture = KongsbergDGCaptureFromSonar(rx_ip=self.settings['ip_settings']['ip'],
+        #                                               rx_port=self.settings['ip_settings']['port'],
+        #                                               ip_protocol=self.settings['ip_settings']['protocol'],
+        #                                               socket_buffer_multiplier=
+        #                                               self.settings['ip_settings']['socketBufferMultiplier'],
+        #                                               queue_datagram=self.queue_datagram,
+        #                                               full_ping_count=self.full_ping_count,
+        #                                               discard_ping_count=self.discard_ping_count,
+        #                                               process_flag=self.process_flag)
+
+        # self.dg_process = KongsbergDGProcess(bin_size=self.settings['processing_settings']['binSize_m'],
+        #                                      max_heave=self.settings['buffer_settings']['maxHeave_m'],
+        #                                      queue_datagram=self.queue_datagram,
+        #                                      queue_pie_object=self.queue_pie_object,
+        #                                      process_flag=self.process_flag)
 
         self.dg_capture = KongsbergDGCaptureFromSonar(rx_ip=self.settings['ip_settings']['ip'],
                                                       rx_port=self.settings['ip_settings']['port'],
@@ -46,13 +106,14 @@ class KongsbergDGMain:
                                                       queue_datagram=self.queue_datagram,
                                                       full_ping_count=self.full_ping_count,
                                                       discard_ping_count=self.discard_ping_count,
-                                                      process_flag=self.process_flag)
+                                                      process_flag=self.capture_process_flag)
 
-        self.dg_process = KongsbergDGProcess(bin_size=self.settings['processing_settings']['binSize_m'],
-                                             max_heave=self.settings['buffer_settings']['maxHeave_m'],
+        self.dg_process = KongsbergDGProcess(bin_size=self.bin_size,
+                                             max_heave=self.max_heave,
+                                             settings_edited=self.process_settings_edited,
                                              queue_datagram=self.queue_datagram,
                                              queue_pie_object=self.queue_pie_object,
-                                             process_flag=self.process_flag)
+                                             process_flag=self.process_process_flag)
 
 
         self.dg_capture.daemon = True
