@@ -63,7 +63,7 @@ class KongsbergDGProcess(Process):
         self.mwc_counter = 0  # For testing
 
     def update_local_settings(self):
-        print("^^^^^^^ Process UPDATE LOCAL SETTINGS")
+        # print("^^^^^^^ Process UPDATE LOCAL SETTINGS")
         with self.settings_edited.get_lock():  # Outer lock to ensure atomicity of updates:
             with self.bin_size.get_lock():
                 self.bin_size_local = self.bin_size.value
@@ -71,7 +71,7 @@ class KongsbergDGProcess(Process):
                 self.max_heave_local = self.max_heave.value
 
     def get_and_process_dg(self):
-        print("DGProcess: get_and_process")  # For debugging
+        # print("DGProcess: get_and_process")  # For debugging
         first_tx_time = None  # For testing
 
         count = 0  # For testing
@@ -347,10 +347,10 @@ class KongsbergDGProcess(Process):
 
             # This method of indexing based on:
             # https://stackoverflow.com/questions/47015578/numpy-assigning-values-to-2d-array-with-list-of-indices
-            print("y_z_indices.shape: ", y_z_indices.shape)
-            print("pie_chart_values.shape: ",  pie_chart_values.shape)
-            #print("pie_chart_count.shape: ", pie_chart_count.shape)
-            print("amplitude_np.shape: ", amplitude_np.shape)
+            # print("y_z_indices.shape: ", y_z_indices.shape)
+            # print("pie_chart_values.shape: ",  pie_chart_values.shape)
+            # print("pie_chart_count.shape: ", pie_chart_count.shape)
+            # print("amplitude_np.shape: ", amplitude_np.shape)
             pie_chart_values[tuple(y_z_indices)] += amplitude_np
             pie_chart_count[tuple(y_z_indices)] += 1
             # ###################### END NEW - OUTSIDE ###################### #
@@ -359,6 +359,8 @@ class KongsbergDGProcess(Process):
             # pie_object = KongsbergDGPie(pie_chart_values, pie_chart_count, dg['header']['dgTime'])
             pie_object = KongsbergDGPie(np.flip(pie_chart_values, axis=1),
                                         np.flip(pie_chart_count, axis=1), dg['header']['dgTime'])
+
+            # print("(((((((((((((((((((((((((((((((((((KONGSBERGDGPROCESS TIMESTAMP: ", dg['header']['dgTime'])
 
         return pie_object
 

@@ -132,7 +132,7 @@ class KongsbergDGCaptureFromSonar(Process):
         Receives data at specified socket; writes binary data to specified file.
         *** Note, this does NOT reconstruct partitioned datagrams. ***
         """
-        print("writing")
+        # print("Writing.")
         file_io = open(self.out_file, 'wb')
 
         # while self.process_flag.value:
@@ -223,7 +223,7 @@ class KongsbergDGCaptureFromSonar(Process):
                     partition = k.read_EMdgmMpartition(bytes_io, header['dgmType'], header['dgmVersion'])
 
                     if partition['numOfDgms'] == 1:  # Only one datagram; no need to reconstruct
-                        print("Num {} partitions is 1.".format(header['dgmType']))
+                        # print("Num {} partitions is 1.".format(header['dgmType']))
                         self.queue_datagram.put(data)
                         with self.full_ping_count.get_lock():
                             self.full_ping_count.value += 1
@@ -242,9 +242,9 @@ class KongsbergDGCaptureFromSonar(Process):
                             self.buffer['data'][index][partition['dgmNum'] - 1] = data
 
                             # For debugging:
-                            print("Inserting existing datagram {}, {} into index {}. Part {} of {}."
-                                  .format(header['dgmType'], header['dgTime'], index,
-                                          partition['dgmNum'], partition['numOfDgms']))
+                            # print("Inserting existing datagram {}, {} into index {}. Part {} of {}."
+                            #       .format(header['dgmType'], header['dgTime'], index,
+                            #               partition['dgmNum'], partition['numOfDgms']))
                             # print("datagrams rxed: ", self.buffer['dgmsRxed'][index])
                             # print("Existing: self.buffer['dgmsRxed'][index]:", self.buffer['dgmsRxed'][index])
                             # print("Existing: self.buffer['numOfDgms'][index]:", self.buffer['numOfDgms'][index])
@@ -341,7 +341,7 @@ class KongsbergDGCaptureFromSonar(Process):
                                         self.queue_datagram.put(empty_data_reconstruct)
                                         with self.discard_ping_count.get_lock():
                                             self.discard_ping_count.value += 1
-                                            print("discard value: ", self.discard_ping_count.value)
+                                            # print("discard value: ", self.discard_ping_count.value)
 
                                         logger.warning("Data block incomplete. Discarding {}, {}. (Ping {}, {} of {} datagrams.) "
                                                        "\nConsidering increasing size of buffer. (Current buffer size: {}.)"
@@ -353,7 +353,7 @@ class KongsbergDGCaptureFromSonar(Process):
                                                                self.MAX_NUM_PINGS_TO_BUFFER))
 
                                         self.data_overwrite += 1
-                                        print("All data rx to data overwrite: {}:{}".format(self.all_data_rxed, self.data_overwrite))
+                                        # print("All data rx to data overwrite: {}:{}".format(self.all_data_rxed, self.data_overwrite))
 
                                 # For testing:
                                 # print("Next index: {}. Timestamp index and timestamp: {}, {}. All timestamps: {}"
@@ -374,12 +374,12 @@ class KongsbergDGCaptureFromSonar(Process):
                             cmnPart = k.read_EMdgmMbody(bytes_io, header['dgmType'], header['dgmVersion'])
 
                             # For debugging:
-                            print("Inserting new datagram {}, {} into index {}. Part {} of {}."
-                                  .format(header['dgmType'], header['dgTime'], next_index,
-                                          partition['dgmNum'], partition['numOfDgms']))
-                            print("Current time: {}; dg_timestamp: {}; difference: {}".format(
-                                datetime.datetime.now(), datetime.datetime.utcfromtimestamp(header['dgTime']),
-                                (datetime.datetime.now() - datetime.datetime.utcfromtimestamp(header['dgTime'])).total_seconds()))
+                            # print("Inserting new datagram {}, {} into index {}. Part {} of {}."
+                            #       .format(header['dgmType'], header['dgTime'], next_index,
+                            #               partition['dgmNum'], partition['numOfDgms']))
+                            # print("Current time: {}; dg_timestamp: {}; difference: {}".format(
+                            #     datetime.datetime.now(), datetime.datetime.utcfromtimestamp(header['dgTime']),
+                            #     (datetime.datetime.now() - datetime.datetime.utcfromtimestamp(header['dgTime'])).total_seconds()))
 
                             self.buffer['dgmType'][next_index] = header['dgmType']
                             self.buffer['dgmVersion'][next_index] = header['dgmVersion']
@@ -417,15 +417,6 @@ class KongsbergDGCaptureFromSonar(Process):
                             # Otherwise, select position with oldest timestamp
                             else:
                                 next_index = timestamp_index
-
-
-
-            if dg_counter == 8709:  # For testing
-                last_tx_time = datetime.datetime.now()
-                print("DGCAPTURE, Received: ", dg_counter)
-                print("DGCAPTURE, Received MWCs: ", mwc_counter)
-                print("DGCAPTURE, First transmit: {}; Final transmit: {}; Total time: {}"
-                      .format(first_tx_time, last_tx_time, (last_tx_time - first_tx_time).total_seconds()))
 
         print("BOOLEAN STOPPED.", mwc_counter)
         self.flush_buffer()
@@ -588,9 +579,9 @@ class KongsbergDGCaptureFromSonar(Process):
                     self.full_ping_count.value += 1
 
                 # For debugging:
-                print("Advancing timestamp; complete datablock: {}, {}, {} bytes"
-                      .format(self.buffer['dgmType'][timestamp_index],
-                              self.buffer['dgTime'][timestamp_index], data_size))
+                # print("Advancing timestamp; complete datablock: {}, {}, {} bytes"
+                #       .format(self.buffer['dgmType'][timestamp_index],
+                #               self.buffer['dgTime'][timestamp_index], data_size))
 
                 # Clear entry
                 self.buffer['dgTime'][timestamp_index] = None
@@ -705,13 +696,10 @@ class KongsbergDGCaptureFromSonar(Process):
     def run(self):
         #print("Running KongsbergDGCapture process.")
         if self.queue_datagram:
-            # print(self.queue_datagram)
-            # print(type(self.queue_datagram))
             self.receive_dg_and_queue()
 
         else:
             self.receive_dg_and_write_raw()
-        #self.join()
 
 
 if __name__ == "__main__":

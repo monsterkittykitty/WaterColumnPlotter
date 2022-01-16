@@ -105,7 +105,7 @@ class SharedRingBufferRaw:
 
     def view(self, buffer):
         """this is always an O(1) operation"""
-        print("in view:")
+        # print("In view:")
         with self.counter.get_lock():
             return buffer[self.counter.value:][:self.SIZE_BUFFER]
 
@@ -126,12 +126,12 @@ class SharedRingBufferRaw:
         with self.counter.get_lock():
             temp_amp = self.view_recent_pings(self.amplitude_buffer, pings)
             temp_cnt = self.view_recent_pings(self.count_buffer, pings)
-            print("temp.shape before collapse: ", temp_amp.shape)
+            # print("temp.shape before collapse: ", temp_amp.shape)
 
             # "Collapse" arrays by adding every self.num_pings_to_average so that
             temp_amp = np.sum(temp_amp, axis=0)
             temp_cnt = np.sum(temp_cnt, axis=0)
-            print("temp.shape after collapse: ", temp_amp.shape)
+            # print("temp.shape after collapse: ", temp_amp.shape)
 
             # Ignore divide by zero warnings. Division by zero results in NaN, which is what we want.
             with np.errstate(divide='ignore', invalid='ignore'):
@@ -145,7 +145,7 @@ class SharedRingBufferRaw:
         note: only when this function is called, is an O(size) performance hit incurred,
         and this cost is amortized over the whole padding space
         """
-        print('compacting all')
+        # print('Compacting all.')
         self.full_flag.value = True
         with self.counter.get_lock():
             self.amplitude_buffer[:self.SIZE_BUFFER] = self.view(self.amplitude_buffer)

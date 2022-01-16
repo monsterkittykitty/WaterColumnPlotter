@@ -100,7 +100,7 @@ class Plotter(Process):
         self.collapse_times = []  # For testing
 
     def update_local_settings(self):
-        print("^^^^^^^ Plotter UPDATE LOCAL SETTINGS")
+        # print("^^^^^^^ Plotter UPDATE LOCAL SETTINGS")
         with self.settings_edited.get_lock():  # Outer lock to ensure atomicity of updates:
             with self.bin_size.get_lock():
                 self.bin_size_local = self.bin_size.value
@@ -318,17 +318,17 @@ class Plotter(Process):
             # Check for signal to update settings:
             with self.settings_edited.get_lock():
                 if self.settings_edited.value:
-                    print("In plotter. settings_edited is true")
+                    # print("In plotter. settings_edited is true")
                     self.update_local_settings()
                     self.set_vertical_indices()
                     self.set_horizontal_indices()
                     self.settings_edited.value = False
 
             try:
-                print("&&&&&& PLOTTER DEPTH: ", self.depth_local)
-                print("trying get item from queue_pie_object, size: ", self.queue_pie_object.qsize())
+                # print("&&&&&& PLOTTER DEPTH: ", self.depth_local)
+                # print("trying get item from queue_pie_object, size: ", self.queue_pie_object.qsize())
                 pie_object = self.queue_pie_object.get(block=True, timeout=self.QUEUE_RX_TIMEOUT)
-                print("got item from queue_pie_object")
+                # print("got item from queue_pie_object")
 
                 with self.raw_buffer_count.get_lock():
                     self.shared_ring_buffer_raw.append_all([pie_object.pie_chart_values],
@@ -374,7 +374,7 @@ class Plotter(Process):
     def collapse_and_buffer_pings(self, temp_pie_values, temp_pie_count, temp_timestamp, temp_lat_lon):
         # For testing:
         start = datetime.datetime.now()
-        print("collapse_and_buffer timestamp: ", start)
+        # print("collapse_and_buffer timestamp: ", start)
 
         if np.any(temp_pie_values) and np.any(temp_pie_count):
             #print("Collapse buffer")
@@ -437,12 +437,14 @@ class Plotter(Process):
 
         # TIMESTAMP:
         if np.any(temp_timestamp):
+            # print("$$$$$$$$$$$$$$$$$$$$TEMP TIMESTAMP: ", temp_timestamp)
             # "Collapse" arrays by adding every self.num_pings_to_average so that
             # len(_collapsed_array_) = len(_array_) / self.num_pings_to_average
             pie_timestamp = np.sum(temp_timestamp)
             # Ignore divide by zero warnings. Division by zero results in NaN, which is what we want.
             with np.errstate(divide='ignore', invalid='ignore'):
                 pie_timestamp_average = pie_timestamp / self.settings["processing_settings"]["alongTrackAvg_ping"]
+                # print("$$$$$$$$$$$$$$$$$$$$TEMP TIMESTAMP AVG: ", pie_timestamp_average)
         else:
             logger.warning("Water column timestamp matrix buffer is empty.")
             pie_timestamp_average = np.empty(1)
@@ -461,7 +463,7 @@ class Plotter(Process):
             pie_lat_lon_average = np.empty(2)
             pie_lat_lon_average[:] = np.nan
 
-        print("appending data to processed buffer")
+        # print("appending data to processed buffer")
         with self.processed_buffer_count.get_lock():
             self.shared_ring_buffer_processed.append_all([pie_values_vertical_average], [pie_values_horizontal_average],
                                               [pie_timestamp_average], [pie_lat_lon_average])

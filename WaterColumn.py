@@ -163,7 +163,7 @@ class WaterColumn:
         # This pulls most recent alongTrackAvg_ping from 'raw' buffer:
             pie = self.shared_ring_buffer_raw.view_recent_pings_as_pie(
                 self.settings['processing_settings']['alongTrackAvg_ping'])
-            print("pie.shape: ", pie.shape)
+            # print("pie.shape: ", pie.shape)
         # Check that temp arrays are not all NaNs (from 'discarded' pings)
         if not np.all(np.isnan(pie)):
             return self._trim_nans_pie(pie)

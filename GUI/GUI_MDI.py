@@ -14,23 +14,24 @@ from GUI.SubwindowSettingsDisplay import SubwindowSettingsDisplay
 
 class GUI_MDI(QMdiArea):
 
-    def __init__(self, settings, parent=None):
+    def __init__(self, settings, shared_ring_buffer_processed, parent=None):
         super(GUI_MDI, self).__init__(parent)
 
         self.settings = settings
+        self.shared_ring_buffer_processed = shared_ring_buffer_processed
 
         SUBWINDOW_WIDTH_LARGE = 800
-        SUBWINDOW_WIDTH_SMALL = 400
+        SUBWINDOW_WIDTH_SMALL = 500
         SUBWINDOW_HEIGHT_LARGE = 360
         SUBWINDOW_HEIGHT_SMALL = 360
 
         # Create 3 widgets for plots; 1 widget to display settings:
         # VERTICAL:
-        self.verticalWidget = SubwindowVerticalSliceWidget(self.settings, self)
+        self.verticalWidget = SubwindowVerticalSliceWidget(self.settings, self.shared_ring_buffer_processed, self)
         # PIE
-        self.pieWidget = SubwindowPieSliceWidget(self.settings, self)
+        self.pieWidget = SubwindowPieSliceWidget(self.settings, self.shared_ring_buffer_processed, self)
         # HORIZONTAL:
-        self.horizontalWidget = SubwindowHorizontalSliceWidget(self.settings, self)
+        self.horizontalWidget = SubwindowHorizontalSliceWidget(self.settings, self.shared_ring_buffer_processed, self)
         # SETTINGS:
         #self.subwindowSettingsDisplay = SubwindowSettingsDisplay(self.settings, self)
 

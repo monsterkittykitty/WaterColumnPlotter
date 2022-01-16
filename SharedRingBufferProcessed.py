@@ -103,7 +103,7 @@ class SharedRingBufferProcessed:
 
     def view(self, buffer):
         """this is always an O(1) operation"""
-        print("in view:")
+        # print("In view:")
         with self.counter.get_lock():
             return buffer[self.counter.value:][:self.SIZE_BUFFER]
 
@@ -125,7 +125,7 @@ class SharedRingBufferProcessed:
         note: only when this function is called, is an O(size) performance hit incurred,
         and this cost is amortized over the whole padding space
         """
-        print('compacting all')
+        # print('Compacting all.')
         self.full_flag.value = True
         with self.counter.get_lock():
             self.vertical_slice_buffer[:self.SIZE_BUFFER] = self.view(self.vertical_slice_buffer)

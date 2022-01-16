@@ -8,24 +8,19 @@
 import datetime
 import json
 import multiprocessing
-import numpy as np
 # import psutil
-from PyQt5.QtWidgets import QAction, QApplication, QFileDialog, QMainWindow, QMdiSubWindow, QStatusBar, QTextEdit
+from PyQt5.QtWidgets import QAction, QApplication, QFileDialog, QMainWindow
 from PyQt5.QtCore import QTimer
 import sys
 from WaterColumn import WaterColumn
 
 from GUI.Dialogs.PYFiles.AllSettingsDialog2 import AllSettingsDialog2
 from GUI_MDI import GUI_MDI
-from GUI_StatusBar import GUI_StatusBar
+from GUI.GUI_StatusBar import GUI_StatusBar
 # from GUI_StatusBar_Kongsberg import GUI_StatusBar_Kongsberg
 from GUI_Toolbar import GUI_Toolbar
 
 # TODO: Testing
-from PyQt5.QtGui import QPen
-from PyQt5.QtCore import Qt
-
-from KongsbergDGMain import KongsbergDGMain
 
 __appname__ = "Water Column Plotter"
 
@@ -63,7 +58,7 @@ class MainWindow(QMainWindow):
         self.PLOT_UPDATE_INTERVAL = 1000  # Milliseconds
 
         # Window setup:
-        self.resize(1200, 820)
+        self.resize(1300, 820)
         self.setWindowTitle("Water Column Plotter")
 
         self.waterColumn = WaterColumn(self.settings)
@@ -113,7 +108,8 @@ class MainWindow(QMainWindow):
     def updateStatusBar(self):
         # This implementation probably doesn't need to be system specific...
         # def updateStatusBarKongsberg(self):
-        print("updateStatusBar")
+        # print("updateStatusBar")
+        # TODO: I think I need locks here
         self.status.set_ping_counts(self.waterColumn.full_ping_count.value, self.waterColumn.discard_ping_count.value)
 
     def updatePlot(self):
@@ -122,7 +118,7 @@ class MainWindow(QMainWindow):
         # self.toolBar.labelRxToLostValues.setText(str(self.waterColumn.full_ping_count.value) + ":"
         #                                          + str(self.waterColumn.discard_ping_count.value))
 
-        print("updatePlot")
+        # print("updatePlot")
         # TODO: Check that this is working! Should I make an update plot function
         #  specifically for Kongsberg, so this doesn't need to be checked every time?
         # if isinstance(self.status, GUI_StatusBar_Kongsberg):
@@ -150,23 +146,25 @@ class MainWindow(QMainWindow):
 
 
         if self.waterColumn.get_raw_buffer_length() > 0:
-            print("raw buffer greater than zero")
+            # print("raw buffer greater than zero")
             temp_pie = self.waterColumn.get_pie()
             if temp_pie is not None:
-                if temp_pie.any():  # For debugging
-                    print("temp_pie.shape", temp_pie.shape)
+                # if temp_pie.any():  # For debugging
+                    # print("temp_pie.shape", temp_pie.shape)
                 #if temp_pie.any():
                 self.mdi.pieWidget.pie_plot.setImage(temp_pie.T, autoRange=False,
                                                      autoLevels=False, autoHistogramRange=False,
                                                      pos=(-(temp_pie.shape[1] / 2),
                                                           -(self.settings['processing_settings']['maxHeave_m'] /
                                                             self.settings['processing_settings']['binSize_m'])))
+
+                self.mdi.pieWidget.updateTimestampAndIntensity()
                 # # Plots vertical line
                 # y = [0, 50]
                 # x = [0, 0]
                 # self.mdi.verticalWidget.plot.plot(x, y)
 
-        print("proc buffer length: ", self.waterColumn.get_processed_buffer_length())
+        # print("proc buffer length: ", self.waterColumn.get_processed_buffer_length())
         if self.waterColumn.get_processed_buffer_length() > 0:
             self.plot_update_count += 1
 
@@ -182,8 +180,8 @@ class MainWindow(QMainWindow):
 
             temp_vertical = self.waterColumn.get_vertical_slice()
             if temp_vertical is not None:
-                if temp_vertical.any():  # For debugging
-                    print("temp_vertical.shape", temp_vertical.shape)
+                # if temp_vertical.any():  # For debugging
+                    # print("temp_vertical.shape", temp_vertical.shape)
                 # if temp_vertical.shape[0] > 0:
                 # print("plotting vertical")
                 self.mdi.verticalWidget.vertical_plot.setImage(temp_vertical, autoRange=False,
@@ -191,20 +189,21 @@ class MainWindow(QMainWindow):
                                                                pos=(-temp_vertical.shape[0],
                                                                     -(self.settings['processing_settings']['maxHeave_m'] /
                                                                     self.settings['processing_settings']['binSize_m'])))
-                print("updating vertical plot: maxHeave: {}, binSize: {}".format(self.settings['processing_settings']['maxHeave_m'], self.settings['processing_settings']['binSize_m']))
+                # print("updating vertical plot: maxHeave: {}, binSize: {}".format(self.settings['processing_settings']['maxHeave_m'], self.settings['processing_settings']['binSize_m']))
+                self.mdi.verticalWidget.updateTimestampAndIntensity()
 
             temp_horizontal = self.waterColumn.get_horizontal_slice()
             if temp_horizontal is not None:
-                if temp_horizontal.any():  # For debugging
-                    print("temp_horizontal.shape", temp_horizontal.shape)
+                # if temp_horizontal.any():  # For debugging
+                    # print("temp_horizontal.shape", temp_horizontal.shape)
                 # if temp_horizontal.shape[0] > 0:
                 # print("plotting horizontal")
                 self.mdi.horizontalWidget.horizontal_plot.setImage(temp_horizontal, autoRange=False,
                                                                    autoLevels=False, autoHistogramRange=False,
                                                                    pos=(-temp_horizontal.shape[0],
                                                                         -temp_horizontal.shape[1] / 2))
-            else:
-                print("temp_horizontal is none")
+            # else:
+                # print("temp_horizontal is none")
 
     # SYSTEM SETTINGS SLOTS:
     # TODO: Link to other processes
@@ -443,7 +442,7 @@ class MainWindow(QMainWindow):
     #     return statusBar
 
     def _initMDI(self):
-        mdi = GUI_MDI(self.settings, parent=self)
+        mdi = GUI_MDI(self.settings, self.waterColumn.shared_ring_buffer_processed, parent=self)
 
         # Signals / Slots
         mdi.verticalWidget.signalAcrossTrackAvgEdited.connect(self.acrossTrackAvgEdited)
