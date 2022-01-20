@@ -23,9 +23,11 @@ class SubwindowPieSliceWidget(QWidget):
         self.shared_ring_buffer_processed = shared_ring_buffer_processed
 
         # Mouse position
-        self.pos_x = None
-        self.pos_y = None
+        self.matrix_x = None
+        self.matrix_y = None
         self.intensity = None
+        self.plot_x = None
+        self.plot_y = None
 
         self.setWindowTitle("Pie Slice")
 
@@ -210,61 +212,64 @@ class SubwindowPieSliceWidget(QWidget):
             position = self.pie_plot.getImageItem().mapFromScene(pos)
 
             # These values provide indices into image matrix that corresponds with cursor position
-            self.pos_x = position.x()
-            self.pos_y = position.y()
-            print("pie mousemoved, posx: {}, posy: {}".format(self.pos_x, self.pos_y))
+            self.matrix_x = position.x()
+            self.matrix_y = position.y()
+            # print("pie mousemoved, posx: {}, posy: {}".format(self.matrix_x, self.matrix_y))
 
             # These values provide x and y position of plot that corresponds with cursor position
-            x = position.x() - (self.pie_plot.image.shape[0] / 2)
-            y = position.y() - (self.settings['processing_settings']['maxHeave_m'] /
-                                self.settings['processing_settings']['binSize_m'])
+            self.plot_x = self.matrix_x - (self.pie_plot.image.shape[0] / 2)
+            self.plot_y = self.matrix_y - (self.settings['processing_settings']['maxHeave_m'] /
+                                           self.settings['processing_settings']['binSize_m'])
 
-            print("pie mousemoved, corrected x: {}, corrected y: {}".format(x, y))
+            # print("pie mousemoved, corrected x: {}, corrected y: {}".format(self.plot_x, self.plot_y))
 
-            self.vLine.setPos(x)
-            self.hLine.setPos(y)
+            self.vLine.setPos(self.plot_x)
+            self.hLine.setPos(self.plot_y)
 
-            if 0 <= round(self.pos_x) < self.pie_plot.image.shape[0] and \
-                    0 <= round(self.pos_y) < self.pie_plot.image.shape[1]:
-                self.intensity = self.pie_plot.image[round(self.pos_x)][round(self.pos_y)]
+            if 0 <= round(self.matrix_x) < self.pie_plot.image.shape[0] and \
+                    0 <= round(self.matrix_y) < self.pie_plot.image.shape[1]:
+                self.intensity = self.pie_plot.image[round(self.matrix_x)][round(self.matrix_y)]
             else:
                 self.intensity = float('nan')
 
             if math.isnan(self.intensity):
-                x = y = float('nan')
-                self.pos_x = self.pos_y = float('nan')
+                self.matrix_x = self.matrix_y = float('nan')
+                self.plot_x = self.plot_y = float('nan')
 
-            self.setMousePositionLabels(x, y, self.intensity)
+            self.setMousePositionLabels(self.plot_x, self.plot_y, self.intensity)
 
         except AttributeError:  # Triggered when nothing is plotted
             pass
 
     def setMousePositionLabels(self, across_track, depth, intensity):
-        try:
-            timestamp_epoch_sec = self.shared_ring_buffer_processed.view_buffer_elements(
-                self.shared_ring_buffer_processed.timestamp_buffer_avg)[-1]
-            timestamp = datetime.datetime.utcfromtimestamp(timestamp_epoch_sec).time()
-        except TypeError:  # Triggered when self.shared_ring_buffer_processed not fully initialized?
-            timestamp = float('nan')
+        # timestamp = float('nan')
+        # try:
+        #     timestamp_epoch_sec = self.shared_ring_buffer_processed.view_buffer_elements(
+        #         self.shared_ring_buffer_processed.timestamp_buffer_avg)[-1]
+        #     timestamp = datetime.datetime.utcfromtimestamp(timestamp_epoch_sec).time()
+        # except TypeError:  # Triggered when self.shared_ring_buffer_processed not fully initialized?
+        #     pass
 
         if not math.isnan(intensity):
             across_track = round((across_track * self.settings['processing_settings']['binSize_m']), 2)
             depth = round((depth * self.settings['processing_settings']['binSize_m']), 2)
             self.intensity = round(intensity, 2)
 
-        self.labelMousePosTimeValue.setText(str(timestamp))
+        # self.labelMousePosTimeValue.setText(str(timestamp))
         self.labelMousePosAcrossTrackValue.setText(str(across_track))
         self.labelMousePosDepthValue.setText(str(depth))
         self.labelMousePosIntensityValue.setText(str(self.intensity))
 
     def getMousePosition(self):
-        return self.pos_x, self.pos_y
+        return self.matrix_x, self.matrix_y
 
     def updateTimestamp(self):
+        """
+        Called when plot is updated. Displays an updated value for timestamp.
+        """
         timestamp = float('nan')
         try:
             if self.intensity:  # Ensure that self.intensity is not None
-                # if not math.isnan(self.intensity):
                 timestamp_epoch_sec = self.shared_ring_buffer_processed.view_buffer_elements(
                     self.shared_ring_buffer_processed.timestamp_buffer_avg)[-1]
                 timestamp = datetime.datetime.utcfromtimestamp(timestamp_epoch_sec).time()
@@ -273,16 +278,26 @@ class SubwindowPieSliceWidget(QWidget):
         self.labelMousePosTimeValue.setText(str(timestamp))
 
     def updateIntensity(self):
-        x, y = self.getMousePosition()
-        if x and y:
-            if not math.isnan(x) and math.isnan(y):
+        """
+        Called when plot is updated. Displays an updated value for intensity at cursor hover position.
+        """
+        # NOTE: When cursor is not moving, last known plot coordinates
+        # (self.plot_x, self.plot_y) will remain valid. Use these!
+
+        if self.intensity:  # Ensure that self.intensity is not None
+            self.intensity = float('nan')
+            if not math.isnan(self.plot_x) and not math.isnan(self.plot_y):
+                x = self.plot_x + self.pie_plot.image.shape[0] / 2
+                y = self.plot_y + (self.settings['processing_settings']['maxHeave_m'] /
+                                   self.settings['processing_settings']['binSize_m'])
+
                 if 0 <= round(x) < self.pie_plot.image.shape[0] and \
                         0 <= round(y) < self.pie_plot.image.shape[1]:
                     self.intensity = self.pie_plot.image[round(x)][round(y)]
-                else:
-                    self.intensity = float('nan')
+                # else:
+                #     self.intensity = float('nan')
 
-        self.labelMousePosIntensityValue.setText(str(self.intensity))
+            self.labelMousePosIntensityValue.setText(str(self.intensity))
 
     def updateTimestampAndIntensity(self):
         self.updateTimestamp()
@@ -319,6 +334,6 @@ class GUI_PlotItem(pg.PlotItem):
         # self.setXRange(-(self.settings['buffer_settings']['maxGridCells'] / 2),
         #                (self.settings['buffer_settings']['maxGridCells'] / 2))
         self.setYRange(self.settings['buffer_settings']['maxGridCells'], 0)
-
         self.enableAutoRange()
+
         self.autoBtn.hide()

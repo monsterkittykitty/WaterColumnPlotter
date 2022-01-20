@@ -27,8 +27,11 @@ class SubwindowHorizontalSliceWidget(QWidget):
         self.shared_ring_buffer_processed = shared_ring_buffer_processed
 
         # Mouse position
-        self.pos_x = None
-        self.pos_y = None
+        self.matrix_x = None
+        self.matrix_y = None
+        self.intensity = None
+        self.plot_x = None
+        self.plot_y = None
 
         self.setWindowTitle("Horizontal Slice")
 
@@ -243,38 +246,42 @@ class SubwindowHorizontalSliceWidget(QWidget):
         try:
             position = self.horizontal_plot.getImageItem().mapFromScene(pos)
 
-            self.pos_x = position.x()
-            self.pos_y = position.y()
+            self.matrix_x = position.x()
+            self.matrix_y = position.y()
 
             # Correct for shifted position of image
-            x = position.x() - self.horizontal_plot.image.shape[0]
-            y = position.y() - (self.horizontal_plot.image.shape[1] / 2)
+            self.plot_x = self.matrix_x - self.horizontal_plot.image.shape[0]
+            self.plot_y = self.matrix_y - (self.horizontal_plot.image.shape[1] / 2)
 
-            self.vLine.setPos(x)
-            self.hLine.setPos(y)
+            self.vLine.setPos(self.plot_x)
+            self.hLine.setPos(self.plot_y)
 
-            if 0 <= round(position.x()) < self.horizontal_plot.image.shape[0] and \
-                    0 <= round(position.y()) < self.horizontal_plot.image.shape[1]:
-                intensity = self.horizontal_plot.image[round(position.x())][round(position.y())]
+            if 0 <= round(self.matrix_x) < self.horizontal_plot.image.shape[0] and \
+                    0 <= round(self.matrix_y) < self.horizontal_plot.image.shape[1]:
+                self.intensity = self.horizontal_plot.image[round(self.matrix_x)][round(self.matrix_y)]
             else:
-                intensity = float('nan')
+                self.intensity = float('nan')
 
-            if math.isnan(intensity):
-                x = y = float('nan')
+            if math.isnan(self.intensity):
+                self.matrix_x = self.matrix_y = float('nan')
+                self.plot_x = self.plot_y = float('nan')
 
-            self.setMousePositionLabels(x, y, intensity)
+            self.setMousePositionLabels(self.plot_x, self.plot_y, self.intensity)
 
         except AttributeError:  # Triggered when nothing is plotted
             pass
 
     def setMousePositionLabels(self, ping, across_track, intensity):
         timestamp = float('nan')
+        try:
+            if not math.isnan(self.matrix_x):
+                timestamp_epoch_sec = self.shared_ring_buffer_processed.view_buffer_elements(
+                    self.shared_ring_buffer_processed.timestamp_buffer_avg)[round(self.matrix_x)]
+                timestamp = datetime.datetime.utcfromtimestamp(timestamp_epoch_sec).time()
+        except TypeError:  # Triggered when self.shared_ring_buffer_processed not fully initialized?
+            pass
 
         if not math.isnan(intensity):
-            timestamp_epoch_sec = self.shared_ring_buffer_processed.view_buffer_elements(
-                self.shared_ring_buffer_processed.timestamp_buffer_avg)[round(self.pos_x)]
-
-            timestamp = datetime.datetime.utcfromtimestamp(timestamp_epoch_sec).time()
             ping = round(ping * self.settings['processing_settings']['alongTrackAvg_ping'])
             across_track = round((across_track * self.settings['processing_settings']['binSize_m']), 2)
             intensity = round(intensity, 2)
@@ -285,7 +292,49 @@ class SubwindowHorizontalSliceWidget(QWidget):
         self.labelMousePosIntensityValue.setText(str(intensity))
 
     def getMousePosition(self):
-        return self.pos_x, self.pos_y
+        return self.matrix_x, self.matrix_y
+
+    def updateTimestamp(self):
+        # NOTE: When cursor is not moving, last known plot coordinates
+        # (self.plot_x, self.plot_y) will remain valid. Use these!
+        timestamp = float('nan')
+        try:
+            if self.intensity:  # Ensure that self.intensity is not None
+                if not math.isnan(self.plot_x):
+                    # TODO: It might be more correct to us self.shared_ring_buffer_processed... here
+                    #  instead of self.horizontal_plot...
+
+                    # Ensure indices fall within matrix bounds
+                    if 0 <= abs(round(self.plot_x)) < self.horizontal_plot.image.shape[0]:
+                        timestamp_epoch_sec = self.shared_ring_buffer_processed.view_buffer_elements(
+                            self.shared_ring_buffer_processed.timestamp_buffer_avg)[round(self.plot_x)]
+                        timestamp = datetime.datetime.utcfromtimestamp(timestamp_epoch_sec).time()
+        except TypeError:  # Triggered when self.shared_ring_buffer_processed not fully initialized?
+            pass
+        self.labelMousePosTimeValue.setText(str(timestamp))
+
+    def updateIntensity(self):
+        # NOTE: When cursor is not moving, last known plot coordinates
+        # (self.plot_x, self.plot_y) will remain valid. Use these!
+        if self.intensity:  # Ensure that self.intensity is not None
+            self.intensity = float('nan')
+            if not math.isnan(self.plot_x) and not math.isnan(self.plot_y):
+                # Because right-most edge of image is always positioned at x = 0,
+                # we can simply use self.plot_x as our x coordinate.
+                y = self.plot_y + (self.horizontal_plot.image.shape[1] / 2)
+
+                # Ensure indices fall within matrix bounds
+                if 0 <= abs(round(self.plot_x)) < self.horizontal_plot.image.shape[0] and \
+                        0 <= round(y) < self.horizontal_plot.image.shape[1]:
+                    self.intensity = self.horizontal_plot.image[round(self.plot_x)][round(y)]
+                # else:
+                #     self.intensity = float('nan')
+
+        self.labelMousePosIntensityValue.setText(str(self.intensity))
+
+    def updateTimestampAndIntensity(self):
+        self.updateTimestamp()
+        self.updateIntensity()
 
     def setDepth(self, depth):
         self.spinboxDepth.setValue(depth)

@@ -8,6 +8,7 @@ import numpy as np
 from PyQt5.QtWidgets import QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QStyle, \
     QVBoxLayout, QWidget
 from PyQt5.QtCore import pyqtSignal, Qt
+from PyQt5.QtGui import QPen
 import pyqtgraph as pg
 # from qtrangeslider import QRangeSlider
 import sys
@@ -24,9 +25,13 @@ class SubwindowVerticalSliceWidget(QWidget):
         self.shared_ring_buffer_processed = shared_ring_buffer_processed
 
         # Mouse position
-        self.pos_x = None
-        self.pos_y = None
+        self.matrix_x = None
+        self.matrix_y = None
         self.intensity = None
+        self.plot_x = None
+        self.plot_y = None
+
+        self.mouseClickedFlag = False
 
         self.setWindowTitle("Vertical Slice")
 
@@ -41,7 +46,7 @@ class SubwindowVerticalSliceWidget(QWidget):
         self.plot.setLabel(axis='left', text='Depth')
         self.plot.setLabel(axis='bottom', text='Pings')
 
-        # Crosshair
+        # Crosshair - behind image
         self.vLine = pg.InfiniteLine(angle=90, movable=False)
         self.hLine = pg.InfiniteLine(angle=0, movable=False)
         self.plot.addItem(self.vLine, ignoreBounds=True)
@@ -50,12 +55,21 @@ class SubwindowVerticalSliceWidget(QWidget):
         # ImageView
         self.vertical_plot = pg.ImageView(self, view=self.plot)
 
+        # Crosshair - in front of image
+        # self.vLine = pg.InfiniteLine(angle=90, movable=False)
+        # self.hLine = pg.InfiniteLine(angle=0, movable=False)
+        # self.vertical_plot.getView().addItem(self.vLine)
+        # self.vertical_plot.getView().addItem(self.hLine)
+
         self.vertical_plot.ui.histogram.setLevels(min=-95, max=35)
         # Based on https://stackoverflow.com/questions/38021869/getting-imageitem-values-from-pyqtgraph
         self.vertical_plot.scene.sigMouseMoved.connect(self.mouseMoved)
+        # self.vertical_plot.scene.sigMouseClicked.connect(self.mouseClicked)
 
         # # TODO: TEST
         # https://stackoverflow.com/questions/63619065/pyqtgraph-use-arbitrary-values-for-axis-with-imageitem
+        # self.vertical_plot.getImageItem().setRect()
+
         # self.xval = np.linspace(0, self.settings['processing_settings']['alongTrackAvg_ping'],
         #                           self.settings['buffer_settings']['maxBufferSize'])
         # self.yval = np.linspace(0, self.settings['processing_settings']['binSize_m'],
@@ -218,43 +232,90 @@ class SubwindowVerticalSliceWidget(QWidget):
         #
         # self.setLayout(layout)
 
+    def setCoordinates(self):
+        # https://stackoverflow.com/questions/63619065/pyqtgraph-use-arbitrary-values-for-axis-with-imageitem
+        image_x = self.vertical_plot.image.shape[0]
+        image_y = self.vertical_plot.image.shape[1]
+
+        num_bins_heave = self.settings['processing_settings']['maxHeave_m'] / \
+                         self.settings['processing_settings']['binSize_m']
+
+        num_bins_depth = image_y - num_bins_heave
+
+        meters_at_max_depth = num_bins_depth * self.settings['processing_settings']['binSize_m']
+
+        print("meters_at_max_depth:", meters_at_max_depth)
+
+        # We want our scale to go from -heave through max depth
+        y_val = np.linspace(-self.settings['processing_settings']['maxHeave_m'], 5, int(meters_at_max_depth))
+
+        x_pos = 0
+        # y_pos = (self.settings['processing_settings']['maxHeave_m'] /
+        #           self.settings['processing_settings']['binSize_m'])
+        y_pos = 0
+        # I don't want to change x_scale
+        x_scale = self.settings['buffer_settings']['maxBufferSize_ping'] / \
+                  self.settings['processing_settings']['alongTrackAvg_ping']
+        y_scale = self.vertical_plot.image.shape[1] * self.settings['processing_settings']['binSize_m']
+
+        print("x_scale, y_scale: ", x_scale, y_scale)
+
+        self.vertical_plot.getImageItem().setRect(x_pos, y_pos, x_scale, y_scale)
+
+        # self.xval = np.linspace(0, self.settings['processing_settings']['alongTrackAvg_ping'],
+        #                           self.settings['buffer_settings']['maxBufferSize'])
+        # self.yval = np.linspace(0, self.settings['processing_settings']['binSize_m'],
+        #                         self.settings['buffer_settings']['maxGridCells'])
+        #
+        # # image_width = abs(self.xval_h[0]-self.xval_h[0])
+        # # image_height = abs(self.xval_h[0]-self.xval_h[0])  # if x and y-scales are the same
+        # image_
+        # pixel_size = image_width/(self.xval_h.size-1)
+        # self.image_h.setRect(QRectF(self.xval_h[0]-pixel_size/2, self.xval_h[0]-pixel_size/2, image_width, image_height))
+
     def mouseMoved(self, pos):
         try:
             position = self.vertical_plot.getImageItem().mapFromScene(pos)
 
             # These values provide indices into image matrix that corresponds with cursor position
-            self.pos_x = position.x()
-            self.pos_y = position.y()
+            self.matrix_x = position.x()
+            self.matrix_y = position.y()
 
             # These values provide x and y position of plot that corresponds with cursor position
-            x = position.x() - self.vertical_plot.image.shape[0]
-            y = position.y() - (self.settings['processing_settings']['maxHeave_m'] /
+            self.plot_x = self.matrix_x - self.vertical_plot.image.shape[0]
+            self.plot_y = self.matrix_y - (self.settings['processing_settings']['maxHeave_m'] /
                                 self.settings['processing_settings']['binSize_m'])
+            # x, y = self.calcCursorPositionInPlot(self.matrix_x, self.matrix_y)
 
-            self.vLine.setPos(x)
-            self.hLine.setPos(y)
+            self.vLine.setPos(self.plot_x)
+            self.hLine.setPos(self.plot_y)
 
-            if 0 <= round(self.pos_x) < self.vertical_plot.image.shape[0] and \
-                    0 <= round(self.pos_y) < self.vertical_plot.image.shape[1]:
-                self.intensity = self.vertical_plot.image[round(self.pos_x)][round(self.pos_y)]
+            if 0 <= round(self.matrix_x) < self.vertical_plot.image.shape[0] and \
+                    0 <= round(self.matrix_y) < self.vertical_plot.image.shape[1]:
+                self.intensity = self.vertical_plot.image[round(self.matrix_x)][round(self.matrix_y)]
             else:
                 self.intensity = float('nan')
 
             if math.isnan(self.intensity):
-                x = y = float('nan')
-                self.pos_x = self.pos_y = float('nan')
+                self.matrix_x = self.matrix_y = float('nan')
+                self.plot_x = self.plot_y = float('nan')
 
-            self.setMousePositionLabels(x, y, self.intensity)
+            self.setMousePositionLabels(self.plot_x, self.plot_y, self.intensity)
 
         except AttributeError:  # Triggered when nothing is plotted
             pass
 
+    # def cursorPositionInPlotCoordinates(self, x, y):
+    #     plot_x = x - self.vertical_plot.image.shape[0]
+    #     plot_y = y - (self.settings['processing_settings']['maxHeave_m'] /
+    #                             self.settings['processing_settings']['binSize_m'])
+
     def setMousePositionLabels(self, ping, depth, intensity):
         timestamp = float('nan')
         try:
-            if not math.isnan(self.pos_x):
+            if not math.isnan(self.matrix_x):
                 timestamp_epoch_sec = self.shared_ring_buffer_processed.view_buffer_elements(
-                    self.shared_ring_buffer_processed.timestamp_buffer_avg)[round(self.pos_x)]
+                    self.shared_ring_buffer_processed.timestamp_buffer_avg)[round(self.matrix_x)]
                 timestamp = datetime.datetime.utcfromtimestamp(timestamp_epoch_sec).time()
         except TypeError:  # Triggered when self.shared_ring_buffer_processed not fully initialized?
             pass
@@ -270,35 +331,59 @@ class SubwindowVerticalSliceWidget(QWidget):
         self.labelMousePosIntensityValue.setText(str(self.intensity))
 
     def getMousePosition(self):
-        return self.pos_x, self.pos_y
+        return self.matrix_x, self.matrix_y
 
     def updateTimestamp(self):
+        # NOTE: When cursor is not moving, last known plot coordinates
+        # (self.plot_x, self.plot_y) will remain valid. Use these!
         timestamp = float('nan')
         try:
             if self.intensity:  # Ensure that self.intensity is not None
-                if not math.isnan(self.pos_x):
-                    timestamp_epoch_sec = self.shared_ring_buffer_processed.view_buffer_elements(
-                        self.shared_ring_buffer_processed.timestamp_buffer_avg)[round(self.pos_x)]
-                    timestamp = datetime.datetime.utcfromtimestamp(timestamp_epoch_sec).time()
+                if not math.isnan(self.plot_x):
+                    # TODO: It might be more correct to us self.shared_ring_buffer_processed... here
+                    #  instead of self.vertical_plot...
+
+                    # Ensure indices fall within matrix bounds
+                    if 0 <= abs(round(self.plot_x)) < self.vertical_plot.image.shape[0]:
+                        timestamp_epoch_sec = self.shared_ring_buffer_processed.view_buffer_elements(
+                            self.shared_ring_buffer_processed.timestamp_buffer_avg)[round(self.plot_x)]
+                        timestamp = datetime.datetime.utcfromtimestamp(timestamp_epoch_sec).time()
         except TypeError:  # Triggered when self.shared_ring_buffer_processed not fully initialized?
             pass
         self.labelMousePosTimeValue.setText(str(timestamp))
 
     def updateIntensity(self):
-        x, y = self.getMousePosition()
-        if x and y:
-            if not math.isnan(x) and math.isnan(y):
-                if 0 <= round(x) < self.pie_plot.image.shape[0] and \
-                        0 <= round(y) < self.pie_plot.image.shape[1]:
-                    self.intensity = self.pie_plot.image[round(x)][round(y)]
-                else:
-                    self.intensity = float('nan')
+        # NOTE: When cursor is not moving, last known plot coordinates
+        # (self.plot_x, self.plot_y) will remain valid. Use these!
+        if self.intensity:  # Ensure that self.intensity is not None
+            self.intensity = float('nan')
+            if not math.isnan(self.plot_x) and not math.isnan(self.plot_y):
+                # Because right-most edge of image is always positioned at x = 0,
+                # we can simply use self.plot_x as our x coordinate.
+                y = self.plot_y + (self.settings['processing_settings']['maxHeave_m'] /
+                                   self.settings['processing_settings']['binSize_m'])
+
+                # Ensure indices fall within matrix bounds
+                if 0 <= abs(round(self.plot_x)) < self.vertical_plot.image.shape[0] and \
+                        0 <= round(y) < self.vertical_plot.image.shape[1]:
+                    self.intensity = self.vertical_plot.image[round(self.plot_x)][round(y)]
+                # else:
+                #     self.intensity = float('nan')
 
         self.labelMousePosIntensityValue.setText(str(self.intensity))
 
     def updateTimestampAndIntensity(self):
         self.updateTimestamp()
-        self.updateTimestamp()
+        self.updateIntensity()
+
+    # def mouseClicked(self):
+    #     self.mouseClickedFlag = not self.mouseClickedFlag
+    #
+    #     if self.mouseClickedFlag:
+    #         # circle overlay
+    #         pen = QPen(Qt.darkYellow, 0.05)
+    #         r = CircleOverlay(pos=(self.plot_x, self.plot_y), size=3, pen=pen, movable=False)
+    #         self.vertical_plot.getView().addItem(r)
 
     def setAcrossTrackAvg(self, acrossTrackAvg):
         self.spinboxAcrossTrackAvg.setValue(acrossTrackAvg)
@@ -336,3 +421,9 @@ class GUI_PlotItem(pg.PlotItem):
         self.setXRange(-(self.settings['buffer_settings']['maxBufferSize_ping'] /
                          self.settings['processing_settings']['alongTrackAvg_ping']), 0)
         self.autoBtn.hide()
+
+
+class CircleOverlay(pg.EllipseROI):
+    def __init__(self, pos, size, **args):
+        pg.ROI.__init__(self, pos, size, **args)
+        self.aspectLocked = True

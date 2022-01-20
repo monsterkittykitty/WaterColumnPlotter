@@ -147,6 +147,7 @@ class MainWindow(QMainWindow):
 
         if self.waterColumn.get_raw_buffer_length() > 0:
             # print("raw buffer greater than zero")
+            # temp_pie, x_zero = self.waterColumn.get_pie()
             temp_pie = self.waterColumn.get_pie()
             if temp_pie is not None:
                 # if temp_pie.any():  # For debugging
@@ -154,9 +155,12 @@ class MainWindow(QMainWindow):
                 #if temp_pie.any():
                 self.mdi.pieWidget.pie_plot.setImage(temp_pie.T, autoRange=False,
                                                      autoLevels=False, autoHistogramRange=False,
-                                                     pos=(-(temp_pie.shape[1] / 2),
+                                                     pos=(-(int(temp_pie.shape[1] / 2)),
                                                           -(self.settings['processing_settings']['maxHeave_m'] /
                                                             self.settings['processing_settings']['binSize_m'])))
+                # pos = (-x_zero,
+                #        -(self.settings['processing_settings']['maxHeave_m'] /
+                #          self.settings['processing_settings']['binSize_m']))
 
                 self.mdi.pieWidget.updateTimestampAndIntensity()
                 # # Plots vertical line
@@ -184,12 +188,17 @@ class MainWindow(QMainWindow):
                     # print("temp_vertical.shape", temp_vertical.shape)
                 # if temp_vertical.shape[0] > 0:
                 # print("plotting vertical")
+                # self.mdi.verticalWidget.vertical_plot.setImage(temp_vertical, autoRange=False,
+                #                                                autoLevels=False, autoHistogramRange=False,
+                #                                                pos=(-temp_vertical.shape[0],
+                #                                                     -(self.settings['processing_settings']['maxHeave_m'] /
+                #                                                     self.settings['processing_settings']['binSize_m'])))
                 self.mdi.verticalWidget.vertical_plot.setImage(temp_vertical, autoRange=False,
                                                                autoLevels=False, autoHistogramRange=False,
                                                                pos=(-temp_vertical.shape[0],
-                                                                    -(self.settings['processing_settings']['maxHeave_m'] /
-                                                                    self.settings['processing_settings']['binSize_m'])))
+                                                                     -self.settings['processing_settings']['maxHeave_m']))
                 # print("updating vertical plot: maxHeave: {}, binSize: {}".format(self.settings['processing_settings']['maxHeave_m'], self.settings['processing_settings']['binSize_m']))
+                self.mdi.verticalWidget.setCoordinates()
                 self.mdi.verticalWidget.updateTimestampAndIntensity()
 
             temp_horizontal = self.waterColumn.get_horizontal_slice()
@@ -201,7 +210,8 @@ class MainWindow(QMainWindow):
                 self.mdi.horizontalWidget.horizontal_plot.setImage(temp_horizontal, autoRange=False,
                                                                    autoLevels=False, autoHistogramRange=False,
                                                                    pos=(-temp_horizontal.shape[0],
-                                                                        -temp_horizontal.shape[1] / 2))
+                                                                        -int(temp_horizontal.shape[1] / 2)))
+                self.mdi.horizontalWidget.updateTimestampAndIntensity()
             # else:
                 # print("temp_horizontal is none")
 

@@ -193,17 +193,28 @@ class WaterColumn:
         # Trim NaNs from matrices to be plotted:
         # This method will look for the index of the last row that is not completely filled with NaNs.
         # Add one to that index for the first full row of NaNs after all data.
-        index = np.argwhere(~np.isnan(slice).all(axis=1))[-1][0] + 1
+
+        index_depth = np.argwhere(~np.isnan(slice).all(axis=1))[-1][0] + 1
         index_port = np.argwhere(~np.isnan(slice).all(axis=0))[0][0] - 1
         index_stbd = np.argwhere(~np.isnan(slice).all(axis=0))[-1][0] + 1
 
         # Ensure that 'index' plus some small buffer does not exceed grid size.
         # (Because we want to allow some small buffer around bottom of data if possible.)
-        index = min((index + 10), self.MAX_NUM_GRID_CELLS)
+        index_depth = min((index_depth + 10), self.MAX_NUM_GRID_CELLS)
         index_port = max((index_port - 10), 0)
         index_stbd = min((index_stbd + 10), self.MAX_NUM_GRID_CELLS)
 
-        return slice[:index, index_port:index_stbd]
+        # print("index port: {}, index stbd: {}".format(index_port, index_stbd))
+
+        # Simplify trimming to trim the same amount from both port and stbd sides
+        index_across_track = min(index_port, (self.MAX_NUM_GRID_CELLS - index_stbd))
+
+        # This value keeps track of the 'zero' position along the x-axis. This, in theory,
+        # should be the position of the sonar and should always be placed at x = 0.
+        # x_zero = int(slice.shape[0] / 2) - index_port
+
+        # return slice[:index_depth, index_port:index_stbd], x_zero
+        return slice[:index_depth, index_across_track:-index_across_track]
 
     def _trim_nans_vertical(self, slice):
         # Trim NaNs from matrices to be plotted:
@@ -229,7 +240,11 @@ class WaterColumn:
         index_port = max((index_port - 10), 0)
         index_stbd = min((index_stbd + 10), self.MAX_NUM_GRID_CELLS)
 
-        return slice[:, index_port:index_stbd]
+        # Simplify trimming to trim the same amount from both port and stbd sides
+        index_across_track = min(index_port, (self.MAX_NUM_GRID_CELLS - index_stbd))
+
+        # return slice[:, index_port:index_stbd]
+        return slice[:, index_across_track:-index_across_track]
 
     def closeSharedMemory(self):
         self.shared_ring_buffer_raw.close_shmem()
