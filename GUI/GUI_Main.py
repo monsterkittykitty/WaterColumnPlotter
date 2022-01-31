@@ -89,11 +89,11 @@ class MainWindow(QMainWindow):
         # For testing:
         self.plot_update_count = 0
 
-    def startProcesses(self):
+    def playProcesses(self):
         """
         This method called when toolbar's play button is pressed. Activates processes in WaterColumn class.
         """
-        self.waterColumn.startProcesses()
+        self.waterColumn.playProcesses()
         self.update_timer.start(self.PLOT_UPDATE_INTERVAL)
         #self.update_timer.start(self.PLOT_UPDATE_INTERVAL)
 
@@ -102,8 +102,11 @@ class MainWindow(QMainWindow):
         This method called when toolbar's stop button is pressed. Deactivates processes in WaterColumn class.
         """
         self.waterColumn.pauseProcesses()
+        # self.update_timer.stop()
+
+    def stopProcesses(self):
+        self.waterColumn.stopProcesses()
         self.update_timer.stop()
-        #self.update_timer.stop()
 
     def updateStatusBar(self):
         # This implementation probably doesn't need to be system specific...
@@ -184,27 +187,27 @@ class MainWindow(QMainWindow):
 
             temp_vertical = self.waterColumn.get_vertical_slice()
             if temp_vertical is not None:
-                # if temp_vertical.any():  # For debugging
-                    # print("temp_vertical.shape", temp_vertical.shape)
+                if temp_vertical.any():  # For debugging
+                    print("temp_vertical.shape", temp_vertical.shape)
                 # if temp_vertical.shape[0] > 0:
                 # print("plotting vertical")
-                # self.mdi.verticalWidget.vertical_plot.setImage(temp_vertical, autoRange=False,
-                #                                                autoLevels=False, autoHistogramRange=False,
-                #                                                pos=(-temp_vertical.shape[0],
-                #                                                     -(self.settings['processing_settings']['maxHeave_m'] /
-                #                                                     self.settings['processing_settings']['binSize_m'])))
                 self.mdi.verticalWidget.vertical_plot.setImage(temp_vertical, autoRange=False,
                                                                autoLevels=False, autoHistogramRange=False,
                                                                pos=(-temp_vertical.shape[0],
-                                                                     -self.settings['processing_settings']['maxHeave_m']))
+                                                                    -(self.settings['processing_settings']['maxHeave_m'] /
+                                                                    self.settings['processing_settings']['binSize_m'])))
+                # self.mdi.verticalWidget.vertical_plot.setImage(temp_vertical, autoRange=False,
+                #                                                autoLevels=False, autoHistogramRange=False,
+                #                                                pos=(-temp_vertical.shape[0],
+                #                                                      -self.settings['processing_settings']['maxHeave_m']))
                 # print("updating vertical plot: maxHeave: {}, binSize: {}".format(self.settings['processing_settings']['maxHeave_m'], self.settings['processing_settings']['binSize_m']))
-                self.mdi.verticalWidget.setCoordinates()
+                # self.mdi.verticalWidget.setCoordinates()
                 self.mdi.verticalWidget.updateTimestampAndIntensity()
 
             temp_horizontal = self.waterColumn.get_horizontal_slice()
             if temp_horizontal is not None:
-                # if temp_horizontal.any():  # For debugging
-                    # print("temp_horizontal.shape", temp_horizontal.shape)
+                if temp_horizontal.any():  # For debugging
+                    print("temp_horizontal.shape", temp_horizontal.shape)
                 # if temp_horizontal.shape[0] > 0:
                 # print("plotting horizontal")
                 self.mdi.horizontalWidget.horizontal_plot.setImage(temp_horizontal, autoRange=False,
@@ -253,6 +256,10 @@ class MainWindow(QMainWindow):
         with self.waterColumn.bin_size.get_lock():
             self.waterColumn.bin_size.value = self.settings['processing_settings']['binSize_m']
 
+        # TODO: This may be more effective elsewhere...
+        # self.waterColumn.shared_ring_buffer_raw.clear()
+        # self.waterColumn.shared_ring_buffer_processed.clear()
+
     def acrossTrackAvgEdited(self, fromSettingsDialog=False):
         print("acrossTrackAvgEdited")
         #self.mdi.subwindowSettingsDisplay.setAcrossTrackAvg(self.settings)
@@ -268,6 +275,13 @@ class MainWindow(QMainWindow):
         # Only need to update MDI windows if setting was updated in settings dialog:
         if fromSettingsDialog:
             self.mdi.horizontalWidget.setDepth(self.settings['processing_settings']['depth_m'])
+        # Move location of depth indicator in vertical slice and pie slice windows:
+        self.mdi.setDepthIndicator(self.settings['processing_settings']['depth_m'] /
+                                   self.settings['processing_settings']['binSize_m'])
+        # self.mdi.verticalWidget.setDepthIndicator(self.settings['processing_settings']['depth_m'] /
+        #                                           self.settings['processing_settings']['binSize_m'])
+        # self.mdi.pieWidget.setDepthIndicator(self.settings['processing_settings']['depth_m'] /
+        #                                      self.settings['processing_settings']['binSize_m'])
         with self.waterColumn.depth.get_lock():
             self.waterColumn.depth.value = self.settings['processing_settings']['depth_m']
 
@@ -312,19 +326,6 @@ class MainWindow(QMainWindow):
 
     def pingBufferEdited(self):
         pass
-
-    # def newActionSlot(self):
-    #     sub = QMdiSubWindow()
-    #     sub.setWidget(QTextEdit())
-    #     sub.setWindowTitle("subwindow" + str(MainWindow.count))
-    #     self.mdi.addSubWindow(sub)
-    #     sub.show()
-    #
-    # def cascadeActionSlot(self):
-    #     self.mdi.cascadeSubWindows()
-    #
-    # def tileActionSlot(self):
-    #     self.mdi.tileSubWindows()
 
     def displaySettingsDialog(self):
         settingsDialog = AllSettingsDialog2(self.settings, parent=self)
@@ -389,19 +390,6 @@ class MainWindow(QMainWindow):
     def _initMenuBar(self):
         menuBar = self.menuBar()
 
-        # (Sample menu bar...)
-        # Menu bar - File:
-        # file = menuBar.addMenu("File")
-        # newAction = QAction("New", self)
-        # cascadeAction = QAction("Cascade", self)
-        # tileAction = QAction("Tile", self)
-        # file.addAction(newAction)
-        # file.addAction(cascadeAction)
-        # file.addAction(tileAction)
-        # newAction.triggered.connect(self.newActionSlot)
-        # cascadeAction.triggered.connect(self.cascadeActionSlot)
-        # tileAction.triggered.connect(self.tileActionSlot)
-
         # Menu bar - Settings:
         settings = menuBar.addMenu("Settings")
 
@@ -426,8 +414,9 @@ class MainWindow(QMainWindow):
         self.addToolBar(toolBar)
 
         # Signals / Slots
-        toolBar.signalPlay.connect(self.startProcesses)
+        toolBar.signalPlay.connect(self.playProcesses)
         toolBar.signalPause.connect(self.pauseProcesses)
+        toolBar.signalStop.connect(self.stopProcesses)
         toolBar.signalSettings.connect(self.displaySettingsDialog)
 
         return toolBar

@@ -275,9 +275,18 @@ class SubwindowHorizontalSliceWidget(QWidget):
         timestamp = float('nan')
         try:
             if not math.isnan(self.matrix_x):
-                timestamp_epoch_sec = self.shared_ring_buffer_processed.view_buffer_elements(
-                    self.shared_ring_buffer_processed.timestamp_buffer_avg)[round(self.matrix_x)]
-                timestamp = datetime.datetime.utcfromtimestamp(timestamp_epoch_sec).time()
+                temp_timestamp_buffer_elements = self.shared_ring_buffer_processed.view_buffer_elements(
+                    self.shared_ring_buffer_processed.timestamp_buffer_avg)
+
+                # Ensure that index is less than length of buffer.
+                # Issues may occur here when bin_size is changed and shared_ring_buffer_processed is cleared.
+                if round(self.matrix_x) < len(temp_timestamp_buffer_elements):
+                    timestamp_epoch_sec = temp_timestamp_buffer_elements[round(self.matrix_x)]
+                    timestamp = datetime.datetime.utcfromtimestamp(timestamp_epoch_sec).time()
+
+                # timestamp_epoch_sec = self.shared_ring_buffer_processed.view_buffer_elements(
+                #     self.shared_ring_buffer_processed.timestamp_buffer_avg)[round(self.matrix_x)]
+                # timestamp = datetime.datetime.utcfromtimestamp(timestamp_epoch_sec).time()
         except TypeError:  # Triggered when self.shared_ring_buffer_processed not fully initialized?
             pass
 

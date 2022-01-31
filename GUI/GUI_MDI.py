@@ -52,3 +52,7 @@ class GUI_MDI(QMdiArea):
         subwindow.resize(width, height)
         # Disable close button:
         subwindow.setWindowFlags(Qt.CustomizeWindowHint | Qt.WindowCloseButtonHint)
+
+    def setDepthIndicator(self, y):
+        self.verticalWidget.setDepthIndicator(y)
+        self.pieWidget.setDepthIndicator(y)

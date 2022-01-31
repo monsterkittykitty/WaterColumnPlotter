@@ -68,7 +68,7 @@ class WaterColumn:
         if self.plotterMain:
             self.plotterMain.settings_changed()
 
-    def startProcesses(self):
+    def playProcesses(self):
         """
         Initiates both self.sonarMain and self.plotterMain processes.
         """
@@ -76,10 +76,10 @@ class WaterColumn:
         with self.process_flag.get_lock():
             self.process_flag.value = True
 
-        self._startSonarMain()
-        self._startPlotterMain()
+        self._playSonarMain()
+        self._playPlotterMain()
 
-    def _startSonarMain(self):
+    def _playSonarMain(self):
         """
         Initiates and runs self.sonarMain process.
         """
@@ -91,7 +91,7 @@ class WaterColumn:
                                              self.queue_pie_object, self.full_ping_count,
                                              self.discard_ping_count, self.process_flag)
 
-            self.sonarMain.start_processes()
+            self.sonarMain.play_processes()
 
             self.sonarMain.run()
 
@@ -101,7 +101,7 @@ class WaterColumn:
             # self.sonarMain = <SystemMain>
             # self.sonarMain.run()
 
-    def _startPlotterMain(self):
+    def _playPlotterMain(self):
         """
         Initiates and runs self.plotterMain process.
         """
@@ -111,7 +111,7 @@ class WaterColumn:
                                        self.raw_buffer_full_flag, self.processed_buffer_full_flag,
                                        self.process_flag)
 
-        self.plotterMain.start_processes()
+        self.plotterMain.play_processes()
 
         self.plotterMain.run()
 
@@ -129,13 +129,29 @@ class WaterColumn:
         # I don't think we actually want this. Method join() will block...
         # if self.sonarMain.is_alive():
         #     self.sonarMain.join()
+        print("in watercolumn pauseSonarMain")
         if self.sonarMain:
-            self.sonarMain.stop_processes()
+            self.sonarMain.pause_processes()
 
     def _pausePlotterMain(self):
         # I don't think we actually want this. Method join() will block...
         # if self.plotterMain.is_alive():
         #     self.plotterMain.join()
+        if self.plotterMain:
+            self.plotterMain.pause_processes()
+
+    def stopProcesses(self):
+        with self.process_flag.get_lock():
+            self.process_flag.value = False
+
+        self._stopSonarMain()
+        self._stopPlotterMain()
+
+    def _stopSonarMain(self):
+        if self.sonarMain:
+            self.sonarMain.stop_processes()
+
+    def _stopPlotterMain(self):
         if self.plotterMain:
             self.plotterMain.stop_processes()
 

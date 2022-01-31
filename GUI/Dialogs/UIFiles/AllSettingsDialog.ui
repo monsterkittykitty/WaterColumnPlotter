@@ -828,14 +828,17 @@
          <property name="toolTip">
           <string>Raw data to be placed in square bins of this dimension.</string>
          </property>
+         <property name="minimum">
+          <double>0.050000000000000</double>
+         </property>
          <property name="maximum">
           <double>100.000000000000000</double>
          </property>
          <property name="singleStep">
-          <double>0.100000000000000</double>
+          <double>0.050000000000000</double>
          </property>
          <property name="value">
-          <double>0.250000000000000</double>
+          <double>0.200000000000000</double>
          </property>
         </widget>
        </item>
@@ -868,7 +871,7 @@
         <x>20</x>
         <y>20</y>
         <width>241</width>
-        <height>51</height>
+        <height>52</height>
        </rect>
       </property>
       <layout class="QVBoxLayout" name="verticalLayoutBuffer">

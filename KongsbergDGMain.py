@@ -38,10 +38,21 @@ class KongsbergDGMain:
         self.full_ping_count = full_ping_count
         self.discard_ping_count = discard_ping_count
 
-        self.process_flag = process_flag
+        # self.process_flag = process_flag
         # Flags to indicate whether processes are started, paused, or stopped in main
-        self.capture_process_flag = Value(ctypes.c_bool, False, lock=True)
-        self.process_process_flag = Value(ctypes.c_bool, False, lock=True)
+        # self.capture_process_flag = Value(ctypes.c_bool, False, lock=True)
+        # self.process_process_flag = Value(ctypes.c_bool, False, lock=True)
+
+        # TODO: NEW
+        # self.capture_process_flag = Value(ctypes.c_wchar_p, "init", lock=True)
+        # self.process_process_flag = Value(ctypes.c_wchar_p, "init", lock=True)
+
+        # 0 = initialization; 1 = play; 2 = pause; 3 = stop
+        self.capture_process_flag = Value(ctypes.c_uint8, 0, lock=True)
+        self.process_process_flag = Value(ctypes.c_uint8, 0, lock=True)
+
+
+
 
         self.dg_capture = None
         self.dg_process = None
@@ -53,29 +64,61 @@ class KongsbergDGMain:
         with self.process_settings_edited.get_lock():
             self.process_settings_edited.value = True
 
-    def start_processes(self):
-        self._start_capture()
-        self._start_process()
+    def play_processes(self):
+        self._play_capture()
+        self._play_process()
 
-    def _start_capture(self):
+    def _play_capture(self):
+        # with self.capture_process_flag.get_lock():
+        #     self.capture_process_flag.value = True
+        # TODO: NEW
         with self.capture_process_flag.get_lock():
-            self.capture_process_flag.value = True
+            self.capture_process_flag.value = 1
 
-    def _start_process(self):
+    def _play_process(self):
+        # with self.process_process_flag.get_lock():
+        #     self.process_process_flag.value = True
+        # TODO: NEW
+        print("setting process flag to 1")
         with self.process_process_flag.get_lock():
-            self.process_process_flag.value = True
+            self.process_process_flag.value = 1
+
+    def pause_processes(self):
+        self._pause_capture()
+        # self._pause_process()
+
+    def _pause_capture(self):
+        # TODO: NEW
+        with self.capture_process_flag.get_lock():
+            self.capture_process_flag.value = 2
+
+    def _pause_process(self):
+        # TODO: NEW
+        print("setting process flag to 2")
+        with self.process_process_flag.get_lock():
+            self.process_process_flag.value = 2
 
     def stop_processes(self):
         self._stop_capture()
-        self._stop_process()
+        # self._stop_process()
 
     def _stop_capture(self):
+        # with self.capture_process_flag.get_lock():
+        #     self.capture_process_flag.value = False
+        # TODO: NEW
         with self.capture_process_flag.get_lock():
-            self.capture_process_flag.value = False
+            self.capture_process_flag.value = 3
 
     def _stop_process(self):
+        # with self.process_process_flag.get_lock():
+        #     self.process_process_flag.value = False
+        # TODO: NEW
+        print("setting process flag to 3")
         with self.process_process_flag.get_lock():
-            self.process_process_flag.value = False
+            self.process_process_flag.value = 3
+
+    def buffer_flushed(self):
+        print("BUFFER FLUSHED")
 
     def run(self):
         # With daemon flag set to True, these should be terminated when main process completes:
@@ -107,6 +150,7 @@ class KongsbergDGMain:
                                                       full_ping_count=self.full_ping_count,
                                                       discard_ping_count=self.discard_ping_count,
                                                       process_flag=self.capture_process_flag)
+        # self.dg_capture.signalBufferFlushed.connect(self.buffer_flushed)
 
         self.dg_process = KongsbergDGProcess(bin_size=self.bin_size,
                                              max_heave=self.max_heave,

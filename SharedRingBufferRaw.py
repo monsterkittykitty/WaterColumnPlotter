@@ -21,7 +21,7 @@ class SharedRingBufferRaw:
         self.SIZE_BUFFER = settings['buffer_settings']['maxBufferSize_ping']
         self.FULL_SIZE_BUFFER = self.SIZE_BUFFER * 2
 
-        self.counter = counter  # multiprocessing.Value
+        self.counter = counter  # multiprocessing.Value; all raw buffers protected with this lock
         self.full_flag = full_flag  # multiprocessing.Value
         self.create_shmem = create_shmem
 
@@ -73,6 +73,12 @@ class SharedRingBufferRaw:
                                            buffer=self.shmem_timestamp_buffer.buf)
         self.lat_lon_buffer = np.ndarray(shape=self.SIZE_BUFFER * 2, dtype=self.lat_lon_dtype,
                                          buffer=self.shmem_lat_lon_buffer.buf)
+    def clear(self):
+        """
+        Resets counter to zero to effectively empty buffer.
+        """
+        with self.counter.get_lock():
+            self.counter.value = 0
 
     def append_all(self, amplitude_data, count_data, timestamp_data, lat_lon_data):
         """this is an O(n) operation"""
@@ -104,12 +110,19 @@ class SharedRingBufferRaw:
             return self.SIZE_BUFFER - self.counter.value
 
     def view(self, buffer):
-        """this is always an O(1) operation"""
+        """
+        Returns all elements of a given buffer, including the empty elements. This is always an O(1) operation.
+        :param buffer: The buffer from which to return a view.
+        """
         # print("In view:")
         with self.counter.get_lock():
             return buffer[self.counter.value:][:self.SIZE_BUFFER]
 
     def view_buffer_elements(self, buffer):
+        """
+        Returns all elements of a given buffer, minus the empty elements.
+        :param buffer: The buffer from which to return a view.
+        """
         with self.counter.get_lock():
             if self.full_flag.value:
                 return buffer[self.counter.value:][:self.SIZE_BUFFER]

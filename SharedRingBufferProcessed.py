@@ -20,8 +20,8 @@ class SharedRingBufferProcessed:
         self.SIZE_BUFFER = settings['buffer_settings']['maxBufferSize_ping'] // self.ALONG_TRACK_PINGS
         self.FULL_SIZE_BUFFER = self.SIZE_BUFFER * 2
 
-        self.counter = counter
-        self.full_flag = full_flag
+        self.counter = counter  # multiprocessing.Value; all processed buffers protected with this lock
+        self.full_flag = full_flag  # multiprocessing.Value
         self.create_shmem = create_shmem
 
         self.slice_dtype = np.dtype((np.float16, self.MAX_NUM_GRID_CELLS))
@@ -71,6 +71,19 @@ class SharedRingBufferProcessed:
                                                buffer=self.shmem_timestamp_buffer_avg.buf)
         self.lat_lon_buffer_avg = np.ndarray(shape=(self.SIZE_BUFFER * 2), dtype=self.lat_lon_dtype,
                                              buffer=self.shmem_lat_lon_buffer_avg.buf)
+    def clear(self):
+        """
+        Resets counter to zero to effectively empty buffer.
+        """
+        with self.counter.get_lock():
+            self.counter.value = 0
+
+    def clear_and_append_all(self, vertical_data, horizontal_data, timestamp_data, lat_lon_data):
+        # with self.counter.get_lock():
+        #     self.counter.value = 0
+        self.clear()
+
+        self.append_all(vertical_data, horizontal_data, timestamp_data, lat_lon_data)
 
     def append_all(self, vertical_data, horizontal_data, timestamp_data, lat_lon_data):
         """this is an O(n) operation"""
@@ -90,6 +103,7 @@ class SharedRingBufferProcessed:
             if self.remaining() < n:
                 self.compact_all()
 
+            print("appending to processed buffer at index: ", self.counter.value)
             self.vertical_slice_buffer[self.counter.value + self.SIZE_BUFFER:][:n] = vertical_data
             self.horizontal_slice_buffer[self.counter.value + self.SIZE_BUFFER:][:n] = horizontal_data
             self.timestamp_buffer_avg[self.counter.value + self.SIZE_BUFFER:][:n] = timestamp_data
@@ -102,12 +116,19 @@ class SharedRingBufferProcessed:
             return self.SIZE_BUFFER-self.counter.value
 
     def view(self, buffer):
-        """this is always an O(1) operation"""
+        """
+        Returns all elements of a given buffer, including the empty elements. This is always an O(1) operation.
+        :param buffer: The buffer from which to return a view.
+        """
         # print("In view:")
         with self.counter.get_lock():
             return buffer[self.counter.value:][:self.SIZE_BUFFER]
 
     def view_buffer_elements(self, buffer):
+        """
+        Returns all elements of a given buffer, minus the empty elements.
+        :param buffer: The buffer from which to return a view.
+        """
         with self.counter.get_lock():
             if self.full_flag.value:
                 return buffer[self.counter.value:][:self.SIZE_BUFFER]

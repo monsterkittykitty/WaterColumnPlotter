@@ -43,7 +43,11 @@ class PlotterMain:
         self.processed_buffer_full_flag = processed_buffer_full_flag
 
         self.process_flag = process_flag
-        self.plotter_process_flag = Value(ctypes.c_bool, False, lock=True)
+        # self.plotter_process_flag = Value(ctypes.c_bool, False, lock=True)
+
+        # TODO: NEW
+        # 0 = initialization; 1 = play; 2 = pause; 3 = stop
+        self.plotter_process_flag = Value(ctypes.c_uint8, 0, lock=True)
 
         self.plotter = None
 
@@ -52,19 +56,28 @@ class PlotterMain:
         with self.plotter_settings_edited.get_lock():
             self.plotter_settings_edited.value = True
 
-    def start_processes(self):
-        self._start_plotter()
+    def play_processes(self):
+        self._play_plotter()
 
-    def _start_plotter(self):
+    def _play_plotter(self):
         with self.plotter_process_flag.get_lock():
-            self.plotter_process_flag.value = True
+            # self.plotter_process_flag.value = True
+            self.plotter_process_flag.value = 1
+
+    def pause_processes(self):
+        self._pause_plotter()
+
+    def _pause_plotter(self):
+        with self.plotter_process_flag.get_lock():
+            self.plotter_process_flag.value = 2
 
     def stop_processes(self):
         self._stop_plotter()
 
     def _stop_plotter(self):
         with self.plotter_process_flag.get_lock():
-            self.plotter_process_flag.value = False
+            # self.plotter_process_flag.value = False
+            self.plotter_process_flag.value = 3
 
     def run(self):
         # With daemon flag set to True, these should be terminated when main process completes:

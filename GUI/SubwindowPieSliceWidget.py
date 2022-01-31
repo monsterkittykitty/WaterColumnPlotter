@@ -52,6 +52,11 @@ class SubwindowPieSliceWidget(QWidget):
         # ImageView
         self.pie_plot = pg.ImageView(self, view=self.plot)  # &&&  <class 'pyqtgraph.GraphicsScene.GraphicsScene.GraphicsScene'>
 
+        self.depthIndicator = pg.InfiniteLine(angle=0, pen=pg.mkPen('m', width=1, style=Qt.DotLine), movable=False)
+        self.depthIndicator.setPos(self.settings['processing_settings']['depth_m'] /
+                                   self.settings['processing_settings']['binSize_m'])
+        self.pie_plot.getView().addItem(self.depthIndicator)
+
         self.pie_plot.ui.histogram.setLevels(min=-95, max=35)
         # Based on https://stackoverflow.com/questions/38021869/getting-imageitem-values-from-pyqtgraph
         self.pie_plot.scene.sigMouseMoved.connect(self.mouseMoved)
@@ -81,8 +86,8 @@ class SubwindowPieSliceWidget(QWidget):
         self.spinboxBinSize = QDoubleSpinBox()
         self.spinboxBinSize.setToolTip("Raw data to be placed in square bins of this dimension.")
         self.spinboxBinSize.setDecimals(2)
-        self.spinboxBinSize.setRange(0, 100)
-        self.spinboxBinSize.setSingleStep(0.1)
+        self.spinboxBinSize.setRange(0.05, 100)
+        self.spinboxBinSize.setSingleStep(0.05)
         self.setBinSize(self.settings['processing_settings']['binSize_m'])
         top_row_layout.addWidget(self.spinboxBinSize)
 
@@ -155,57 +160,6 @@ class SubwindowPieSliceWidget(QWidget):
         layout.addLayout(bottom_row_layout)
 
         self.setLayout(layout)
-
-
-        # TODO: Old implementation (before crosshair with ping and depth display).
-        # layout = QGridLayout()
-        # layout.setColumnMinimumWidth(0, 25)
-        # layout.setColumnMinimumWidth(1, 25)
-        # layout.setColumnMinimumWidth(2, 25)
-        # layout.setColumnStretch(0, 1)
-        # layout.setColumnStretch(1, 0)
-        # layout.setColumnStretch(2, 0)
-        #
-        # # Dummy buttons:
-        # # layout.addWidget(QtWidgets.QPushButton("T"), 0, 0)
-        # # layout.addWidget(QtWidgets.QPushButton("To"), 0, 1)
-        # # layout.addWidget(QtWidgets.QPushButton("Top"), 0, 2)
-        #
-        # labelBinSize = QLabel("Bin Size (m):")
-        # layout.addWidget(labelBinSize, 0, 1)
-        #
-        # self.spinboxBinSize = QDoubleSpinBox()
-        # self.spinboxBinSize.setToolTip("Raw data to be placed in square bins of this dimension.")
-        # self.spinboxBinSize.setDecimals(2)
-        # self.spinboxBinSize.setRange(0, 100)
-        # self.spinboxBinSize.setSingleStep(0.1)
-        # self.setBinSize(self.settings['processing_settings']['binSize_m'])
-        # layout.addWidget(self.spinboxBinSize, 0, 2)
-        #
-        # layout.setColumnMinimumWidth(3, 5)
-        #
-        # # pushButtonApply = QPushButton("Apply")
-        # iconApply = self.style().standardIcon(QStyle.SP_DialogApplyButton)
-        # pushButtonApply = QPushButton()
-        # pushButtonApply.setToolTip("Apply (Note: Changes in bin size cannot be applied retroactively.)")
-        # pushButtonApply.setIcon(iconApply)
-        # pushButtonApply.clicked.connect(self.binSizeEditedFunction)
-        # layout.addWidget(pushButtonApply, 0, 4)
-        #
-        # # pushButtonCancel = QPushButton("Cancel")
-        # iconCancel = self.style().standardIcon(QStyle.SP_DialogCancelButton)
-        # pushButtonCancel = QPushButton()
-        # pushButtonCancel.setToolTip("Cancel")
-        # pushButtonCancel.setIcon(iconCancel)
-        # pushButtonCancel.clicked.connect(self.resetBinSize)
-        # layout.addWidget(pushButtonCancel, 0, 5)
-        #
-        # layout.addWidget(self.pie_plot, 1, 0, 3, 6)
-        # # layout.addWidget(pg.PlotWidget())
-        # # layout.addWidget(QRangeSlider(Qt.Horizontal), 4, 1, 1, 2)
-        # # layout.addWidget(QtWidgets.QPushButton("Bottom"))
-        #
-        # self.setLayout(layout)
 
     def mouseMoved(self, pos):
         try:
@@ -302,6 +256,9 @@ class SubwindowPieSliceWidget(QWidget):
     def updateTimestampAndIntensity(self):
         self.updateTimestamp()
         self.updateIntensity()
+
+    def setDepthIndicator(self, y):
+        self.depthIndicator.setPos(y)
 
     def setBinSize(self, binSize):
         self.spinboxBinSize.setValue(binSize)

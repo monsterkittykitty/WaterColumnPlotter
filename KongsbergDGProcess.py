@@ -69,32 +69,19 @@ class KongsbergDGProcess(Process):
                 self.bin_size_local = self.bin_size.value
             with self.max_heave.get_lock():
                 self.max_heave_local = self.max_heave.value
+        # TODO: If bin_size or max_heave are changed, clear shared_ring_buffer_processed.
 
     def get_and_process_dg(self):
         # print("DGProcess: get_and_process")  # For debugging
         first_tx_time = None  # For testing
 
         count = 0  # For testing
-        # TODO:
-        # while self.process_flag.value:
-        # while True:
-        # with self.process_flag.get_lock():  # But all processes will be fighting over this same lock. Create individual booleans for each procress?
-        #   if not self.process_flag.value:
-        #       break
+
         while True:
-            # Check for signal to end loop / exit:
+            # Check for signal to play / pause / stop:
             with self.process_flag.get_lock():
-                if not self.process_flag.value:
-                    break
+                local_process_flag_value = self.process_flag.value
 
-            # TODO: Testing
-            # Check for signal to update settings:
-            with self.settings_edited.get_lock():
-                if self.settings_edited.value:
-                    self.update_local_settings()
-                    self.settings_edited.value = False
-
-            # print("Process, self.get_and_process_dg: ", self.process_flag.value)
             try:
                 dg_bytes = self.queue_datagram.get(block=True, timeout=self.QUEUE_DATAGRAM_TIMEOUT)
 
@@ -102,7 +89,32 @@ class KongsbergDGProcess(Process):
                     first_tx_time = datetime.datetime.now()
                 self.dg_counter += 1
 
-                self.process_dgm(dg_bytes)
+                if dg_bytes:
+                    if local_process_flag_value == 1 or local_process_flag_value == 2:  # Play pressed or pause pressed
+                        # Process data pulled from queue
+
+                        # Check for signal to update settings:
+                        with self.settings_edited.get_lock():
+                            if self.settings_edited.value:
+                                self.update_local_settings()
+                                self.settings_edited.value = False
+
+                        self.process_dgm(dg_bytes)
+
+                    elif local_process_flag_value == 3:  # Stop pressed
+                        # Do not process datagram. Instead, only empty queue.
+                        pass
+
+                    else:
+                        logger.error("Error in KongsbergDGProcess. Invalid process_flag value: {}."
+                                     .format(local_process_flag_value))
+                        break  # Exit loop
+
+                else:
+                    print("breaking out of kongsbergdgprocess loop because dg_bytes is None")
+                    # Poison pill
+                    self.queue_pie_object.put(None)
+                    break
 
                 # count += 1  # For testing
                 # print("DGProcess Count: ", count)  # For testing
@@ -121,6 +133,9 @@ class KongsbergDGProcess(Process):
             #     print("DGPROCESS, First transmit: {}; Final transmit: {}; Total time: {}".format(first_tx_time,
             #                                                                                      last_tx_time,
             #                                                                                      (last_tx_time - first_tx_time).total_seconds()))
+
+        # TODO: Testing
+        print("Breaking out of DGProcess infinite loop")
 
     def process_dgm(self, dg_bytes):
 
@@ -357,7 +372,7 @@ class KongsbergDGProcess(Process):
 
             # This results in mirror-image pie display. Use flip!
             # pie_object = KongsbergDGPie(pie_chart_values, pie_chart_count, dg['header']['dgTime'])
-            pie_object = KongsbergDGPie(np.flip(pie_chart_values, axis=1),
+            pie_object = KongsbergDGPie(self.bin_size_local, self.max_heave_local, np.flip(pie_chart_values, axis=1),
                                         np.flip(pie_chart_count, axis=1), dg['header']['dgTime'])
 
             # print("(((((((((((((((((((((((((((((((((((KONGSBERGDGPROCESS TIMESTAMP: ", dg['header']['dgTime'])

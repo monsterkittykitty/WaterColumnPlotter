@@ -55,6 +55,11 @@ class SubwindowVerticalSliceWidget(QWidget):
         # ImageView
         self.vertical_plot = pg.ImageView(self, view=self.plot)
 
+        self.depthIndicator = pg.InfiniteLine(angle=0, pen=pg.mkPen('m', width=1, style=Qt.DotLine), movable=False)
+        self.depthIndicator.setPos(self.settings['processing_settings']['depth_m'] /
+                                   self.settings['processing_settings']['binSize_m'])
+        self.vertical_plot.getView().addItem(self.depthIndicator)
+
         # Crosshair - in front of image
         # self.vLine = pg.InfiniteLine(angle=90, movable=False)
         # self.hLine = pg.InfiniteLine(angle=0, movable=False)
@@ -182,56 +187,6 @@ class SubwindowVerticalSliceWidget(QWidget):
 
         self.setLayout(layout)
 
-        # TODO: Old implementation (before crosshair with ping and depth display).
-        # layout = QGridLayout()
-        # layout.setColumnMinimumWidth(0, 25)
-        # layout.setColumnMinimumWidth(1, 25)
-        # layout.setColumnMinimumWidth(2, 25)
-        # layout.setColumnStretch(0, 1)
-        # layout.setColumnStretch(1, 0)
-        # layout.setColumnStretch(2, 0)
-        #
-        # # Dummy buttons:
-        # # layout.addWidget(QtWidgets.QPushButton("T"), 0, 0)
-        # # layout.addWidget(QtWidgets.QPushButton("To"), 0, 1)
-        # # layout.addWidget(QtWidgets.QPushButton("Top"), 0, 2)
-        #
-        # labelAcrossTrackAvg = QLabel("Across-Track Avg (m):")
-        # layout.addWidget(labelAcrossTrackAvg, 0, 1)
-        #
-        # self.spinboxAcrossTrackAvg = QDoubleSpinBox()
-        # self.spinboxAcrossTrackAvg.setToolTip("Width to average across-track.")
-        # self.spinboxAcrossTrackAvg.setDecimals(2)
-        # self.spinboxAcrossTrackAvg.setRange(1, 100)
-        # self.spinboxAcrossTrackAvg.setSingleStep(0.5)
-        # self.setAcrossTrackAvg(self.settings['processing_settings']['acrossTrackAvg_m'])
-        # layout.addWidget(self.spinboxAcrossTrackAvg, 0, 2)
-        #
-        # layout.setColumnMinimumWidth(3, 5)
-        #
-        # # pushButtonApply = QPushButton("Apply")
-        # iconApply = self.style().standardIcon(QStyle.SP_DialogApplyButton)
-        # pushButtonApply = QPushButton()
-        # pushButtonApply.setToolTip("Apply")
-        # pushButtonApply.setIcon(iconApply)
-        # pushButtonApply.clicked.connect(self.acrossTrackAvgEditedFunction)
-        # layout.addWidget(pushButtonApply, 0, 4)
-        #
-        # # pushButtonCancel = QPushButton("Cancel")
-        # iconCancel = self.style().standardIcon(QStyle.SP_DialogCancelButton)
-        # pushButtonCancel = QPushButton()
-        # pushButtonCancel.setToolTip("Cancel")
-        # pushButtonCancel.setIcon(iconCancel)
-        # pushButtonCancel.clicked.connect(self.resetAcrossTrackAvg)
-        # layout.addWidget(pushButtonCancel, 0, 5)
-        #
-        # layout.addWidget(self.vertical_plot, 1, 0, 3, 6)
-        # # layout.addWidget(pg.PlotWidget())
-        # # layout.addWidget(QRangeSlider(Qt.Horizontal), 4, 1, 1, 2)
-        # # layout.addWidget(QtWidgets.QPushButton("Bottom"))
-        #
-        # self.setLayout(layout)
-
     def setCoordinates(self):
         # https://stackoverflow.com/questions/63619065/pyqtgraph-use-arbitrary-values-for-axis-with-imageitem
         image_x = self.vertical_plot.image.shape[0]
@@ -314,9 +269,18 @@ class SubwindowVerticalSliceWidget(QWidget):
         timestamp = float('nan')
         try:
             if not math.isnan(self.matrix_x):
-                timestamp_epoch_sec = self.shared_ring_buffer_processed.view_buffer_elements(
-                    self.shared_ring_buffer_processed.timestamp_buffer_avg)[round(self.matrix_x)]
-                timestamp = datetime.datetime.utcfromtimestamp(timestamp_epoch_sec).time()
+                temp_timestamp_buffer_elements = self.shared_ring_buffer_processed.view_buffer_elements(
+                    self.shared_ring_buffer_processed.timestamp_buffer_avg)
+
+                # Ensure that index is less than length of buffer.
+                # Issues may occur here when bin_size is changed and shared_ring_buffer_processed is cleared.
+                if round(self.matrix_x) < len(temp_timestamp_buffer_elements):
+                    timestamp_epoch_sec = temp_timestamp_buffer_elements[round(self.matrix_x)]
+                    timestamp = datetime.datetime.utcfromtimestamp(timestamp_epoch_sec).time()
+
+                # timestamp_epoch_sec = self.shared_ring_buffer_processed.view_buffer_elements(
+                #     self.shared_ring_buffer_processed.timestamp_buffer_avg)[round(self.matrix_x)]
+                # timestamp = datetime.datetime.utcfromtimestamp(timestamp_epoch_sec).time()
         except TypeError:  # Triggered when self.shared_ring_buffer_processed not fully initialized?
             pass
 
@@ -384,6 +348,9 @@ class SubwindowVerticalSliceWidget(QWidget):
     #         pen = QPen(Qt.darkYellow, 0.05)
     #         r = CircleOverlay(pos=(self.plot_x, self.plot_y), size=3, pen=pen, movable=False)
     #         self.vertical_plot.getView().addItem(r)
+
+    def setDepthIndicator(self, y):
+        self.depthIndicator.setPos(y)
 
     def setAcrossTrackAvg(self, acrossTrackAvg):
         self.spinboxAcrossTrackAvg.setValue(acrossTrackAvg)

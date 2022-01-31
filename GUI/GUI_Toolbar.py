@@ -11,6 +11,7 @@ class GUI_Toolbar(QToolBar):
 
     signalPlay = pyqtSignal(name="playClicked")
     signalPause = pyqtSignal(name="pauseClicked")
+    signalStop = pyqtSignal(name="stopClicked")
     signalSettings = pyqtSignal(name="settingsClicked")
 
     def __init__(self, settings, parent=None):
@@ -37,7 +38,8 @@ class GUI_Toolbar(QToolBar):
         # Play / Pause Icons:
         iconPlay = self.style().standardIcon(QStyle.SP_MediaPlay)
         self.toolButtonPlay = QToolButton(self)
-        self.toolButtonPlay.setToolTip("Begin listening / plotting data.")
+        # self.toolButtonPlay.setToolTip("Begin listening / plotting data.")
+        self.toolButtonPlay.setToolTip("Begins receiving, processing, and plotting data.")
         self.toolButtonPlay.setIcon(iconPlay)
         self.toolButtonPlay.setStyleSheet("background-color : rgb(240, 240, 240)")
         # Connect signals / slots
@@ -45,7 +47,8 @@ class GUI_Toolbar(QToolBar):
 
         iconPause = self.style().standardIcon(QStyle.SP_MediaPause)
         self.toolButtonPause = QToolButton(self)
-        self.toolButtonPause.setToolTip("Pause listening / plotting data.")
+        # self.toolButtonPause.setToolTip("Pause listening / plotting data.")
+        self.toolButtonPause.setToolTip("Stops receiving data; continues processing and plotting queued data.")
         self.toolButtonPause.setIcon(iconPause)
         self.toolButtonPause.setStyleSheet("background-color : rgb(240, 240, 240)")
         # Initialize pause button as disabled:
@@ -53,11 +56,22 @@ class GUI_Toolbar(QToolBar):
         # Connect signals / slots
         self.toolButtonPause.clicked.connect(self.pauseButtonClicked)
 
+        iconStop = self.style().standardIcon(QStyle.SP_MediaStop)
+        self.toolButtonStop = QToolButton(self)
+        self.toolButtonStop.setToolTip("Stops receiving, processing, and plotting data; discards queued data.")
+        self.toolButtonStop.setIcon(iconStop)
+        self.toolButtonStop.setStyleSheet("background-color : rgb(240, 240, 240)")
+        # Initialize stop button as disabled:
+        self.toolButtonStop.setDisabled(True)
+        # Connect signals / slots
+        self.toolButtonStop.clicked.connect(self.stopButtonClicked)
+
         # Add widgets to toolbar:
         self.addWidget(groupBoxIPPort)
         self.addWidget(groupBoxSystem)
         self.addWidget(self.toolButtonPlay)
         self.addWidget(self.toolButtonPause)
+        self.addWidget(self.toolButtonStop)
 
         # Spacer Widget:
         spacer = QWidget()
@@ -170,6 +184,10 @@ class GUI_Toolbar(QToolBar):
         self.toolButtonPause.setEnabled(True)
         self.toolButtonPause.setStyleSheet("background-color : rgb(240, 240, 240)")
 
+        # Enable stop button
+        self.toolButtonStop.setEnabled(True)
+        self.toolButtonStop.setStyleSheet("background-color : rgb(240, 240, 240)")
+
         self.playClicked.emit()
 
     def pauseButtonClicked(self):
@@ -186,3 +204,18 @@ class GUI_Toolbar(QToolBar):
         self.toolButtonPlay.setStyleSheet("background-color : rgb(240, 240, 240)")
 
         self.pauseClicked.emit()
+
+    def stopButtonClicked(self):
+        # Stop button is pressed.
+        # Disable pause button
+        self.toolButtonPause.setDisabled(True)
+        self.toolButtonPause.setStyleSheet("background-color : rgb(240, 240, 240)")
+        # Disable stop button
+        self.toolButtonStop.setDisabled(True)
+        self.toolButtonStop.setStyleSheet("background-color : rgb(219, 141, 141)")
+
+        # Enable play button
+        self.toolButtonPlay.setEnabled(True)
+        self.toolButtonPlay.setStyleSheet("background-color : rgb(240, 240, 240)")
+
+        self.stopClicked.emit()
