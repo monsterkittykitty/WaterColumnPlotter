@@ -178,69 +178,8 @@ class SubwindowHorizontalSliceWidget(QWidget):
 
         self.setLayout(layout)
 
-
-        # TODO: Old implementation (before crosshair with ping and depth display).
-        # layout = QGridLayout()
-        # layout.setColumnMinimumWidth(0, 25)
-        # layout.setColumnMinimumWidth(1, 25)
-        # layout.setColumnMinimumWidth(2, 25)
-        # layout.setColumnMinimumWidth(3, 25)
-        # layout.setColumnStretch(0, 1)
-        # layout.setColumnStretch(1, 0)
-        # layout.setColumnStretch(2, 0)
-        # layout.setColumnStretch(3, 0)
-        #
-        # # layout.addWidget(QtWidgets.QPushButton("T"), 0, 0)
-        # labelDepth = QLabel("Depth (m):")
-        # layout.addWidget(labelDepth, 0, 1)
-        #
-        # self.spinboxDepth = QDoubleSpinBox()
-        # self.spinboxDepth.setToolTip("Depth of horizontal slice.")
-        # self.spinboxDepth.setDecimals(2)
-        # self.spinboxDepth.setRange(1, 1000)
-        # self.spinboxDepth.setSingleStep(0.5)
-        # self.setDepth(self.settings['processing_settings']['depth_m'])
-        # layout.addWidget(self.spinboxDepth, 0, 2)
-        #
-        # layout.setColumnMinimumWidth(3, 5)
-        #
-        # labelDepthAvg = QLabel("Depth Average (m):")
-        # layout.addWidget(labelDepthAvg, 0, 4)
-        #
-        # self.spinboxDepthAvg = QDoubleSpinBox()
-        # self.spinboxDepthAvg.setToolTip("Depth to average.")
-        # self.spinboxDepthAvg.setDecimals(2)
-        # self.spinboxDepthAvg.setRange(1, 100)
-        # self.spinboxDepthAvg.setSingleStep(0.5)
-        # self.setDepthAvg(self.settings['processing_settings']['depthAvg_m'])
-        # layout.addWidget(self.spinboxDepthAvg, 0, 5)
-        #
-        # layout.setColumnMinimumWidth(6, 5)
-        #
-        # # pushButtonApply = QPushButton("Apply")
-        # iconApply = self.style().standardIcon(QStyle.SP_DialogApplyButton)
-        # pushButtonApply = QPushButton()
-        # pushButtonApply.setToolTip("Apply")
-        # pushButtonApply.setIcon(iconApply)
-        # pushButtonApply.clicked.connect(self.editedAllFunction)
-        # layout.addWidget(pushButtonApply, 0, 7)
-        #
-        # # pushButtonCancel = QPushButton("Cancel")
-        # iconCancel = self.style().standardIcon(QStyle.SP_DialogCancelButton)
-        # pushButtonCancel = QPushButton()
-        # pushButtonCancel.setToolTip("Cancel")
-        # pushButtonCancel.setIcon(iconCancel)
-        # pushButtonCancel.clicked.connect(self.resetAll)
-        # layout.addWidget(pushButtonCancel, 0, 8)
-        #
-        # layout.addWidget(self.horizontal_plot, 1, 0, 3, 9)
-        #
-        # # rangeSlider = QRangeSlider(Qt.Horizontal)
-        # # layout.addWidget(rangeSlider, 4, 1, 1, 2)
-        #
-        # # layout.addWidget(QtWidgets.QPushButton("Bottom"))
-        #
-        # self.setLayout(layout)
+    def setSharedRingBufferProcessed(self, shared_ring_buffer_processed):
+        self.shared_ring_buffer_processed = shared_ring_buffer_processed
 
     def mouseMoved(self, pos):
         try:

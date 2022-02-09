@@ -5,13 +5,11 @@
 import datetime
 import math
 import numpy as np
-from PyQt5.QtWidgets import QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QStyle, \
+from PyQt5.QtWidgets import QDoubleSpinBox, QFrame, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QStyle, \
     QVBoxLayout, QWidget
 from PyQt5.QtCore import pyqtSignal, Qt
 from PyQt5.QtGui import QPen
 import pyqtgraph as pg
-# from qtrangeslider import QRangeSlider
-import sys
 
 
 class SubwindowVerticalSliceWidget(QWidget):
@@ -186,6 +184,9 @@ class SubwindowVerticalSliceWidget(QWidget):
         layout.addLayout(bottom_row_layout)
 
         self.setLayout(layout)
+
+    def setSharedRingBufferProcessed(self, shared_ring_buffer_processed):
+        self.shared_ring_buffer_processed = shared_ring_buffer_processed
 
     def setCoordinates(self):
         # https://stackoverflow.com/questions/63619065/pyqtgraph-use-arbitrary-values-for-axis-with-imageitem

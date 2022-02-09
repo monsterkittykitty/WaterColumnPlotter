@@ -41,6 +41,13 @@ class GUI_MDI(QMdiArea):
         self.__setupAndAddSubwindow(self.horizontalWidget, SUBWINDOW_WIDTH_LARGE, SUBWINDOW_HEIGHT_LARGE)
         #self.__setupAndAddSubwindow(self.subwindowSettingsDisplay, SUBWINDOW_WIDTH_SMALL, SUBWINDOW_HEIGHT_SMALL)
 
+    def setSharedRingBufferProcessed(self, shared_ring_buffer_processed):
+        self.shared_ring_buffer_processed = shared_ring_buffer_processed
+        self.verticalWidget.setSharedRingBufferProcessed(self.shared_ring_buffer_processed)
+        self.pieWidget.setSharedRingBufferProcessed(self.shared_ring_buffer_processed)
+        self.horizontalWidget.setSharedRingBufferProcessed(self.shared_ring_buffer_processed)
+
+
     def __setupAndAddSubwindow(self, widget, width, height):
         """
         Add QtWidget to subwindow in QMdiArea, resize subwindow, and disable window close button.

@@ -161,6 +161,9 @@ class SubwindowPieSliceWidget(QWidget):
 
         self.setLayout(layout)
 
+    def setSharedRingBufferProcessed(self, shared_ring_buffer_processed):
+        self.shared_ring_buffer_processed = shared_ring_buffer_processed
+
     def mouseMoved(self, pos):
         try:
             position = self.pie_plot.getImageItem().mapFromScene(pos)

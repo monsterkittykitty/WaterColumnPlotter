@@ -29,16 +29,43 @@ logger = logging.getLogger(__name__)
 
 class KongsbergDGCaptureFromSonar(Process):
 
-    def __init__(self, rx_ip, rx_port, ip_protocol="UDP", socket_buffer_multiplier=4, queue_datagram=None,
+    def __init__(self, ip, port, protocol, socket_buffer_multiplier, settings_edited, queue_datagram,
                  full_ping_count=None, discard_ping_count=None, process_flag=None, out_file=None):
         super().__init__()
 
         print("New instance of KongsbergDGCapture.")
 
-        self.rx_ip = rx_ip
-        self.rx_port = rx_port
-        self.ip_protocol = ip_protocol
+        # multiprocessing.Values (shared between processes)
+        self.ip = ip
+        print("self.ip.value, start of capture: ", self.ip[:])
+        self.port = port
+        self.protocol = protocol
         self.socket_buffer_multiplier = socket_buffer_multiplier
+
+        self.settings_edited = settings_edited
+
+        # To be set to True when ip settings edited
+        # self.ip_settings_edited = False
+
+        # Local copies of above multiprocessing.Values (to avoid frequent accessing of locks)
+        self.ip_local = None
+        self.port_local = None
+        self.protocol_local = None
+        self.socket_buffer_multiplier_local = None
+        # # Initialize above local copies
+        self.update_local_settings()
+        # with self.ip.get_lock():
+        #     self.ip_local = self.editIP(self.ip[:], append=False)
+        #     print("self.ip_local: ", self.ip_local)
+        # with self.port.get_lock():
+        #     self.port_local = self.port.value
+        # with self.protocol.get_lock():
+        #     self.protocol_local = self.protocol.value
+        #     print("protocol in capture: ", self.protocol)
+        # with self.socket_buffer_multiplier.get_lock():
+        #     self.socket_buffer_multiplier_local = self.socket_buffer_multiplier.value
+
+        self.ip_copy = None
 
         # When run as main, out_file is required;
         # when run with multiprocessing, queue is required (multiprocessing.Queue)
@@ -89,38 +116,75 @@ class KongsbergDGCaptureFromSonar(Process):
         # self.all_data_rxed = 0
         # self.data_overwrite = 0
 
+    def update_local_settings(self):
+        print("in kongsberg capture, in update_local_settings, getting settings_edited lock")
+        with self.settings_edited.get_lock():  # Outer lock to ensure atomicity of updates:
+            print("in kongsberg capture, in update_local_settings, got settings_edited lock")
+            # self.ip_local = "127.0.0.1"
+            with self.ip.get_lock():
+                print("in kongsberg capture, in update_local_settings, got ip lock: ")
+                if self.ip_local and self.ip_local != self.editIP(self.ip[:], append=False):
+                    print("in kongsberg capture, in update_local_settings, setting ip_settings_edited to true")
+                    # self.ip_settings_edited = True
+                print("in kongsberg capture, in update_local_settings, reassigning ip value")
+                self.ip_local = self.editIP(self.ip[:], append=False)
+                print("in kongsberg capture, in update_local_settings, reassigned ip value")
+            with self.port.get_lock():
+                print("in kongsberg capture, in update_local_settings, got port lock")
+                if self.port_local and self.port_local != self.port.value:
+                    self.ip_settings_edited = True
+                self.port_local = self.port.value
+            with self.protocol.get_lock():
+                print("in kongsberg capture, in update_local_settings, got protocol lock")
+                if self.protocol_local and self.protocol_local != self.protocol.value:
+                    self.ip_settings_edited = True
+                self.protocol_local = self.protocol.value
+            with self.socket_buffer_multiplier.get_lock():
+                print("in kongsberg capture, in update_local_settings, got socket buffer lock")
+                if self.socket_buffer_multiplier_local and \
+                        self.socket_buffer_multiplier_local != self.socket_buffer_multiplier.value:
+                    self.socket_buffer_multiplier_local = True
+                self.socket_buffer_multiplier_local = self.socket_buffer_multiplier.value
+            # self.socket_buffer_multiplier_local = 4
+            print("in kongsberg capture, before ip_settings_edited:")
+            # if self.ip_settings_edited:
+            #     print("in kongsberg capture, ip_settings_edited: ", self.ip_settings_edited)
+            #     self.sock_in.close()
+            #     self.sock_in = self._init_socket()
+
     def _init_socket(self):
-        if self.ip_protocol == "TCP":
+        if self.protocol_local == "T":  # TCP
             # temp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             logger.warning("Only UDP and Multicast connections supported at this time.")
             sys.exit(1)
 
-        elif self.ip_protocol == "UDP":
+        elif self.protocol_local == "U":  # UDP
             temp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             # Allow reuse of addresses
             temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             # TODO: Change buffer size if packets are being lost:
             temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF,
-                                 self.MAX_DATAGRAM_SIZE * self.socket_buffer_multiplier)
-            temp_sock.bind((self.rx_ip, self.rx_port))
+                                 self.MAX_DATAGRAM_SIZE * self.socket_buffer_multiplier_local)
+            temp_sock.bind((self.ip_local, self.port_local))
 
-        elif self.ip_protocol == "Multicast":
+        elif self.protocol_local == "M":  # Multicast
             temp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
             # Allow reuse of addresses
             temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             # TODO: Change buffer size if packets are being lost:
             temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF,
-                                 self.MAX_DATAGRAM_SIZE * self.socket_buffer_multiplier)
-            temp_sock.bind(('', self.rx_port))
+                                 self.MAX_DATAGRAM_SIZE * self.socket_buffer_multiplier_local)
+            temp_sock.bind(('', self.port_local))
             # Tell the operating system to add the socket to the multicast group on all interfaces.
             # (From: https://pymotw.com/2/socket/multicast.html)
-            group = socket.inet_aton(self.rx_ip)
+            group = socket.inet_aton(self.ip_local)
             mreq = struct.pack('4sL', group, socket.INADDR_ANY)
             temp_sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
         else:
             raise RuntimeError("Connection type must be 'TCP', 'UDP', or 'Multicast'.")
 
+        # TODO: Do I need a timeout here?
         temp_sock.settimeout(self.SOCKET_TIMEOUT)
         return temp_sock
 
@@ -136,8 +200,17 @@ class KongsbergDGCaptureFromSonar(Process):
 
         return buffer
 
+    def editIP(self, ip, append=True):
+        if append:
+            while len(ip) < 15:
+                ip = "_" + ip
+        else:  # Strip
+            ip = ip.lstrip("_")
+
+        return ip
+
     def print_settings(self):
-        print("Receive (IP:Port, Connection): ", self.rx_ip, ":", self.rx_port, ",", self.ip_protocol)
+        print("Receive (IP:Port, Connection): ", self.ip, ":", self.port, ",", self.protocol)
 
     def print_packet_details(self, data):
         pass
@@ -145,6 +218,7 @@ class KongsbergDGCaptureFromSonar(Process):
     def receive_dg_and_write_raw(self):
         """
         Receives data at specified socket; writes binary data to specified file.
+        This is meant to only be used when KongsbergDGCaptureFromSonar is run as main.
         *** Note, this does NOT reconstruct partitioned datagrams. ***
         """
         # print("Writing.")
@@ -175,6 +249,16 @@ class KongsbergDGCaptureFromSonar(Process):
                 file_io.close()
                 break
 
+    def peanut_butter(self):
+        print("PEANUT BUTTER: ", self.ip_copy)
+        print("self.port.value: ", self.port.value)
+
+        print("self.ip.value ", self.ip[0])
+        # with self.ip.get_lock():
+        #     print("got ip lock")
+        #     self.ip_copy = self.ip.value
+        #     print("self.ip_copy: ", self.ip_copy)
+
     def receive_dg_and_queue(self):
         """
         Receives data at specified socket; places data in specified queue (multiprocessing.Queue).
@@ -192,7 +276,27 @@ class KongsbergDGCaptureFromSonar(Process):
             with self.process_flag.get_lock():
                 local_process_flag_value = self.process_flag.value
 
+            # print("in kongsberg capture, local_process_flag_value: ", local_process_flag_value)
             if local_process_flag_value == 1:  # Play pressed
+
+                # TODO: Test this:
+                # Check for signal to update settings:
+                # print("in kongsberg capture, getting settings_edited lock")
+                with self.settings_edited.get_lock():
+                    # print("in kongsberg capture, got settings_edited lock")
+                    if self.settings_edited.value:
+                        print("in kongsberg capture, updating local settings")
+                        self.update_local_settings()
+                        print("Closing socket")
+                        self.sock_in.close()
+                        print("Initializing socket.")
+                        # TODO: Do I need to flush buffer?
+                        self.sock_in = self._init_socket()
+                        # self.peanut_butter()
+                        self.settings_edited.value = False
+
+
+
                 try:
                     data, address = self.sock_in.recvfrom(self.MAX_DATAGRAM_SIZE)
                 except BlockingIOError:
@@ -236,6 +340,21 @@ class KongsbergDGCaptureFromSonar(Process):
                                 #print("Timestamp in buffer: {}, {}".format(header['dgmType'], header['dgTime']))
 
                                 index = self.buffer['dgTime'].index(header['dgTime'])
+
+                                # TODO: LMD ADDED 2-8-2022
+                                # Though not strictly necessary, being sure to add an accurate ping count to each
+                                # record can help with debugging.
+                                # NOTE: Kongsberg's datagram revisions B - H include the 'cmnPart' field of a
+                                # partitioned datagram in only partition #1. (This policy is reflected in versions
+                                # 0 - 1 of the #MWC datagram.) Revision I+ includes the 'cmnPart' field of a
+                                # partitioned datagram in all partitions. (This change is reflected in version 2+
+                                # of the #MWC datagram.)
+                                # If 'cmnPart' field was present in first partition to be added to buffer,
+                                # the 'pingCnt' field of the buffer will have already been populated; if not, the
+                                # 'pingCnt' field of the buffer will be None.
+                                if self.buffer['pingCnt'][index] is None:
+                                    if header['dgmVersion'] == 2 or partition['dgmNum'] == 1:
+                                        cmnPart = k.read_EMdgmMbody(bytes_io, header['dgmType'], header['dgmVersion'])
 
                                 # Append new data to existing data in buffer:
                                 self.buffer['dgmsRxed'][index] += 1
@@ -366,7 +485,17 @@ class KongsbergDGCaptureFromSonar(Process):
                                     #timestamp_index = self.buffer['dgTime'].index(min(self.buffer['dgTime']))
 
                                 # Insert new data into self.buffer, overwriting existing data if present:
-                                cmnPart = k.read_EMdgmMbody(bytes_io, header['dgmType'], header['dgmVersion'])
+                                # NOTE: Kongsberg's datagram revisions B - H include the 'cmnPart' field of a
+                                # partitioned datagram in only partition #1. (This policy is reflected in versions
+                                # 0 - 1 of the #MWC datagram.)
+                                # Revision I+ includes the 'cmnPart' field of a partitioned datagram in all partitions.
+                                # (This change is reflected in version 2+ of the #MWC datagram.)
+                                # TODO: LMD ADDED 2-8-2022
+                                # cmnPart = k.read_EMdgmMbody(bytes_io, header['dgmType'], header['dgmVersion'])
+                                if header['dgmVersion'] == 2 or partition['dgmNum'] == 1:
+                                    cmnPart = k.read_EMdgmMbody(bytes_io, header['dgmType'], header['dgmVersion'])
+                                else:
+                                    cmnPart = None
 
                                 # For debugging:
                                 # print("Inserting new datagram {}, {} into index {}. Part {} of {}."
@@ -379,7 +508,12 @@ class KongsbergDGCaptureFromSonar(Process):
                                 self.buffer['dgmType'][next_index] = header['dgmType']
                                 self.buffer['dgmVersion'][next_index] = header['dgmVersion']
                                 self.buffer['dgTime'][next_index] = header['dgTime']
-                                self.buffer['pingCnt'][next_index] = cmnPart['pingCnt']
+                                # TODO: LMD ADDED 2-8-2022
+                                # self.buffer['pingCnt'][next_index] = cmnPart['pingCnt']
+                                if cmnPart:
+                                    self.buffer['pingCnt'][next_index] = cmnPart['pingCnt']
+                                else:
+                                    self.buffer['pingCnt'][next_index] = None
                                 self.buffer['numOfDgms'][next_index] = partition['numOfDgms']
                                 self.buffer['dgmsRxed'][next_index] = 1
                                 self.buffer['complete'][next_index] = False

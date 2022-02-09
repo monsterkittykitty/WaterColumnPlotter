@@ -34,7 +34,7 @@ class Plotter(Process):
         self.across_track_avg = across_track_avg
         self.depth = depth
         self.depth_avg = depth_avg
-        # self.along_track_avg = along_track_avg
+        self.along_track_avg = along_track_avg
         self.max_heave = max_heave
 
         self.settings_edited = settings_edited
@@ -42,13 +42,15 @@ class Plotter(Process):
         # To be set to True when bin_size or max_heave is edited
         self.bin_size_edited = False
         self.max_heave_edited = False
+        # Need to maintain record of 'old' heave when max_heave is updated
+        self.outdated_heave = None
 
         # Local copies of above multiprocessing.Values (to avoid frequent accessing of locks)
         self.bin_size_local = None
         self.across_track_avg_local = None
         self.depth_local = None
         self.depth_avg_local = None
-        # self.along_track_avg_local = None
+        self.along_track_avg_local = None
         self.max_heave_local = None
         # Initialize above local copies
         # self.update_local_settings()
@@ -67,12 +69,20 @@ class Plotter(Process):
         #self.name = "PlotterProcess"
         self.shared_ring_buffer_raw = None
         self.shared_ring_buffer_processed = None
+        # Protected with self.raw_buffer_count lock:
+        # self.shared_ring_buffer_raw = SharedRingBufferRaw(self.settings, self.raw_buffer_count,
+        #                                                   self.raw_buffer_full_flag, create_shmem=False)
+        #
+        # # Protected with self.processed_buffer_count lock:
+        # self.shared_ring_buffer_processed = SharedRingBufferProcessed(self.settings, self.processed_buffer_count,
+        #                                                               self.processed_buffer_full_flag,
+        #                                                               create_shmem=False)
 
+        # TODO: Make this a multiprocessing Value?
         self.MAX_NUM_GRID_CELLS = self.settings['buffer_settings']['maxGridCells']
-        self.MAX_LENGTH_BUFFER = self.settings['buffer_settings']['maxBufferSize_ping']
-        self.ALONG_TRACK_PINGS = self.settings['processing_settings']['alongTrackAvg_ping']
+        # self.MAX_LENGTH_BUFFER = self.settings['buffer_settings']['maxBufferSize_ping']
+        # self.ALONG_TRACK_PINGS = self.settings['processing_settings']['alongTrackAvg_ping']
 
-        # TODO: Add constants to setting dictionary?
         self.QUEUE_RX_TIMEOUT = 60  # Seconds
 
         self.PIE_VMIN = -95
@@ -99,6 +109,7 @@ class Plotter(Process):
         self.horizontal_slice_start_index = None
         self.horizontal_slice_end_index = None
 
+        self.initialization_flag = False
         # Initialize local copies and vertical and horizontal indices
         self.update_local_settings()
         # self.set_vertical_indices()
@@ -109,8 +120,7 @@ class Plotter(Process):
         self.collapse_times = []  # For testing
 
     def update_local_settings(self):
-        # print("^^^^^^^ Plotter UPDATE LOCAL SETTINGS")
-        with self.settings_edited.get_lock():  # Outer lock to ensure atomicity of updates:
+        with self.settings_edited.get_lock():  # Outer lock to ensure atomicity of update--I don't think I actually need this as long as I hold appropriate locks when calling this method:
             with self.bin_size.get_lock():
                 print("update_local_settings: ", self.bin_size_local, ",", self.bin_size.value)
                 if self.bin_size_local and round(self.bin_size_local, 2) != round(self.bin_size.value, 2):
@@ -118,8 +128,6 @@ class Plotter(Process):
                     # when this value changes, ring_buffers must be cleared
                     print("setting bin_size_edited to true")
                     self.bin_size_edited = True
-                    self.shared_ring_buffer_raw.clear()
-                    self.shared_ring_buffer_processed.clear()
                 self.bin_size_local = self.bin_size.value
             with self.across_track_avg.get_lock():
                 self.across_track_avg_local = self.across_track_avg.value
@@ -127,40 +135,73 @@ class Plotter(Process):
                 self.depth_local = self.depth.value
             with self.depth_avg.get_lock():
                 self.depth_avg_local = self.depth_avg.value
-            # with self.along_track_avg.get_lock():
-            #     self.along_track_avg_local = self.along_track_avg.value
+            with self.along_track_avg.get_lock():
+                self.along_track_avg_local = self.along_track_avg.value
             with self.max_heave.get_lock():
                 if self.max_heave_local and self.max_heave_local != self.max_heave.value:
                     # max_heave edits can be applied retroactively
                     self.max_heave_edited = True
-                    # TODO: Placeholder
-                    # Only shift heave if bin_size is not edited. If bin_size has been edited,
-                    # raw and processed ring buffers will have been cleared.
-                    if not self.bin_size_edited:
-                        self.shift_heave()
+                    self.outdated_heave = self.max_heave_local
                 self.max_heave_local = self.max_heave.value
 
-            # if self.vertical_slice_start_index and self.vertical_slice_end_index:
             self.set_vertical_indices()
-            # if self.horizontal_slice_start_index and self.horizontal_slice_end_index:
             self.set_horizontal_indices()
+
+    def shift_heave(self, amplitude_buffer, count_buffer, old_heave, new_heave):
+        print("shift heave")
+        # NOTE: This method will only be called if self.bin_size_local has not changed. When self.bin_size_local
+        # changes, both raw and processed buffers will be cleared; no need to recalculate heave.
+        num_bins_old_heave = int(round(old_heave, 2) / round(self.bin_size_local, 2))
+        num_bins_new_heave = int(round(new_heave, 2) / round(self.bin_size_local, 2))
+        # Negative indicates reducing heave allotment;
+        # positive indicates increasing heave allotment
+        num_bins_adjustment = num_bins_new_heave - num_bins_old_heave
+
+        # Adjustment method based on (shift5):
+        # https://stackoverflow.com/questions/30399534/shift-elements-in-a-numpy-array
+
+        if num_bins_adjustment > 0:  # Increase heave allotment
+            if len(amplitude_buffer.shape) == 2:
+                # Shift data downward to accommodate extra heave cells at top of matrix
+                amplitude_buffer[num_bins_adjustment:] = amplitude_buffer[:-num_bins_adjustment]
+                count_buffer[num_bins_adjustment:] = count_buffer[:-num_bins_adjustment]
+                # Fill extra heave cells at top of matrix with zero
+                amplitude_buffer[:num_bins_adjustment] = 0
+                count_buffer[:num_bins_adjustment] = 0
+
+            elif len(amplitude_buffer.shape) == 3:
+                # Shift data downward to accommodate extra heave cells at top of matrix
+                amplitude_buffer[:, num_bins_adjustment:, :] = amplitude_buffer[:, :-num_bins_adjustment, :]
+                count_buffer[:, num_bins_adjustment:, :] = count_buffer[:, :-num_bins_adjustment, :]
+                # Fill extra heave cells at top of matrix with zero
+                amplitude_buffer[:, :num_bins_adjustment, :] = 0
+                count_buffer[:, :num_bins_adjustment, :] = 0
+            else:
+                logger.warning("Error in Plotter.py, shift_heave() method. Invalid buffer shape: {}."
+                               .format(amplitude_buffer.shape))
+
+        elif num_bins_adjustment < 0:  # Decrease heave allotment
+            if len(amplitude_buffer.shape) == 2:
+                # Shift data upward to accommodate fewer heave cells at top of matrix
+                amplitude_buffer[:num_bins_adjustment] = amplitude_buffer[-num_bins_adjustment:]
+                count_buffer[:num_bins_adjustment] = count_buffer[-num_bins_adjustment:]
+                # Fill extra cells at bottom of matrix with zero
+                amplitude_buffer[num_bins_adjustment:] = 0
+                count_buffer[num_bins_adjustment:] = 0
+
+            elif len(amplitude_buffer.shape) == 3:
+                # Shift data upward to accommodate fewer heave cells at top of matrix
+                amplitude_buffer[:, :num_bins_adjustment, :] = amplitude_buffer[:, -num_bins_adjustment:, :]
+                count_buffer[:, :num_bins_adjustment, :] = count_buffer[:, -num_bins_adjustment:, :]
+                # Fill extra cells at bottom of matrix with zero
+                amplitude_buffer[:, num_bins_adjustment:, :] = 0
+                count_buffer[:, num_bins_adjustment:, :] = 0
+            else:
+                logger.warning("Error in Plotter.py, shift_heave() method. Invalid buffer shape: {}."
+                               .format(amplitude_buffer.shape))
 
     def set_vertical_indices(self):
         # TODO: Double check that this is calculated correctly
-        # self.vertical_slice_start_index = math.floor((self.MAX_NUM_GRID_CELLS / 2) -
-        #                                              ((self.settings['processing_settings']['acrossTrackAvg_m'] / 2) /
-        #                                               self.settings['processing_settings']['binSize_m']))
-        # self.vertical_slice_end_index = math.ceil((self.MAX_NUM_GRID_CELLS / 2) +
-        #                                           ((self.settings['processing_settings']['acrossTrackAvg_m'] / 2) /
-        #                                            self.settings["processing_settings"]["binSize_m"]))
-
-        # self.vertical_slice_start_index = math.floor((self.MAX_NUM_GRID_CELLS / 2) -
-        #                                              ((self.across_track_avg.value / 2) /
-        #                                               self.bin_size.value))
-        # self.vertical_slice_end_index = math.ceil((self.MAX_NUM_GRID_CELLS / 2) +
-        #                                           ((self.across_track_avg.value / 2) /
-        #                                            self.bin_size.value))
-
         self.vertical_slice_start_index = math.floor((self.MAX_NUM_GRID_CELLS / 2) -
                                                      ((self.across_track_avg_local / 2) /
                                                       self.bin_size_local))
@@ -175,26 +216,6 @@ class Plotter(Process):
         # Add the above two values to get true index of desired depth.
         # Then, find number of bins that must be included to achieve horizontal_slice_width_m above / below index of
         # desired depth: this is found by dividing horizontal_slice_width_m by 2 and dividing again by bin_size.
-        # self.horizontal_slice_start_index = math.ceil(self.settings["processing_settings"]["maxHeave_m"] /
-        #                                               self.settings["processing_settings"]["binSize_m"]) + \
-        #                                     math.floor(self.settings["processing_settings"]["depth_m"] /
-        #                                                self.settings["processing_settings"]["binSize_m"]) - \
-        #                                     math.ceil((self.settings["processing_settings"]["depthAvg_m"] / 2) /
-        #                                               self.settings["processing_settings"]["binSize_m"])
-        # self.horizontal_slice_end_index = math.ceil(self.settings["processing_settings"]["maxHeave_m"] /
-        #                                             self.settings["processing_settings"]["binSize_m"]) + \
-        #                                   math.floor(self.settings["processing_settings"]["depth_m"] /
-        #                                              self.settings["processing_settings"]["binSize_m"]) + \
-        #                                   math.ceil((self.settings["processing_settings"]["depthAvg_m"] / 2) /
-        #                                             self.settings["processing_settings"]["binSize_m"])
-
-        # self.horizontal_slice_start_index = math.ceil(self.max_heave.value / self.bin_size.value) + \
-        #                                     math.floor(self.depth.value / self.bin_size.value) - \
-        #                                     math.ceil((self.depth_avg.value / 2) / self.bin_size.value)
-        # self.horizontal_slice_end_index = math.ceil(self.max_heave.value / self.bin_size.value) + \
-        #                                   math.floor(self.depth.value / self.bin_size.value) + \
-        #                                   math.ceil((self.depth_avg.value / 2) / self.bin_size.value)
-
         self.horizontal_slice_start_index = math.ceil(self.max_heave_local / self.bin_size_local) + \
                                             math.floor(self.depth_local / self.bin_size_local) - \
                                             math.ceil((self.depth_avg_local / 2) / self.bin_size_local)
@@ -316,8 +337,6 @@ class Plotter(Process):
     #         logger.warning("Nothing to plot; water column data matrix buffer is empty.")
 
     def get_and_buffer_pie(self):
-        # TODO: Should inserting values into shared_memory buffers be done in KongsbergDGProcess?
-        #  Or is queueing PieObjects best for compatibility with other systems?
 
         count_temp = 0
 
@@ -334,234 +353,97 @@ class Plotter(Process):
                 local_process_flag_value = self.process_flag.value
 
             try:
+                print("in plotter, getting pie object: ", self.queue_pie_object.qsize())
                 pie_object = self.queue_pie_object.get(block=True, timeout=self.QUEUE_RX_TIMEOUT)
 
                 if pie_object:  # pie_object will be of type DGPie if valid record, or type None if poison pill
+                    print("in plotter; got pie object")
                     if local_process_flag_value == 1 or local_process_flag_value == 2:  # Play pressed or pause pressed
-                        # Process data pulled from queue
-                        print("len(temp_pie_values) before before: ", len(temp_pie_values))
 
-                        # # Check for signal to update settings:
-                        # with self.settings_edited.get_lock():
-                        #     if self.settings_edited.value:  # If settings are edited...
-                        #         with self.bin_size.get_lock():
-                        #             if self.bin_size_local and round(pie_object.bin_size, 2) != \
-                        #                     round(self.bin_size.value, 2):
-                        #                 print(round(pie_object.bin_size, 2), round(self.bin_size_local, 2))
-                        #                 print("continue called")
-                        #                 continue  # Return to start of while loop
-                        #             else:
-                        #                 self.update_local_settings()  # ...Update local settings
-                        #                 self.set_vertical_indices()  # ...Recalculate vertical indices
-                        #                 self.set_horizontal_indices()  # ...Recalculate horizontal indices
-                        #                 self.shared_ring_buffer_raw.clear()  # ...Clear raw ring buffer
-                        #                 self.shared_ring_buffer_processed.clear()  # ...Clear processed ring buffer
-                        #                 count_temp = 0  # ...Reset count
-                        #                 print("setting bin_size_edited to false")
-                        #                 self.bin_size_edited = False
+                        # TODO: 2/3 New attempt
+                        print("in plotter, getting raw buffer lock")
+                        with self.shared_ring_buffer_raw.get_lock():
+                            print("in plotter, got raw buffer lock")
+                            print("in plotter; checking settings_edited.value: ", self.settings_edited.value)
+                            with self.settings_edited.get_lock():
+                                print("in plotter; checking settings_edited.value: ", self.settings_edited.value)
+                                if self.settings_edited.value:  # If settings are edited...
+                                    print("in plotter; updating local settings")
+                                    self.update_local_settings()
+                                    # if not self.bin_size_edited:
+                                    #     print("in plotter; recalculating processed buffer")
+                                    #     # Called with self.settings_edited lock held to ensure atomicity
+                                    #     self.recalculate_processed_buffer(self.shared_ring_buffer_raw,
+                                    #                                       self.shared_ring_buffer_processed)
+                                    # else:
+                                    #     self.shared_ring_buffer_raw.clear()
+                                    #     self.shared_ring_buffer_processed.clear()
+                                    self.settings_edited.value = False
 
+                            # if not self.bin_size_edited:
+                            #     self.recalculate_processed_buffer()
 
-                        # TODO: New attempt:
-                        with self.settings_edited.get_lock():
-                            if self.settings_edited.value:  # If settings are edited...
-                                self.update_local_settings()
-                                self.settings_edited.value = False
-
-                        # If self.bin_size_edited is True, raw and processed ring buffers have already been cleared in
-                        # update_local_settings() call. We only need to empty queue_pie_object of outdated pie_objects.
-                        # We DO NOT need to call self.recalculate_processed_buffer, as buffers are empty.
-                        if self.bin_size_edited:
-                            if round(pie_object.bin_size, 2) != round(self.bin_size_local, 2):
-                                # If the current pie_object contains a record processed with the 'old' bin_size,
-                                # do not process it--discard it and get another from the queue
-                                print(round(pie_object.bin_size, 2), round(self.bin_size_local, 2))
-                                print("continue called")
-                                continue  # Return to start of while loop
-                            else:
-                                # If the current pie_object contains a record processed with the 'new' bin_size...
-                                count_temp = 0  # ...Reset count...
-                                print("setting bin_size_edited to false")
-                                self.bin_size_edited = False  # ...Reset self.bin_size_edited...
-                                # ...And continue to process pie_object as usual.
-
-                        # If self.max_heave_edited is True, raw and processed ring buffers have already been adjusted
-                        # in update_local_settings() call. We only need to monitor queue_pie_object for outdated
-                        # pie_objects and adjust them accordingly.
-                        if self.max_heave_edited:
-                            if round(pie_object.max_heave, 2) != round(self.max_heave_local, 2):
-                                # TODO: I don't think it's actually necessary to create new matrices???
-                                # Adjust heave of individual pie_object:
-                                temp_amplitude_array = np.empty_like(pie_object.pie_chart_values,
-                                                                     dtype=pie_object.pie_chart_values.dtype)
-                                temp_count_array = np.empty_like(pie_object.pie_chart_count,
-                                                                 dtype=pie_object.pie_chart_count.dtype)
-
-                                num_bins_old_heave = int(round(pie_object.max_heave, 2) / round(pie_object.bin_size, 2))
-                                num_bins_new_heave = int(round(self.max_heave_local, 2) / round(self.bin_size_local, 2))
-                                # Negative indicates reducing heave allotment;
-                                # positive indicates increasing heave allotment
-                                num_bins_adjustment = num_bins_new_heave - num_bins_old_heave
-
-                                # Adjustment method based on (shift5):
-                                # https://stackoverflow.com/questions/30399534/shift-elements-in-a-numpy-array
-
-                                if num_bins_adjustment > 0:  # Increase heave allotment
-                                    # Shift data downward to accomodate extra heave cells at top of matrix
-                                    pie_object.pie_chart_values[num_bins_adjustment:] = \
-                                        pie_object.pie_chart_values[:-num_bins_adjustment]
-                                    pie_object.pie_chart_count[num_bins_adjustment:] = \
-                                        pie_object.pie_chart_count[:-num_bins_adjustment]
-                                    # Fill extra heave cells at top of matrix with zero
-                                    pie_object.pie_chart_values[:num_bins_adjustment] = 0
-                                    pie_object.pie_chart_count[:num_bins_adjustment] = 0
-
-                                    # # Add nans at top of new matrix to accomodate new heave
-                                    # temp_amplitude_array[:num_bins_adjustment] = np.nan
-                                    # temp_count_array[:num_bins_adjustment] = np.nan
-                                    # # Trim bottom of pie_object matrices when inserting into new array
-                                    # # (pie_object matrices will have to be shifted downward to accommodate extra heave)
-                                    # temp_amplitude_array[num_bins_adjustment:] = \
-                                    #     pie_object.pie_chart_values[:-num_bins_adjustment]
-                                    # temp_count_array[num_bins_adjustment:] = \
-                                    #     pie_object.pie_chart_count[:-num_bins_adjustment]
-
-                                elif num_bins_adjustment < 0:  # Decrease heave allotment
-                                    # Shift data upward to accomodate fewer heave cells at top of matrix
-                                    pie_object.pie_chart_values[:num_bins_adjustment] = \
-                                        pie_object.pie_chart_values[-num_bins_adjustment:]
-                                    pie_object.pie_chart_count[:num_bins_adjustment] = \
-                                        pie_object.pie_chart_count[-num_bins_adjustment:]
-                                    # Fill extra cells at bottom of matrix with zero
-                                    pie_object.pie_chart_values[num_bins_adjustment:] = 0
-                                    pie_object.pie_chart_count[num_bins_adjustment:] = 0
-
-                                    # # Add nans at bottom of new matrix to accomodate new heave
-                                    # temp_amplitude_array[num_bins_adjustment:] = np.nan
-                                    # temp_count_array[num_bins_adjustment:] = np.nan
-                                    # # Trim top of pie_object matrices when inserting into new array
-                                    # # (pie_object matrices will have to be shifted upward to accommodate extra heave)
-                                    # temp_amplitude_array[:num_bins_adjustment] = \
-                                    #     pie_object.pie_chart_values[-num_bins_adjustment:]
-                                    # temp_count_array[:num_bins_adjustment] = \
-                                    #     pie_object.pie_chart_count[-num_bins_adjustment:]
-
-                                # else:
-                                #     temp_amplitude_array = pie_object.pie_chart_values
-                                #     temp_count_array = pie_object.pie_chart_count
-                            else:
-                                self.max_heave_edited = False
-
-                        # TODO: Fall back to this one.
-                        # Check for signal to update settings:
-                        # with self.settings_edited.get_lock():
-                        #     if self.settings_edited.value:  # If settings are edited...
-                        #         print("settings are edited")
-                        #
-                        #         # If self.bin_size_edited is False, check whether it should be True
-                        #         if not self.bin_size_edited:
-                        #             with self.bin_size.get_lock():
-                        #                 # TODO: I think this needs to be local (not pie_object) != value.
-                        #                 #  Is it possible that the object pulled from queue already has new bin_size?
-                        #                 if self.bin_size_local and round(self.bin_size_local, 2) != \
-                        #                         round(self.bin_size.value, 2):
-                        #                     self.bin_size_local = self.bin_size.value  # Update bin_size_local
-                        #                     self.bin_size_edited = True
-                        #
-                        #         # If self.bin_size_edited is True, we will empty self.queue_pie_object of all records
-                        #         # with 'old' bin_size values, update local settings, and clear raw and processed
-                        #         # ring buffers. We DO NOT need to call self.recalculate_processed_buffer,
-                        #         # as buffers will be emptied.
-                        #         if self.bin_size_edited:
-                        #             if round(pie_object.bin_size, 2) != round(self.bin_size_local, 2):
-                        #                 # If the current pie_object contains a record processed with the 'old' bin_size,
-                        #                 # do not process pie_object--discard it and get another from the queue
-                        #                 print(round(pie_object.bin_size, 2), round(self.bin_size_local, 2))
-                        #                 print("continue called")
-                        #                 continue  # Return to start of while loop
-                        #             else:
-                        #                 # If the current pie_object contains a record processed with the 'new' bin_size...
-                        #                 self.update_local_settings()  # ...Update local settings
-                        #                 self.set_vertical_indices()  # ...Recalculate vertical indices
-                        #                 self.set_horizontal_indices()  # ...Recalculate horizontal indices
-                        #                 self.shared_ring_buffer_raw.clear()  # ...Clear raw ring buffer
-                        #                 self.shared_ring_buffer_processed.clear()  # ...Clear processed ring buffer
-                        #                 count_temp = 0  # ...Reset count
-                        #                 print("setting bin_size_edited to false")
-                        #                 self.bin_size_edited = False
-                        #
-                        #         # If self.bin_size_edited is False, we must check the value of self.max_heave_edited.
-                        #         #
-                        #         # we will update local settings and call
-                        #         # self.recalculate_processed_buffers to update processed buffer
-                        #         else:  # If bin_size is not edited...
-                        #
-                        #             # If self.max_heave_edited is False, check whether it should be True
-                        #             if not self.max_heave_edited:
-                        #                 with self.max_heave.get_lock():
-                        #                     # TODO: I think this needs to be local (not pie_object) != value.
-                        #                     #  Is it possible that the object pulled from queue already has new max_heave?
-                        #                     if self.max_heave_local and round(self.max_heave_local, 2) != \
-                        #                             round(self.max_heave.value, 2):
-                        #                         self.max_heave_local = self.max_heave.value  # Update max_heave_local
-                        #                         self.max_heave_edited = True
-                        #
-                        #             # If max_heave is edited, we need to change the matrices in both raw and processed
-                        #             # ring buffers, and any incoming that was formed using the old values.
-                        #             if self.max_heave_edited:
-                        #                 # TODO: We need a one-time call to adjust heave in raw and processed ring buffers
-                        #                 # self.max_heave_edited = False
-                        #
-                        #                 # TODO: Then we need to check every new pie_object for 'old' values:
-                        #                 if round(pie_object.max_heave, 2) != round(self.max_heave_local, 2):
-                        #                     num_bins_old_heave = None  # Contained in dgm
-                        #                     num_bins_new_heave = None
-                        #
-                        #                     # Adjust heave of individual pie_object:
-                        #                     temp_amplitude_array = np.empty_like(pie_object.pie_chart_values,
-                        #                                                         dtype=pie_object.pie_chart_values.dtype)
-                        #                     temp_count_array = np.empty_like(pie_object.pie_chart_count,
-                        #                                                      dtype=pie_object.pie_chart_count.dtype)
-                        #
-                        #
-                        #
-                        #
-                        #             self.update_local_settings()  # ...Update local settings
-                        #             self.set_vertical_indices()  # ...Recalculate vertical indices
-                        #             self.set_horizontal_indices()  # ...Recalculate horizontal indices
-                        #             self.recalculate_processed_buffer()
-                        #
-                        #         print("setting settings_edited to false")
-                        #         self.settings_edited.value = False
+                            # If self.bin_size_edited is True, raw and processed ring buffers have already been cleared in
+                            # update_local_settings() call. We only need to empty queue_pie_object of outdated pie_objects.
+                            # We DO NOT need to call self.recalculate_processed_buffer, as buffers are empty.
+                            print("in plotter; checking bin_size_edited: ", self.bin_size_edited)
+                            if self.bin_size_edited:
+                                if round(pie_object.bin_size, 2) != round(self.bin_size_local, 2):
+                                    # If the current pie_object contains a record processed with the 'old' bin_size,
+                                    # do not process it--discard it and get another from the queue
+                                    print(round(pie_object.bin_size, 2), round(self.bin_size_local, 2))
+                                    print("continue called")
+                                    continue  # Return to start of while loop
+                                else:
+                                    # If the current pie_object contains a record processed with the 'new' bin_size...
+                                    count_temp = 0  # ...Reset count...
+                                    print("setting bin_size_edited to false")
+                                    self.bin_size_edited = False  # ...Reset self.bin_size_edited...
+                                    # ...And continue to process pie_object as usual.
+                            # else:
+                            #     self.recalculate_processed_buffer()
 
 
-                        with self.raw_buffer_count.get_lock():
-                            self.shared_ring_buffer_raw.append_all([pie_object.pie_chart_values],
-                                                                   [pie_object.pie_chart_count],
-                                                                   [pie_object.timestamp],
-                                                                   [(pie_object.latitude, pie_object.longitude)])
+                            # If self.max_heave_edited is True, raw and processed ring buffers have already been adjusted
+                            # in update_local_settings() call. We only need to monitor queue_pie_object for outdated
+                            # pie_objects and adjust them accordingly.
+                            print("in plotter; checking max_heave_edited: ", self.max_heave_edited)
+                            if self.max_heave_edited:
+                                print("MAX HEAVE IS EDITED")
+                                if round(pie_object.max_heave, 2) != round(self.max_heave_local, 2):
+                                    print("in plotter; shifting heave of individual pie object")
+                                    self.shift_heave(pie_object.pie_chart_values, pie_object.pie_chart_count,
+                                                     pie_object.max_heave, self.max_heave_local)
+                                else:
+                                    self.max_heave_edited = False
 
-                            #print("self.raw_buffer_count: ", self.raw_buffer_count.value)
+                            with self.raw_buffer_count.get_lock():
+                                print("in plotter; adding pie objects to raw buffer")
+                                self.shared_ring_buffer_raw.append_all([pie_object.pie_chart_values],
+                                                                       [pie_object.pie_chart_count],
+                                                                       [pie_object.timestamp],
+                                                                       [(pie_object.latitude, pie_object.longitude)])
 
-                            count_temp += 1
+                                count_temp += 1
 
-                            if count_temp == self.ALONG_TRACK_PINGS:
-                                temp_pie_values = np.copy(self.shared_ring_buffer_raw.view_recent_pings(
-                                    self.shared_ring_buffer_raw.amplitude_buffer, self.ALONG_TRACK_PINGS))
-                                temp_pie_count = np.copy(self.shared_ring_buffer_raw.view_recent_pings(
-                                    self.shared_ring_buffer_raw.count_buffer, self.ALONG_TRACK_PINGS))
-                                temp_timestamp = np.copy(self.shared_ring_buffer_raw.view_recent_pings(
-                                    self.shared_ring_buffer_raw.timestamp_buffer, self.ALONG_TRACK_PINGS))
-                                temp_lat_lon = np.copy(self.shared_ring_buffer_raw.view_recent_pings(
-                                    self.shared_ring_buffer_raw.lat_lon_buffer, self.ALONG_TRACK_PINGS))
+                                if count_temp == self.along_track_avg_local:
+                                    temp_pie_values = np.copy(self.shared_ring_buffer_raw.view_recent_pings(
+                                        self.shared_ring_buffer_raw.amplitude_buffer, self.along_track_avg_local))
+                                    temp_pie_count = np.copy(self.shared_ring_buffer_raw.view_recent_pings(
+                                        self.shared_ring_buffer_raw.count_buffer, self.along_track_avg_local))
+                                    temp_timestamp = np.copy(self.shared_ring_buffer_raw.view_recent_pings(
+                                        self.shared_ring_buffer_raw.timestamp_buffer, self.along_track_avg_local))
+                                    temp_lat_lon = np.copy(self.shared_ring_buffer_raw.view_recent_pings(
+                                        self.shared_ring_buffer_raw.lat_lon_buffer, self.along_track_avg_local))
 
-                        # Release lock
+                            # Release lock
 
-                        if count_temp == self.ALONG_TRACK_PINGS:
-                            print("collapsing and buffering pings. count: ", count_temp)
-                            # threading.Thread(target=self.collapse_and_buffer_pings,
-                            #                  args=(temp_pie_values, temp_pie_count, temp_timestamp, temp_lat_lon)).start()
-                            self.collapse_and_buffer_pings(temp_pie_values, temp_pie_count, temp_timestamp, temp_lat_lon)
-                            count_temp = 0
+                            if count_temp == self.along_track_avg_local:
+                                print("collapsing and buffering pings. count: ", count_temp)
+                                # threading.Thread(target=self.collapse_and_buffer_pings,
+                                #                  args=(temp_pie_values, temp_pie_count, temp_timestamp, temp_lat_lon)).start()
+                                self.collapse_and_buffer_pings(temp_pie_values, temp_pie_count, temp_timestamp, temp_lat_lon)
+                                count_temp = 0
 
                     elif local_process_flag_value == 3:  # Stop pressed
                         # Do not process pie. Instead, only empty queue.
@@ -591,12 +473,12 @@ class Plotter(Process):
         if np.any(temp_pie_values) and np.any(temp_pie_count):
             #print("Collapse buffer")
 
-            print("len(temp_pie_values):", len(temp_pie_values))
-            print("number of non-nan elements in index 0: ", np.count_nonzero(temp_pie_values[0]))
-            print("number of non-nan elements in index 1: ", np.count_nonzero(temp_pie_values[1]))
-            print("number of non-nan elements in index 2: ", np.count_nonzero(temp_pie_values[2]))
-            print("number of non-nan elements in index 3: ", np.count_nonzero(temp_pie_values[2]))
-            print("number of non-nan elements in index 4: ", np.count_nonzero(temp_pie_values[4]))
+            # print("len(temp_pie_values):", len(temp_pie_values))
+            # print("number of non-nan elements in index 0: ", np.count_nonzero(temp_pie_values[0]))
+            # print("number of non-nan elements in index 1: ", np.count_nonzero(temp_pie_values[1]))
+            # print("number of non-nan elements in index 2: ", np.count_nonzero(temp_pie_values[2]))
+            # print("number of non-nan elements in index 3: ", np.count_nonzero(temp_pie_values[2]))
+            # print("number of non-nan elements in index 4: ", np.count_nonzero(temp_pie_values[4]))
 
             # VERTICAL SLICE:
             # Trim arrays to omit values outside of self.vertical_slice_width_m
@@ -696,35 +578,39 @@ class Plotter(Process):
         # print("Max collapse time: ", max(self.collapse_times))
         # print("Average collapse time: ", sum(self.collapse_times) / len(self.collapse_times))
 
-    def shift_heave(self):
-        # TODO: Implement!
-        print("Shifting heave.")
-        pass
 
-    def recalculate_processed_buffer(self):
+
+    def recalculate_processed_buffer(self, ring_buffer_raw, ring_buffer_processed):
         # pass
         print("recalculating processed buffer")
         # TODO: Is it better to collapse buffers first, then trim for vertical and horizontal slices?
 
-        along_track_avg_ping = self.settings['processing_settings']['alongTrackAvg_ping']
+        # along_track_avg_ping = self.settings['processing_settings']['alongTrackAvg_ping']
+        # TODO: NEW
+        with ring_buffer_raw.counter.get_lock():
+            temp_amplitude_buffer = ring_buffer_raw.view_buffer_elements(ring_buffer_raw.amplitude_buffer)
+            temp_count_buffer = ring_buffer_raw.view_buffer_elements(ring_buffer_raw.count_buffer)
+            temp_timestamp_buffer = ring_buffer_raw.view_buffer_elements(ring_buffer_raw.timestamp_buffer)
+            temp_lat_lon_buffer = ring_buffer_raw.view_buffer_elements(ring_buffer_raw.lat_lon_buffer)
 
-        with self.raw_buffer_count.get_lock():
-            # Produces views of self.shared_ring_buffer_raw arrays
-            temp_amplitude_buffer = self.shared_ring_buffer_raw.view_buffer_elements(
-                self.shared_ring_buffer_raw.amplitude_buffer)
-            temp_count_buffer = self.shared_ring_buffer_raw.view_buffer_elements(
-                self.shared_ring_buffer_raw.count_buffer)
-            temp_timestamp_buffer = self.shared_ring_buffer_raw.view_buffer_elements(
-                self.shared_ring_buffer_raw.timestamp_buffer)
-            temp_lat_lon_buffer = self.shared_ring_buffer_raw.view_buffer_elements(
-                self.shared_ring_buffer_raw.lat_lon_buffer)
+        # TODO: OLD
+        # with self.raw_buffer_count.get_lock():
+        #     # Produces views of self.shared_ring_buffer_raw arrays
+        #     temp_amplitude_buffer = self.shared_ring_buffer_raw.view_buffer_elements(
+        #         self.shared_ring_buffer_raw.amplitude_buffer)
+        #     temp_count_buffer = self.shared_ring_buffer_raw.view_buffer_elements(
+        #         self.shared_ring_buffer_raw.count_buffer)
+        #     temp_timestamp_buffer = self.shared_ring_buffer_raw.view_buffer_elements(
+        #         self.shared_ring_buffer_raw.timestamp_buffer)
+        #     temp_lat_lon_buffer = self.shared_ring_buffer_raw.view_buffer_elements(
+        #         self.shared_ring_buffer_raw.lat_lon_buffer)
 
             assert len(temp_amplitude_buffer) == len(temp_count_buffer) \
                    == len(temp_timestamp_buffer) == len(temp_lat_lon_buffer)  # All buffers should be of equal length
 
             # Ensure that buffer can be divided evenly by along_track_avg_ping;
             # if not, discard remainder from end of buffer for following calculations
-            indices_to_trim = len(temp_amplitude_buffer) % along_track_avg_ping
+            indices_to_trim = len(temp_amplitude_buffer) % self.along_track_avg_local
 
             # TODO: For debugging:
             print("Shape before trim, temp_amplitude_buffer: {}; temp_count_buffer: {}; "
@@ -742,12 +628,13 @@ class Plotter(Process):
                 temp_lat_lon_buffer = temp_lat_lon_buffer[:-indices_to_trim]
 
 
-
             # TODO: For debugging:
             print("Shape after trim, temp_amplitude_buffer: {}; temp_count_buffer: {}; "
                   "temp_timestamp_buffer: {}; temp_lat_lon_buffer: {}"
                   .format(temp_amplitude_buffer.shape, temp_count_buffer.shape,
                           temp_timestamp_buffer.shape, temp_lat_lon_buffer.shape))
+
+
 
 
 
@@ -784,11 +671,11 @@ class Plotter(Process):
             # This creates copy of array
             temp_amplitude_vertical_collapsed = np.add.reduceat(temp_amplitude_vertical,
                                                                 np.arange(0, len(temp_amplitude_vertical),
-                                                                          along_track_avg_ping))
+                                                                          self.along_track_avg_local))
 
             temp_count_vertical_collapsed = np.add.reduceat(temp_count_vertical,
                                                            np.arange(0, len(temp_count_vertical),
-                                                                     along_track_avg_ping))
+                                                                     self.along_track_avg_local))
 
             # TODO: For debugging:
             print("Shape temp_amplitude_vertical_collapsed: {}; temp_count_vertical_collapsed: {}"
@@ -832,11 +719,11 @@ class Plotter(Process):
             # This creates copy of array
             temp_amplitude_horizontal_collapsed = np.add.reduceat(temp_amplitude_horizontal,
                                                                   np.arange(0, len(temp_amplitude_horizontal),
-                                                                            along_track_avg_ping))
+                                                                            self.along_track_avg_local))
 
             temp_count_horizontal_collapsed = np.add.reduceat(temp_count_horizontal,
                                                               np.arange(0, len(temp_count_horizontal),
-                                                                        along_track_avg_ping))
+                                                                        self.along_track_avg_local))
 
             # TODO: For debugging:
             print("Shape temp_amplitude_horizontal_collapsed: {}; temp_count_horizontal_collapsed: {}"
@@ -875,7 +762,7 @@ class Plotter(Process):
 
             # This creates copy of array
             timestamp_collapsed = np.add.reduceat(temp_timestamp_buffer,
-                                                  np.arange(0, len(temp_timestamp_buffer), along_track_avg_ping))
+                                                  np.arange(0, len(temp_timestamp_buffer), self.along_track_avg_local))
 
             # TODO: For debugging:
             print("Shape timestamp_collapsed: {}"
@@ -883,7 +770,7 @@ class Plotter(Process):
 
             # Ignore divide by zero warnings. Division by zero results in NaN, which is what we want.
             with np.errstate(divide='ignore', invalid='ignore'):
-                timestamp_average = timestamp_collapsed / along_track_avg_ping
+                timestamp_average = timestamp_collapsed / self.along_track_avg_local
 
             # TODO: For debugging:
             print("Shape timestamp average: {}".format(timestamp_average.shape))
@@ -901,7 +788,7 @@ class Plotter(Process):
 
             # This creates copy of array
             lat_lon_collapsed = np.add.reduceat(temp_lat_lon_buffer,
-                                                  np.arange(0, len(temp_lat_lon_buffer), along_track_avg_ping))
+                                                np.arange(0, len(temp_lat_lon_buffer), self.along_track_avg_local))
 
             # TODO: For debugging:
             print("Shape lat_lon_collapsed: {}"
@@ -909,7 +796,7 @@ class Plotter(Process):
 
             # Ignore divide by zero warnings. Division by zero results in NaN, which is what we want.
             with np.errstate(divide='ignore', invalid='ignore'):
-                lat_lon_average = lat_lon_collapsed / along_track_avg_ping
+                lat_lon_average = lat_lon_collapsed / self.along_track_avg_local
 
             # TODO: For debugging:
             print("Shape lat_lon average: {}".format(lat_lon_average.shape))
@@ -921,9 +808,16 @@ class Plotter(Process):
         # Release raw buffer lock
 
         # print("appending data to processed buffer")
-        with self.processed_buffer_count.get_lock():
-            self.shared_ring_buffer_processed.clear_and_append_all(vertical_average, horizontal_average,
-                                                         timestamp_average, lat_lon_average)
+
+        # TODO: NEW
+        with ring_buffer_processed.counter.get_lock():
+            ring_buffer_processed.clear_and_append_all(vertical_average, horizontal_average,
+                                                       timestamp_average, lat_lon_average)
+
+        # TODO: OLD
+        # with self.processed_buffer_count.get_lock():
+        #     self.shared_ring_buffer_processed.clear_and_append_all(vertical_average, horizontal_average,
+        #                                                  timestamp_average, lat_lon_average)
 
 
 

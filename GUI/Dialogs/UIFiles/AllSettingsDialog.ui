@@ -87,6 +87,9 @@
        <layout class="QHBoxLayout" name="horizontalLayoutSystem">
         <item>
          <widget class="QRadioButton" name="radioButtonOther">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
           <property name="text">
            <string>Other:</string>
           </property>
@@ -928,6 +931,9 @@
            </property>
            <property name="toolTip">
             <string>Size of square matrix for storing ping data.</string>
+           </property>
+           <property name="minimum">
+            <number>100</number>
            </property>
            <property name="maximum">
             <number>1000</number>

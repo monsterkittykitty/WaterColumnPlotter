@@ -23,12 +23,16 @@ class AllSettingsDialog2(QtWidgets.QDialog):
     signalDepthEdited = pyqtSignal(name="depthEdited")
     signalDepthAvgEdited = pyqtSignal(name="depthAvgEdited")
     signalAlongTrackAvgEdited = pyqtSignal(name="alongTrackAvgEdited")
-    signalDualSwathPolicyEdited = pyqtSignal(name="dualSwathPolicyEdited")
     signalHeaveEdited = pyqtSignal(name="heaveEdited")
     signalGridCellsEdited = pyqtSignal(name="gridCellsEdited")
     signalPingBufferEdited = pyqtSignal(name="pingBufferEdited")
 
+    # signalKongsbergCaptureSettingsEdited = pyqtSignal(name="kongsbergCaptureSettingsEdited")
+    # signalKongsbergProcessSettingsEdited = pyqtSignal(name="kongsbergProcessSettingsEdited")
+    # signalKongsbergPlotterSettingsEdited = pyqtSignal(name="kongsbergPlotterSettingsEdited")
+
     signalProcessingSettingsEdited = pyqtSignal(name="processingSettingsEdited")
+    # signalSettingsEdited = pyqtSignal(list, name="settingsEdited")
 
     def __init__(self, settings, parent=None):
         super(AllSettingsDialog2, self).__init__(parent)
@@ -109,14 +113,6 @@ class AllSettingsDialog2(QtWidgets.QDialog):
         self.ui.spinBoxAlongTrackAvg.setValue(int(self.settings['processing_settings']['alongTrackAvg_ping']))
         self.ui.doubleSpinBoxMaxHeave.setValue(round(self.settings['processing_settings']['maxHeave_m'], 2))
 
-        # Remove dual swath settings:
-        # if self.settings['processing_settings']['dualSwathPolicy'] == 0:
-        #     self.ui.radioButtonAllPings.setChecked(True)
-        # elif self.settings['processing_settings']['dualSwathPolicy'] == 1:
-        #     self.ui.radioButtonFirstPing.setChecked(True)
-        # elif self.settings['processing_settings']['dualSwathPolicy'] == 2:
-        #     self.ui.radioButtonSecondPing.setChecked(True)
-
         # Buffer Settings
         self.ui.spinBoxMaxGridCells.setValue(int(self.settings['buffer_settings']['maxGridCells']))
         self.ui.spinBoxMaxPingBuffer.setValue(int(self.settings['buffer_settings']['maxBufferSize_ping']))
@@ -138,7 +134,6 @@ class AllSettingsDialog2(QtWidgets.QDialog):
         depthEdited = False
         depthAvgEdited = False
         alongTrackAvgEdited = False
-        dualSwathPolicyEdited = False
         heaveEdited = False
         gridCellsEdited = False
         pingBufferEdited = False
@@ -273,21 +268,6 @@ class AllSettingsDialog2(QtWidgets.QDialog):
             self.ui.doubleSpinBoxMaxHeave.setValue(round(self.settings['processing_settings']['maxHeave_m'], 2))
             heaveEdited = True
 
-        # Remove dual swath settings:
-        # dualSwathPolicy (0 to keep all pings; 1 to keep first ping only; 2 to keep second ping only):
-        # if self.settings['processing_settings']['dualSwathPolicy'] != \
-        #         loadSettings['processing_settings']['dualSwathPolicy']:
-        #
-        #     self.settings['processing_settings']['dualSwathPolicy'] = \
-        #         loadSettings['processing_settings']['dualSwathPolicy']
-        #     if self.settings['processing_settings']['dualSwathPolicy'] == 0:
-        #         self.ui.radioButtonAllPings.setChecked(True)
-        #     elif self.settings['processing_settings']['dualSwathPolicy'] == 1:
-        #         self.ui.radioButtonFirstPing.setChecked(True)
-        #     elif self.settings['processing_settings']['dualSwathPolicy'] == 2:
-        #         self.ui.radioButtonSecondPing.setChecked(True)
-        #     dualSwathPolicyEdited = True
-
         # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
         # Buffer Settings:
 
@@ -307,8 +287,8 @@ class AllSettingsDialog2(QtWidgets.QDialog):
 
         # Only emit signals after all values in dictionary have been updated:
         self.emitSignals(systemEdited, ipEdited, portEdited, protocolEdited, socketBufferEdited, binSizeEdited,
-                         acrossTrackAvgEdited, depthEdited, depthAvgEdited, alongTrackAvgEdited, dualSwathPolicyEdited,
-                         heaveEdited, gridCellsEdited, pingBufferEdited)
+                         acrossTrackAvgEdited, depthEdited, depthAvgEdited, alongTrackAvgEdited, heaveEdited,
+                         gridCellsEdited, pingBufferEdited)
 
     def validateAndSetValuesFromDialog(self):
         """
@@ -325,7 +305,6 @@ class AllSettingsDialog2(QtWidgets.QDialog):
         depthEdited = False
         depthAvgEdited = False
         alongTrackAvgEdited = False
-        dualSwathPolicyEdited = False
         heaveEdited = False
         gridCellsEdited = False
         pingBufferEdited = False
@@ -435,18 +414,6 @@ class AllSettingsDialog2(QtWidgets.QDialog):
             self.settings['processing_settings']['maxHeave_m'] = round(self.ui.doubleSpinBoxMaxHeave.value(), 2)
             heaveEdited = True
 
-        # Remove dual swath settings:
-        # dualSwathPolicy (0 to keep all pings; 1 to keep first ping only; 2 to keep second ping only):
-        # if self.radioButtonAllPings.isChecked() and self.settings['processing_settings']['dualSwathPolicy'] != 0:
-        #     self.settings['processing_settings']['dualSwathPolicy'] = 0
-        #     dualSwathPolicyEdited = True
-        # elif self.radioButtonFirstPing.isChecked() and self.settings['processing_settings']['dualSwathPolicy'] != 1:
-        #     self.settings['processing_settings']['dualSwathPolicy'] = 1
-        #     dualSwathPolicyEdited = True
-        # elif self.radioButtonSecondPing.isChecked() and self.settings['processing_settings']['dualSwathPolicy'] != 2:
-        #     self.settings['processing_settings']['dualSwathPolicy'] = 2
-        #     dualSwathPolicyEdited = True
-
         # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
         # Buffer Settings:
 
@@ -462,14 +429,14 @@ class AllSettingsDialog2(QtWidgets.QDialog):
 
         # Only emit signals after all values in dictionary have been updated:
         self.emitSignals(systemEdited, ipEdited, portEdited, protocolEdited, socketBufferEdited, binSizeEdited,
-                         acrossTrackAvgEdited, depthEdited, depthAvgEdited, alongTrackAvgEdited, dualSwathPolicyEdited,
-                         heaveEdited, gridCellsEdited, pingBufferEdited)
+                         acrossTrackAvgEdited, depthEdited, depthAvgEdited, alongTrackAvgEdited, heaveEdited,
+                         gridCellsEdited, pingBufferEdited)
 
         return True
 
     def emitSignals(self, systemEdited, ipEdited, portEdited, protocolEdited, socketBufferEdited, binSizeEdited,
-                    acrossTrackAvgEdited, depthEdited, depthAvgEdited, alongTrackAvgEdited, dualSwathPolicyEdited,
-                    heaveEdited, gridCellsEdited, pingBufferEdited):
+                    acrossTrackAvgEdited, depthEdited, depthAvgEdited, alongTrackAvgEdited, heaveEdited,
+                    gridCellsEdited, pingBufferEdited):
         """
         Emits signals for all True parameters.
         :param systemEdited: Boolean indicating whether field was edited.
@@ -481,7 +448,6 @@ class AllSettingsDialog2(QtWidgets.QDialog):
         :param depthEdited: Boolean indicating whether field was edited.
         :param depthAvgEdited: Boolean indicating whether field was edited.
         :param alongTrackAvgEdited: Boolean indicating whether field was edited.
-        :param dualSwathPolicyEdited: Boolean indicating whether field was edited.
         :param heaveEdited: Boolean indicating whether field was edited.
         :param gridCellsEdited: Boolean indicating whether field was edited.
         :param pingBufferEdited: Boolean indicating whether field was edited.
@@ -506,9 +472,6 @@ class AllSettingsDialog2(QtWidgets.QDialog):
             self.depthAvgEdited.emit()
         if alongTrackAvgEdited:
             self.alongTrackAvgEdited.emit()
-        # Remove dual swath settings:
-        # if dualSwathPolicyEdited:
-        #     self.dualSwathPolicyEdited.emit()
         if heaveEdited:
             self.heaveEdited.emit()
         if gridCellsEdited:
@@ -516,7 +479,41 @@ class AllSettingsDialog2(QtWidgets.QDialog):
         if pingBufferEdited:
             self.pingBufferEdited.emit()
 
-        if binSizeEdited or acrossTrackAvgEdited or depthEdited or depthAvgEdited or alongTrackAvgEdited or heaveEdited:
+
+        # if self.settings['system_settings']['system'] == "Kongsberg":
+        #     kongsbergCaptureSettingsEdited = False
+        #     kongsbergProcessSettingsEdited = False
+        #     kongsbergPlotterSettingsEdited = False
+        #
+        #     if ipEdited or portEdited or protocolEdited or socketBufferEdited:
+        #         kongsbergCaptureSettingsEdited = True
+        #     if binSizeEdited or heaveEdited or gridCellsEdited:
+        #         kongsbergProcessSettingsEdited = True
+        #     if binSizeEdited or acrossTrackAvgEdited or depthEdited or depthAvgEdited or \
+        #             alongTrackAvgEdited or heaveEdited or gridCellsEdited:
+        #         kongsbergPlotterSettingsEdited = True
+        #
+        #     self.settingsEdited.emit([kongsbergCaptureSettingsEdited,
+        #                               kongsbergProcessSettingsEdited,
+        #                               kongsbergPlotterSettingsEdited])
+
+        # if self.settings['system_settings']['system'] == "Kongsberg":
+        #     if ipEdited or portEdited or protocolEdited or socketBufferEdited:
+        #         self.kongsbergCaptureSettingsEdited.emit()
+        #     if binSizeEdited or heaveEdited or gridCellsEdited:
+        #         self.kongsbergProcessSettingsEdited.emit()
+        #     if binSizeEdited or acrossTrackAvgEdited or depthEdited or depthAvgEdited or \
+        #             alongTrackAvgEdited or heaveEdited or gridCellsEdited:
+        #         self.kongsbergPlotterSettingsEdited.emit()
+
+
+        # if binSizeEdited or acrossTrackAvgEdited or depthEdited or depthAvgEdited or alongTrackAvgEdited or heaveEdited:
+        #     self.processingSettingsEdited.emit()
+
+        if systemEdited or ipEdited or portEdited or protocolEdited or socketBufferEdited or \
+                binSizeEdited or acrossTrackAvgEdited or depthEdited or depthAvgEdited or \
+                alongTrackAvgEdited or heaveEdited or gridCellsEdited or pingBufferEdited:
             self.processingSettingsEdited.emit()
+
 
         print("end of emit signals")

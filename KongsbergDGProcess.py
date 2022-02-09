@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 
 class KongsbergDGProcess(Process):
     # TODO: Change these to non-optional variables...
-    def __init__(self, bin_size=None, max_heave=None, settings_edited=None,
-                 queue_datagram=None, queue_pie_object=None, process_flag=None):
+    def __init__(self, bin_size, max_heave, max_grid_cells, settings_edited,
+                 queue_datagram, queue_pie_object, process_flag=None):
         super(KongsbergDGProcess, self).__init__()
 
         print("New instance of KongsbergDGProcess.")
@@ -31,12 +31,14 @@ class KongsbergDGProcess(Process):
         # multiprocessing.Values (shared between processes)
         self.bin_size = bin_size
         self.max_heave = max_heave
+        self.max_grid_cells = max_grid_cells
 
         self.settings_edited = settings_edited
 
         # Local copies of above multiprocessing.Values (to avoid frequent accessing of locks)
         self.bin_size_local = None
         self.max_heave_local = None
+        self.max_grid_cells_local = None
         # Initialize above local copies
         self.update_local_settings()
 
@@ -57,19 +59,20 @@ class KongsbergDGProcess(Process):
         self.skm = None
 
         self.QUEUE_DATAGRAM_TIMEOUT = 60  # Seconds
-        self.MAX_NUM_GRID_CELLS = 500
 
         self.dg_counter = 0  # For testing
         self.mwc_counter = 0  # For testing
 
     def update_local_settings(self):
         # print("^^^^^^^ Process UPDATE LOCAL SETTINGS")
+        print("In kongsberg process, update_local_settings.")
         with self.settings_edited.get_lock():  # Outer lock to ensure atomicity of updates:
             with self.bin_size.get_lock():
                 self.bin_size_local = self.bin_size.value
             with self.max_heave.get_lock():
                 self.max_heave_local = self.max_heave.value
-        # TODO: If bin_size or max_heave are changed, clear shared_ring_buffer_processed.
+            with self.max_grid_cells.get_lock():
+                self.max_grid_cells_local = self.max_grid_cells.value
 
     def get_and_process_dg(self):
         # print("DGProcess: get_and_process")  # For debugging
@@ -83,22 +86,30 @@ class KongsbergDGProcess(Process):
                 local_process_flag_value = self.process_flag.value
 
             try:
+                print("In kongsberg process, getting datagram: ", self.queue_datagram.qsize())
                 dg_bytes = self.queue_datagram.get(block=True, timeout=self.QUEUE_DATAGRAM_TIMEOUT)
+                print("In kongsberg process, got datagram.")
 
                 if self.dg_counter == 0:  # For testing
                     first_tx_time = datetime.datetime.now()
                 self.dg_counter += 1
 
                 if dg_bytes:
+                    print("In kongsberg process, dgbytes.")
                     if local_process_flag_value == 1 or local_process_flag_value == 2:  # Play pressed or pause pressed
+                        print("In kongsberg process, local_process_flag_value.", local_process_flag_value)
                         # Process data pulled from queue
 
                         # Check for signal to update settings:
+                        print("In kongsberg process, getting settings_edited lock.")
                         with self.settings_edited.get_lock():
+                            print("In kongsberg process, got settings_edited lock.")
                             if self.settings_edited.value:
+                                print("In kongsberg process, settings edited value is true.")
                                 self.update_local_settings()
+                                print("In kongsberg process, changing settings edited value to false.")
                                 self.settings_edited.value = False
-
+                        print("In kongsberg process, processing dgm.")
                         self.process_dgm(dg_bytes)
 
                     elif local_process_flag_value == 3:  # Stop pressed
@@ -182,10 +193,11 @@ class KongsbergDGProcess(Process):
         if header['numBytesDgm'] == length_to_strip:
             print("Processing empty datagram.")
 
-            pie_chart_values = np.zeros(shape=(self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS))
-            pie_chart_count = np.zeros(shape=(self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS))
+            pie_chart_values = np.zeros(shape=(self.max_grid_cells_local, self.max_grid_cells_local))
+            pie_chart_count = np.zeros(shape=(self.max_grid_cells_local, self.max_grid_cells_local))
 
-            pie_object = KongsbergDGPie(pie_chart_values, pie_chart_count, header['dgTime'])
+            pie_object = KongsbergDGPie(self.bin_size_local, self.max_heave_local,
+                                        pie_chart_values, pie_chart_count, header['dgTime'])
 
         # Full datagram (all partitions received):
         else:
@@ -211,8 +223,8 @@ class KongsbergDGProcess(Process):
             sample_freq = dg['rxInfo']['sampleFreq_Hz']
             sound_speed = dg['rxInfo']['soundVelocity_mPerSec']
 
-            pie_chart_values = np.zeros(shape=(self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS))
-            pie_chart_count = np.zeros(shape=(self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS))
+            pie_chart_values = np.zeros(shape=(self.max_grid_cells_local, self.max_grid_cells_local))
+            pie_chart_count = np.zeros(shape=(self.max_grid_cells_local, self.max_grid_cells_local))
 
             # ###################### START NEW - OUTSIDE ###################### #
             # for beam in range(num_beams):
@@ -258,7 +270,7 @@ class KongsbergDGProcess(Process):
             kongs_z_np = range_to_wc_data_point_np * (np.cos(np.radians(temp_tilt_angle_re_vertical_deg)))[:, np.newaxis] \
                          * (np.cos(np.radians(beam_point_angle_re_vertical_np)))[:, np.newaxis] + heave
 
-            # Note: For x and y, we need "(self.MAX_NUM_GRID_CELLS / 2)" to 'normalize position'--otherwise, negative
+            # Note: For x and y, we need "(self.max_grid_cells_local / 2)" to 'normalize position'--otherwise, negative
             # indices insert values at the end of the array (think negative indexing into array).
             # Note: For z, (self.max_heave / self.bin_size) results in number of bins allowable above '0' (neutral sea
             # surface). For example, for a negative (upward) heave that results in a bin index of -20, if self.max_heave
@@ -271,25 +283,25 @@ class KongsbergDGProcess(Process):
             # TODO: Testing settings update:
             # with self.bin_size.get_lock() and self.max_heave.get_lock():
             #     bin_index_x_np = np.floor(kongs_x_np[-1] / round(self.bin_size.value, 2)) + \
-            #                      int(self.MAX_NUM_GRID_CELLS / 2)
+            #                      int(self.max_grid_cells_local / 2)
             #     bin_index_y_np = np.floor(kongs_y_np / round(self.bin_size.value, 2)) + \
-            #                      int(self.MAX_NUM_GRID_CELLS / 2)
+            #                      int(self.max_grid_cells_local / 2)
             #     bin_index_z_np = np.floor(kongs_z_np / self.bin_size.value) + \
             #                      int(round(self.max_heave.value, 2) / round(self.bin_size.value, 2))
 
 
             bin_index_x_np = np.floor(kongs_x_np[-1] / round(self.bin_size_local, 2)) + \
-                             int(self.MAX_NUM_GRID_CELLS / 2)
+                             int(self.max_grid_cells_local / 2)
             bin_index_y_np = np.floor(kongs_y_np / round(self.bin_size_local, 2)) + \
-                             int(self.MAX_NUM_GRID_CELLS / 2)
+                             int(self.max_grid_cells_local / 2)
             bin_index_z_np = np.floor(kongs_z_np / self.bin_size_local) + \
                              int(round(self.max_heave_local, 2) / round(self.bin_size_local, 2))
 
             # Mask indices that fall outside of accepted values: 0 to (MAX_NUM_GRID_CELLS - 1)
             # Mask will read False for values outside of range, True for values inside range
             # TODO: Do we need to do this for x indices too?
-            mask_index_y = np.ma.masked_inside(bin_index_y_np, 0, (self.MAX_NUM_GRID_CELLS - 1))
-            mask_index_z = np.ma.masked_inside(bin_index_z_np, 0, (self.MAX_NUM_GRID_CELLS - 1))
+            mask_index_y = np.ma.masked_inside(bin_index_y_np, 0, (self.max_grid_cells_local - 1))
+            mask_index_z = np.ma.masked_inside(bin_index_z_np, 0, (self.max_grid_cells_local - 1))
 
             # Error checking and warning if data will be lost:
             # if len(bin_index_y_np[~mask_index_y.mask]) > 0:  # This doesn't work because NaNs are masked.

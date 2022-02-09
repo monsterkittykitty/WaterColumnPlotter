@@ -6,6 +6,7 @@
 import ctypes
 from KongsbergDGMain import KongsbergDGMain
 from multiprocessing import Array, Process, Queue, RLock, shared_memory, Value
+import math
 import numpy as np
 from PlotterMain import PlotterMain
 from PyQt5.QtWidgets import QMessageBox
@@ -18,20 +19,37 @@ class WaterColumn:
 
         self.settings = settings
 
-        # self.processing_settings_lock = RLock()
         self.processing_settings_edited = Value(ctypes.c_bool, False, lock=True)  # multiprocessing.Value
-        self.sonar_main_settings_edited = Value(ctypes.c_bool, False, lock=True)  # multiprocessing.Value
-        self.plotter_main_settings_edited = Value(ctypes.c_bool, False, lock=True)  # multiprocessing.Value
 
         # Break out individual settings so they can be shared / updated across processes
-        # multiprocessing.Values
+        # multiprocessing.Array and multiprocessing.Value
+
+        # Note on why using datatype ctypes.c_wchar_p causes a crash when the variable is located in a second process
+        # (from https://docs.python.org/2.7/library/multiprocessing.html#module-multiprocessing.sharedctypes):
+        # "Note: Although it is possible to store a pointer in shared memory remember that this will refer to a
+        # location in the address space of a specific process. However, the pointer is quite likely to be invalid in the
+        # context of a second process and trying to dereference the pointer from the second process may cause a crash."
+
+        # Array must be initialized to maximum number of characters in a valid IP address (15)
+        self.ip = Array('u', self.editIP(self.settings['ip_settings']['ip'], append=True), lock=True)
+        self.port = Value(ctypes.c_uint16, self.settings['ip_settings']['port'], lock=True)
+        # Use only first letter of protocol for shared value: T = TCP; U = UDP; M = Multicast
+        self.protocol = Value(ctypes.c_wchar, self.settings['ip_settings']['protocol'][0], lock=True)
+        self.socket_buffer_multiplier = Value(ctypes.c_uint8,
+                                              self.settings['ip_settings']['socketBufferMultiplier'], lock=True)
         self.bin_size = Value(ctypes.c_float, self.settings['processing_settings']['binSize_m'], lock=True)
-        self.across_track_avg = Value(ctypes.c_float, self.settings['processing_settings']['acrossTrackAvg_m'], lock=True)
+        self.across_track_avg = Value(ctypes.c_float,
+                                      self.settings['processing_settings']['acrossTrackAvg_m'], lock=True)
         self.depth = Value(ctypes.c_float, self.settings['processing_settings']['depth_m'], lock=True)
         self.depth_avg = Value(ctypes.c_float, self.settings['processing_settings']['depthAvg_m'], lock=True)
-        self.along_track_avg = Value(ctypes.c_ubyte, self.settings['processing_settings']['alongTrackAvg_ping'], lock=True)
-        # self.dual_swath_policy = Value(ctypes.c_ubyte, self.settings['processing_settings']['dualSwathPolicy'], lock=True)
+        self.along_track_avg = Value(ctypes.c_uint8,
+                                     self.settings['processing_settings']['alongTrackAvg_ping'], lock=True)
         self.max_heave = Value(ctypes.c_float, self.settings['processing_settings']['maxHeave_m'], lock=True)
+        self.max_grid_cells = Value(ctypes.c_uint16, self.settings['buffer_settings']['maxGridCells'], lock=True)
+        self.max_ping_buffer = Value(ctypes.c_uint16, self.settings['buffer_settings']['maxBufferSize_ping'], lock=True)
+
+        # Set to true when IP settings are edited; pass argument to sonarMain when signaling setting changes
+        self.ip_settings_edited = False
 
         # multiprocessing.Queues
         self.queue_datagram = Queue()  # .put() by KongsbergDGCaptureFromSonar; .get() by KongsbergDGProcess
@@ -54,19 +72,51 @@ class WaterColumn:
         self.MAX_LENGTH_BUFFER = self.settings['buffer_settings']['maxBufferSize_ping']
         self.ALONG_TRACK_PINGS = self.settings['processing_settings']['alongTrackAvg_ping']
 
-        self.shared_ring_buffer_raw = SharedRingBufferRaw(self.settings, self.raw_buffer_count,
-                                                          self.raw_buffer_full_flag, create_shmem=True)
-        self.shared_ring_buffer_processed = SharedRingBufferProcessed(self.settings, self.processed_buffer_count,
-                                                                      self.processed_buffer_full_flag, create_shmem=True)
+        self.shared_ring_buffer_raw = None
+        self.shared_ring_buffer_processed = None
+
+        # self.shared_ring_buffer_raw = SharedRingBufferRaw(self.settings, self.raw_buffer_count,
+        #                                                   self.raw_buffer_full_flag, create_shmem=True)
+        # self.shared_ring_buffer_processed = SharedRingBufferProcessed(self.settings, self.processed_buffer_count,
+        #                                                               self.processed_buffer_full_flag, create_shmem=True)
 
         self.sonarMain = None
         self.plotterMain = None
 
+    def initRingBuffers(self, create_shmem=False):
+        self.shared_ring_buffer_raw = SharedRingBufferRaw(self.settings, self.raw_buffer_count,
+                                                          self.raw_buffer_full_flag, create_shmem=create_shmem)
+        self.shared_ring_buffer_processed = SharedRingBufferProcessed(self.settings, self.processed_buffer_count,
+                                                                      self.processed_buffer_full_flag,
+                                                                      create_shmem=create_shmem)
+
+    # def settingsChanged(self, settings_edited):
+    #     if "Kongsberg" in settings_edited.keys():
+    #         self.update_buffers(settings_edited)
+
     def settingsChanged(self):
+        self.update_buffers()
+
+    def signalSubprocessSettingsChanged(self):
         if self.sonarMain:
-            self.sonarMain.settings_changed()
+            self.sonarMain.settings_changed(self.ip_settings_edited)
         if self.plotterMain:
             self.plotterMain.settings_changed()
+
+    # def signalSubprocessSettingsChanged(self, capture_settings_edited, process_settings_edited, plotter_settings_edited):
+    #     if self.sonarMain:
+    #         self.sonarMain.settings_changed(capture_settings_edited, process_settings_edited)
+    #     if self.plotterMain:
+    #         self.plotterMain.settings_changed(plotter_settings_edited)
+
+    def editIP(self, ip, append=True):
+        if append:
+            while len(ip) < 15:
+                ip = "_" + ip
+        else:  # Strip
+            ip = ip.lstrip("_")
+
+        return ip
 
     def playProcesses(self):
         """
@@ -84,12 +134,11 @@ class WaterColumn:
         Initiates and runs self.sonarMain process.
         """
         if self.settings["system_settings"]["system"] == "Kongsberg":  # Kongsberg system
-            # self.sonarMain = KongsbergDGMain(self.settings, self.queue_datagram,
-            #                                  self.queue_pie_object, self.full_ping_count,
-            #                                  self.discard_ping_count, self.process_flag)
-            self.sonarMain = KongsbergDGMain(self.settings, self.bin_size, self.max_heave, self.queue_datagram,
-                                             self.queue_pie_object, self.full_ping_count,
-                                             self.discard_ping_count, self.process_flag)
+
+            self.sonarMain = KongsbergDGMain(self.settings, self.ip, self.port, self.protocol,
+                                             self.socket_buffer_multiplier, self.bin_size, self.max_heave,
+                                             self.max_grid_cells, self.queue_datagram, self.queue_pie_object,
+                                             self.full_ping_count, self.discard_ping_count, self.process_flag)
 
             self.sonarMain.play_processes()
 
@@ -176,7 +225,7 @@ class WaterColumn:
         # return None  # If temp arrays are all zero
 
 
-        # This pulls most recent alongTrackAvg_ping from 'raw' buffer:
+            # This pulls most recent alongTrackAvg_ping from 'raw' buffer:
             pie = self.shared_ring_buffer_raw.view_recent_pings_as_pie(
                 self.settings['processing_settings']['alongTrackAvg_ping'])
             # print("pie.shape: ", pie.shape)
@@ -261,6 +310,104 @@ class WaterColumn:
 
         # return slice[:, index_port:index_stbd]
         return slice[:, index_across_track:-index_across_track]
+
+
+
+    def update_buffers(self):
+        print("in watercolumn, update_buffers")
+        if self.plotterMain:
+            # Get lock on shared_ring_buffer_raw; this will ensure that no other changes can be made to
+            # shared_ring_buffer_raw while we make updates
+            #with self.shared_ring_buffer_raw.counter.get_lock():
+
+            print("in watercolumn, getting raw buffer lock")
+            # with self.shared_ring_buffer_raw.get_lock():  # TODO: Can we move this lower in the processing?
+            with self.shared_ring_buffer_raw.counter.get_lock():
+
+                print("in watercolumn, got raw buffer lock")
+                self.plotterMain.plotter.update_local_settings()
+
+
+                if self.plotterMain.plotter.bin_size_edited:
+                    print("in watercolumn, bin size is edited. clearing buffers")
+                    self.shared_ring_buffer_raw.clear()  # This methods gets lock
+                    self.shared_ring_buffer_processed.clear()  # This method gets lock
+                    print(self.shared_ring_buffer_raw.get_num_elements_in_buffer())
+                    print(self.shared_ring_buffer_processed.get_num_elements_in_buffer())
+                    self.plotterMain.plotter.bin_size_edited = False
+
+                else:
+                    if self.plotterMain.plotter.max_heave_edited:
+                        print("in watercolumn, heave is edited. shifting heave")
+                        # Note that we already hold lock on shared_ring_buffer_raw
+                        temp_amplitude_buffer_raw = self.shared_ring_buffer_raw.view_buffer_elements(
+                            self.shared_ring_buffer_raw.amplitude_buffer)
+                        temp_count_buffer_raw = self.shared_ring_buffer_raw.view_buffer_elements(
+                            self.shared_ring_buffer_raw.count_buffer)
+                        print("calling shift_heave from update-local-settings")
+                        self.plotterMain.plotter.shift_heave(temp_amplitude_buffer_raw, temp_count_buffer_raw,
+                                                             self.plotterMain.plotter.outdated_heave,
+                                                             self.plotterMain.plotter.max_heave_local)
+                    # Note that this method holds lock on raw buffers for entire calculation and only get lock on
+                    # processed buffer for final phase of adding processed data to processed buffer.
+                    # TODO: Is it better to always call this? Or set some 'other_edited' flag if other settings
+                    #  (not bin, heave) have been edited?
+                    print("in watercolumn, recalculate processed buffer")
+                    self.plotterMain.plotter.recalculate_processed_buffer(self.shared_ring_buffer_raw,
+                                                                          self.shared_ring_buffer_processed)
+
+                self.signalSubprocessSettingsChanged()
+                if self.ip_settings_edited:
+                    self.ip_settings_edited = False
+
+    # def update_buffers(self, settings_edited):
+    #     print("in watercolumn, update_buffers")
+    #     if self.plotterMain:
+    #         # Get lock on shared_ring_buffer_raw; this will ensure that no other changes can be made to
+    #         # shared_ring_buffer_raw while we make updates
+    #         #with self.shared_ring_buffer_raw.counter.get_lock():
+    #
+    #         print("in watercolumn, getting raw buffer lock")
+    #         with self.shared_ring_buffer_raw.get_lock():  # TODO: Can we move this lower in the processing?
+    #
+    #
+    #             if settings_edited['Kongsberg']['plotter']:
+    #
+    #
+    #
+    #                 print("in watercolumn, got raw buffer lock")
+    #                 self.plotterMain.plotter.update_local_settings()
+    #
+    #
+    #                 if self.plotterMain.plotter.bin_size_edited:
+    #                     print("in watercolumn, bin size is edited. clearing buffers")
+    #                     self.shared_ring_buffer_raw.clear()  # This methods gets lock
+    #                     self.shared_ring_buffer_raw.clear()  # This method gets lock
+    #                     self.plotterMain.plotter.bin_size_edited = False
+    #
+    #                 else:
+    #                     if self.plotterMain.plotter.max_heave_edited:
+    #                         print("in watercolumn, heave is edited. shifting heave")
+    #                         # Note that we already hold lock on shared_ring_buffer_raw
+    #                         temp_amplitude_buffer_raw = self.shared_ring_buffer_raw.view_buffer_elements(
+    #                             self.shared_ring_buffer_raw.amplitude_buffer)
+    #                         temp_count_buffer_raw = self.shared_ring_buffer_raw.view_buffer_elements(
+    #                             self.shared_ring_buffer_raw.count_buffer)
+    #                         print("calling shift_heave from update-local-settings")
+    #                         self.plotterMain.plotter.shift_heave(temp_amplitude_buffer_raw, temp_count_buffer_raw,
+    #                                                              self.plotterMain.plotter.outdated_heave,
+    #                                                              self.plotterMain.plotter.max_heave_local)
+    #                     # Note that this method holds lock on raw buffers for entire calculation and only get lock on
+    #                     # processed buffer for final phase of adding processed data to processed buffer.
+    #                     # TODO: Is it better to always call this? Or set some 'other_edited' flag if other settings
+    #                     #  (not bin, heave) have been edited?
+    #                     print("in watercolumn, recalculate processed buffer")
+    #                     self.plotterMain.plotter.recalculate_processed_buffer(self.shared_ring_buffer_raw,
+    #                                                                           self.shared_ring_buffer_processed)
+    #
+    #             if settings_edited['Kongsberg']['capture'] or settings_edited['Kongsberg']['process']:
+    #                 self.signalSubprocessSettingsChanged(settings_edited['Kongsberg']['capture'],
+    #                                                      settings_edited['Kongsberg']['process'])
 
     def closeSharedMemory(self):
         self.shared_ring_buffer_raw.close_shmem()

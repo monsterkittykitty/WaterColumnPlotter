@@ -73,10 +73,15 @@ class SharedRingBufferRaw:
                                            buffer=self.shmem_timestamp_buffer.buf)
         self.lat_lon_buffer = np.ndarray(shape=self.SIZE_BUFFER * 2, dtype=self.lat_lon_dtype,
                                          buffer=self.shmem_lat_lon_buffer.buf)
+
+    def get_lock(self):
+        return self.counter.get_lock()
+
     def clear(self):
         """
         Resets counter to zero to effectively empty buffer.
         """
+        print("clearing raw ring buffer")
         with self.counter.get_lock():
             self.counter.value = 0
 

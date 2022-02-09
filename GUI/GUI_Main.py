@@ -1,15 +1,15 @@
 # Main class for Water Column Plotter.
 
 # Lynette Davis
+# ldavis@ccom.unh.edu
 # Center for Coastal and Ocean Mapping
 # University of New Hampshire
 # November 2021
 
-import datetime
+import ctypes
 import json
 import multiprocessing
-# import psutil
-from PyQt5.QtWidgets import QAction, QApplication, QFileDialog, QMainWindow
+from PyQt5.QtWidgets import QApplication, QFileDialog, QMainWindow
 from PyQt5.QtCore import QTimer
 import sys
 from WaterColumn import WaterColumn
@@ -17,18 +17,10 @@ from WaterColumn import WaterColumn
 from GUI.Dialogs.PYFiles.AllSettingsDialog2 import AllSettingsDialog2
 from GUI_MDI import GUI_MDI
 from GUI.GUI_StatusBar import GUI_StatusBar
-# from GUI_StatusBar_Kongsberg import GUI_StatusBar_Kongsberg
-from GUI_Toolbar import GUI_Toolbar
-
-# TODO: Testing
+from GUI.GUI_Toolbar import GUI_Toolbar
 
 __appname__ = "Water Column Plotter"
 
-# if hasattr(Qt, 'AA_EnableHighDpiScaling'):
-#     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
-#
-# if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
-#     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
 class MainWindow(QMainWindow):
     count = 0
@@ -37,24 +29,17 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__(parent)
 
         # Default settings:
-        # TODO: Are we doing anything with maxHeave?
-        # maxBufferSize based on ~1000 MWC datagrams per minute for 10 minutes (~16 per second).
         self.settings = {'system_settings': {'system': "Kongsberg"},
                          'ip_settings': {'ip': '127.0.0.1', 'port': 8080, 'protocol': "UDP",
                                          'socketBufferMultiplier': 4},
                          'processing_settings': {'binSize_m': 0.20, 'acrossTrackAvg_m': 10, 'depth_m': 2,
-                                                 'depthAvg_m': 2, 'alongTrackAvg_ping': 5, 'dualSwathPolicy': 0,
-                                                 'maxHeave_m': 5},
+                                                 'depthAvg_m': 2, 'alongTrackAvg_ping': 5, 'maxHeave_m': 5},
                          'buffer_settings': {'maxGridCells': 500, 'maxBufferSize_ping': 1000}}
-
-        # TODO: Check available memory to assign buffer sizes?
-        # available_mem_gb = psutil.virtual_memory().available / 1024 / 1024 / 1024
 
         # Shared queue to contain pie objects:
         self.queue_pie = multiprocessing.Queue()
         self.temp_queue = multiprocessing.Queue()
 
-        # TODO: Set this in settings dialog?
         self.PLOT_UPDATE_INTERVAL = 1000  # Milliseconds
 
         # Window setup:
@@ -64,21 +49,14 @@ class MainWindow(QMainWindow):
         self.waterColumn = WaterColumn(self.settings)
         self.update_timer = QTimer()
 
-        # Menu Bar
-        #self._initMenuBar()
-
         # Tool Bar
         self.toolBar = self._initToolBar()
 
         # Status Bar
-        #self.status = None
-        # self.setStatusBar(self.status)
-        #self.status_update_timer = QTimer()
         self.status = self._initStatusBar()
         self.setStatusBar(self.status)
 
         # Multiple Document Interface
-        #self.plot_update_timer = QTimer()
         self.mdi = self._initMDI()
         self.setCentralWidget(self.mdi)
 
@@ -86,47 +64,48 @@ class MainWindow(QMainWindow):
 
         self.displaySettingsDialog()  # This will block until OK or Close / Cancel is selected in settings dialog
 
-        # For testing:
-        self.plot_update_count = 0
+        # Must wait for OK or Close on settings dialog to initialize shared memory and ring buffers.
+        self.waterColumn.initRingBuffers(create_shmem=True)
+        self.mdi.setSharedRingBufferProcessed(self.waterColumn.shared_ring_buffer_processed)
+
 
     def playProcesses(self):
         """
-        This method called when toolbar's play button is pressed. Activates processes in WaterColumn class.
+        This method called when toolbar's play button is pressed. Activates SonarMain and PlotterMain processes in
+        WaterColumn class; initiates receipt of data from sonar and processing and plotting of data;
+        starts update_timer, which controls update of plots and status bar.
         """
         self.waterColumn.playProcesses()
         self.update_timer.start(self.PLOT_UPDATE_INTERVAL)
-        #self.update_timer.start(self.PLOT_UPDATE_INTERVAL)
 
     def pauseProcesses(self):
         """
-        This method called when toolbar's stop button is pressed. Deactivates processes in WaterColumn class.
+        This method called when toolbar's pause button is pressed. Deactivates SonarMain and PlotterMain processes in
+        WaterColumn class; stops receipt of data from sonar, but continues processing and plotting data in queues.
         """
         self.waterColumn.pauseProcesses()
-        # self.update_timer.stop()
 
     def stopProcesses(self):
+        """
+        This method is called when toolbar's stop button is pressed. Deactivates SonarMain and PlotterMain processes in
+        WaterColumn class; stops receipt of data from sonar and processing and plotting of data in queue; clears queues;
+        stops update_timer, which controls update of plots and status bar.
+        """
         self.waterColumn.stopProcesses()
         self.update_timer.stop()
 
     def updateStatusBar(self):
-        # This implementation probably doesn't need to be system specific...
-        # def updateStatusBarKongsberg(self):
-        # print("updateStatusBar")
-        # TODO: I think I need locks here
-        self.status.set_ping_counts(self.waterColumn.full_ping_count.value, self.waterColumn.discard_ping_count.value)
+        """
+        Updates GUI MainWindow's StatusBar.
+        """
+        with self.waterColumn.full_ping_count.get_lock() and self.waterColumn.discard_ping_count.get_lock():
+            self.status.set_ping_counts(self.waterColumn.full_ping_count.value,
+                                        self.waterColumn.discard_ping_count.value)
 
     def updatePlot(self):
-        # self.toolBar.labelRxToLostValues.setText("BI")
-        # print("update discard: ", self.waterColumn.discard_ping_count.value)
-        # self.toolBar.labelRxToLostValues.setText(str(self.waterColumn.full_ping_count.value) + ":"
-        #                                          + str(self.waterColumn.discard_ping_count.value))
-
-        # print("updatePlot")
-        # TODO: Check that this is working! Should I make an update plot function
-        #  specifically for Kongsberg, so this doesn't need to be checked every time?
-        # if isinstance(self.status, GUI_StatusBar_Kongsberg):
-        #     self.status.set_ping_counts(self.waterColumn.full_ping_count.value, self.waterColumn.discard_ping_count.value)
-
+        """
+        Updates GUI MainWindow's MDI windows' plots.
+        """
         # Look into this: https://groups.google.com/g/pyqtgraph/c/HAFx-wIpmGA
         # test = np.ones((50, 100))
         # test[:] = 50
@@ -147,15 +126,21 @@ class MainWindow(QMainWindow):
         #                                      autoLevels=False, autoHistogramRange=False,
         #                                      pos=(-(test2.shape[1] / 2), 0))
 
+        print("updating plots")
+
+        # with self.waterColumn.processing_settings_edited.get_lock():
+        #     if self.waterColumn.processing_settings_edited.value:
+        #         print("self.waterColumn.processing_settings_edited: ", self.waterColumn.processing_settings_edited.value)
+        #         self.waterColumn.update_buffers()
 
         if self.waterColumn.get_raw_buffer_length() > 0:
-            # print("raw buffer greater than zero")
-            # temp_pie, x_zero = self.waterColumn.get_pie()
+
+            # UPDATE PIE PLOT
             temp_pie = self.waterColumn.get_pie()
             if temp_pie is not None:
                 # if temp_pie.any():  # For debugging
                     # print("temp_pie.shape", temp_pie.shape)
-                #if temp_pie.any():
+
                 self.mdi.pieWidget.pie_plot.setImage(temp_pie.T, autoRange=False,
                                                      autoLevels=False, autoHistogramRange=False,
                                                      pos=(-(int(temp_pie.shape[1] / 2)),
@@ -171,26 +156,14 @@ class MainWindow(QMainWindow):
                 # x = [0, 0]
                 # self.mdi.verticalWidget.plot.plot(x, y)
 
-        # print("proc buffer length: ", self.waterColumn.get_processed_buffer_length())
         if self.waterColumn.get_processed_buffer_length() > 0:
-            self.plot_update_count += 1
 
-            if self.plot_update_count == 300:
-                dgTime_proc = self.waterColumn.shared_ring_buffer_processed.view_recent_pings(
-                    self.waterColumn.shared_ring_buffer_processed.timestamp_buffer_avg, 1)
-                dgTime_raw = self.waterColumn.shared_ring_buffer_raw.view_recent_pings(
-                    self.waterColumn.shared_ring_buffer_raw.timestamp_buffer, 1)
-                print("Current time: {}; dgTime_proc: {}, {}; dgTime_raw: {}, {}".format(datetime.datetime.utcnow(),
-                                                                                         dgTime_proc[0],
-                                                datetime.datetime.utcfromtimestamp(float(dgTime_proc[0])), dgTime_raw[0],
-                                                datetime.datetime.utcfromtimestamp(float(dgTime_raw[0]))))
-
+            # UPDATE VERTICAL PLOT
             temp_vertical = self.waterColumn.get_vertical_slice()
             if temp_vertical is not None:
-                if temp_vertical.any():  # For debugging
-                    print("temp_vertical.shape", temp_vertical.shape)
-                # if temp_vertical.shape[0] > 0:
-                # print("plotting vertical")
+                # if temp_vertical.any():  # For debugging
+                #     print("temp_vertical.shape", temp_vertical.shape)
+
                 self.mdi.verticalWidget.vertical_plot.setImage(temp_vertical, autoRange=False,
                                                                autoLevels=False, autoHistogramRange=False,
                                                                pos=(-temp_vertical.shape[0],
@@ -204,130 +177,216 @@ class MainWindow(QMainWindow):
                 # self.mdi.verticalWidget.setCoordinates()
                 self.mdi.verticalWidget.updateTimestampAndIntensity()
 
+            # UPDATE HORIZONTAL PLOT
             temp_horizontal = self.waterColumn.get_horizontal_slice()
             if temp_horizontal is not None:
-                if temp_horizontal.any():  # For debugging
-                    print("temp_horizontal.shape", temp_horizontal.shape)
-                # if temp_horizontal.shape[0] > 0:
-                # print("plotting horizontal")
+                # if temp_horizontal.any():  # For debugging
+                #     print("temp_horizontal.shape", temp_horizontal.shape)
+
                 self.mdi.horizontalWidget.horizontal_plot.setImage(temp_horizontal, autoRange=False,
                                                                    autoLevels=False, autoHistogramRange=False,
                                                                    pos=(-temp_horizontal.shape[0],
                                                                         -int(temp_horizontal.shape[1] / 2)))
                 self.mdi.horizontalWidget.updateTimestampAndIntensity()
-            # else:
-                # print("temp_horizontal is none")
+        # else:
+        #     self.mdi.pieWidget.pie_plot.clear()
+        #     self.mdi.verticalWidget.vertical_plot.clear()
+        #     self.mdi.horizontalWidget.horizontal_plot.clear()
 
     # SYSTEM SETTINGS SLOTS:
-    # TODO: Link to other processes
     def systemEdited(self):
+        """
+        Updates system settings.
+        """
+        # NOTE: Currently only one system (Kongsberg) supported. If/when other systems supported, the sonarMain
+        # processes will have to be terminated and restarted with the new system's capture and processing code.
+
         self.toolBar.setSystem(self.settings['system_settings']['system'])
-        # TODO: Reset sonar main:
-        # 1. end all currently running processing and relauch watercolumn?
 
     # IP SETTINGS SLOTS:
-    # TODO: Link to other processes
     def ipEdited(self):
-        # print("IP HAS BEEN EDITED: {}".format(self.settings["ip_settings"]["ip"]))
-        # print("default ip: {}".format(self.defaultSettings["ip_settings"]["ip"]))
-        # print("type(self.settings): ", type(self.settings))
-        # print("ipEdited")
-        #self.mdi.subwindowSettingsDisplay.setIPPort(self.settings)
+        """
+        Updates IP settings.
+        """
         self.toolBar.setIPPort(self.settings['ip_settings']['ip'], self.settings['ip_settings']['port'])
+
+        # NOTE: IP address stored as multiprocessing Array
+        with self.waterColumn.ip.get_lock():
+            self.waterColumn.ip[:] = self.waterColumn.editIP(self.settings['ip_settings']['ip'], append=True)
+        self.waterColumn.ip_settings_edited = True
 
     def portEdited(self):
-        #self.mdi.subwindowSettingsDisplay.setIPPort(self.settings)
+        """
+        Updates port settings.
+        """
         self.toolBar.setIPPort(self.settings['ip_settings']['ip'], self.settings['ip_settings']['port'])
 
-    def protocolEdited(self):
-        pass
+        with self.waterColumn.port.get_lock():
+            self.waterColumn.port.value = self.settings['ip_settings']['port']
+        self.waterColumn.ip_settings_edited = True
 
+    # TODO: Link to other processes
+    def protocolEdited(self):
+        """
+        Updates protocol settings.
+        """
+        with self.waterColumn.protocol.get_lock():
+            self.waterColumn.protocol.value = self.settings['ip_settings']['protocol']
+        self.waterColumn.ip_settings_edited = True
+
+    # TODO: Link to other processes
     def socketBufferEdited(self):
-        pass
+        """
+        Updates socket buffer settings.
+        """
+        with self.waterColumn.socket_buffer_multiplier.get_lock():
+            self.waterColumn.socket_buffer_multiplier.value = self.settings['ip_settings']['socketBufferMultiplier']
+        self.waterColumn.ip_settings_edited = True
 
     # PROCESSING SETTINGS SLOTS:
     def binSizeEdited(self, fromSettingsDialog=False):
-        print("binSizeEdited")
-        #print(fromSettingsDialog)
-        # self.mdi.subwindowSettingsDisplay.setBinSize(self.settings)
+        """
+        Updates bin size settings.
+        :param fromSettingsDialog: Indicates whether update was made from settings dialog (rather than MDI window).
+        """
         # Only need to update MDI windows if setting was updated in settings dialog:
         if fromSettingsDialog:
             self.mdi.pieWidget.setBinSize(self.settings['processing_settings']['binSize_m'])
+
         with self.waterColumn.bin_size.get_lock():
             self.waterColumn.bin_size.value = self.settings['processing_settings']['binSize_m']
 
-        # TODO: This may be more effective elsewhere...
-        # self.waterColumn.shared_ring_buffer_raw.clear()
-        # self.waterColumn.shared_ring_buffer_processed.clear()
+        self.mdi.pieWidget.pie_plot.clear()
+        self.mdi.verticalWidget.vertical_plot.clear()
+        self.mdi.horizontalWidget.horizontal_plot.clear()
+
+        # TODO: This will get called twice if both depthEdited and binSizeEdited...
+        # Move location of depth indicator in vertical slice and pie slice windows:
+        self.mdi.setDepthIndicator(round((self.settings['processing_settings']['depth_m'] /
+                                          self.settings['processing_settings']['binSize_m']), 2))
 
     def acrossTrackAvgEdited(self, fromSettingsDialog=False):
-        print("acrossTrackAvgEdited")
-        #self.mdi.subwindowSettingsDisplay.setAcrossTrackAvg(self.settings)
+        """
+        Updates across-track average settings.
+        :param fromSettingsDialog: Indicates whether update was made from settings dialog (rather than MDI window).
+        :return:
+        """
         # Only need to update MDI windows if setting was updated in settings dialog:
         if fromSettingsDialog:
             self.mdi.verticalWidget.setAcrossTrackAvg(self.settings['processing_settings']['acrossTrackAvg_m'])
+
         with self.waterColumn.across_track_avg.get_lock():
             self.waterColumn.across_track_avg.value = self.settings['processing_settings']['acrossTrackAvg_m']
 
     def depthEdited(self, fromSettingsDialog=False):
+        """
+        Updates depth settings.
+        :param fromSettingsDialog: Indicates whether update was made from settings dialog (rather than MDI window).
+        """
         print("depthEdited")
-        #self.mdi.subwindowSettingsDisplay.setDepth(self.settings)
         # Only need to update MDI windows if setting was updated in settings dialog:
         if fromSettingsDialog:
             self.mdi.horizontalWidget.setDepth(self.settings['processing_settings']['depth_m'])
-        # Move location of depth indicator in vertical slice and pie slice windows:
-        self.mdi.setDepthIndicator(self.settings['processing_settings']['depth_m'] /
-                                   self.settings['processing_settings']['binSize_m'])
-        # self.mdi.verticalWidget.setDepthIndicator(self.settings['processing_settings']['depth_m'] /
-        #                                           self.settings['processing_settings']['binSize_m'])
-        # self.mdi.pieWidget.setDepthIndicator(self.settings['processing_settings']['depth_m'] /
-        #                                      self.settings['processing_settings']['binSize_m'])
+
         with self.waterColumn.depth.get_lock():
             self.waterColumn.depth.value = self.settings['processing_settings']['depth_m']
 
+        # TODO: This will get called twice if both depthEdited and binSizeEdited...
+        # Move location of depth indicator in vertical slice and pie slice windows:
+        self.mdi.setDepthIndicator(round((self.settings['processing_settings']['depth_m'] /
+                                   self.settings['processing_settings']['binSize_m']), 2))
+
     def depthAvgEdited(self, fromSettingsDialog=False):
-        print("depthAvgEdited")
-        #self.mdi.subwindowSettingsDisplay.setDepthAvg(self.settings)
+        """
+        Updates depth average settings.
+        :param fromSettingsDialog: Indicates whether update was made from settings dialog (rather than MDI window).
+        """
         # Only need to update MDI windows if setting was updated in settings dialog:
         if fromSettingsDialog:
             self.mdi.horizontalWidget.setDepthAvg(self.settings['processing_settings']['depthAvg_m'])
+
         with self.waterColumn.depth_avg.get_lock():
             self.waterColumn.depth_avg.value = self.settings['processing_settings']['depthAvg_m']
 
     def alongTrackAvgEdited(self):
-        print("alongTrackAvgEdited")
-        #self.mdi.subwindowSettingsDisplay.setAlongTrackAvg(self.settings)
+        """
+        Updates along-track average settings.
+        """
+        print("along track edited")
         with self.waterColumn.along_track_avg.get_lock():
             self.waterColumn.along_track_avg.value = self.settings['processing_settings']['alongTrackAvg_ping']
-        pass
-
-    # TODO: Remove this?
-    def dualSwathAvgEdited(self):
-        #self.mdi.subwindowSettingsDisplay.setDualSwathPolicy(self.settings)
-        pass
 
     def heaveEdited(self):
+        """
+        Updates heave settings.
+        """
+        print("In gui main; heaveEdited")
         with self.waterColumn.max_heave.get_lock():
             self.waterColumn.max_heave.value = self.settings['processing_settings']['maxHeave_m']
-        pass
-
-    def processingSettingsEdited(self):
-        print("IN PROCESSING SETTINGS EDITED SLOT")
-        with self.waterColumn.processing_settings_edited.get_lock():
-            self.waterColumn.processing_settings_edited.value = True
-
-        self.waterColumn.settingsChanged()
-        pass
 
     # BUFFER SETTINGS SLOTS:
     # TODO: Link to other processes
     def gridCellsEdited(self):
+        """
+        Updates grid cell settings. (Indicates maximum size of square matrix for pie plots.)
+        """
+        # pass
+        with self.waterColumn.max_grid_cells.get_lock():
+            self.waterColumn.max_grid_cells.value = self.settings['buffer_settings']['maxGridCells']
+
+    # TODO: Link to other processes
+    def pingBufferEdited(self):
+        """
+        Updates ping buffer settings. (Indicates maximum number of pings to store in raw buffer.)
+        """
         pass
 
-    def pingBufferEdited(self):
-        pass
+    # def ipSettingsEdited(self):
+    #     self.waterColumn.ip_settings_edited = True
+
+    def processingSettingsEdited(self):
+        """
+        Signals WaterColumn class that settings have been updated / changed.
+        """
+        print("in gui main; processingSettingsEdited")
+        self.waterColumn.settingsChanged()
+
+    # def settingsEdited(self, list):
+    #     print("in gui main; settingsEdited", list)
+    #     if self.settings['system_settings']['system'] == "Kongsberg":
+    #         assert len(list) == 3
+    #         settings_edited = {'Kongsberg': {'capture': list[0], 'process': list[1], 'plotter': list[2]}}
+    #     self.waterColumn.settingsChanged(settings_edited)
+
+    # def settingsEdited(self, list):
+    #     """
+    #     Signals WaterColumn class which settings have been updated / changed.
+    #     :param list: A list of booleans corresponding to keys in self.settings dictionary.
+    #     True indicates a value has been edited; False indicates that it has not.
+    #
+    #     self.settings = {'system_settings': {'system': _0_},
+    #                      'ip_settings': {'ip': _1_, 'port': _2_, 'protocol': _3_, 'socketBufferMultiplier': _4_},
+    #                      'processing_settings': {'binSize_m': _5_, 'acrossTrackAvg_m': _6_, 'depth_m': _7_,
+    #                                              'depthAvg_m': _8_, 'alongTrackAvg_ping': _9_, 'maxHeave_m': _10_},
+    #                      'buffer_settings': {'maxGridCells': _11_, 'maxBufferSize_ping': _12_}}
+    #     """
+    #     capture_settings_edited = False
+    #     process_settings_edited = False
+    #     plotter_settings_edited = False
+    #
+    #     if list[1] or list[2] or list[3] or list[4]:
+    #         capture_settings_edited = True
+    #     if list[5] or list[10] or list[11]:
+    #         process_settings_edited = True
+    #     if list[5] or list[6] or list[7] or list[8] or list[9] or list[10]:
+    #         plotter_settings_edited = True
+    #
+    #     self.waterColumn.settingsChanged(capture_settings_edited, process_settings_edited, plotter_settings_edited)
 
     def displaySettingsDialog(self):
+        """
+        Initializes and launches settings dialog; connects signals / slots.
+        """
         settingsDialog = AllSettingsDialog2(self.settings, parent=self)
 
         # Signals / Slots
@@ -343,16 +402,24 @@ class MainWindow(QMainWindow):
         settingsDialog.signalDepthEdited.connect(lambda: self.depthEdited(fromSettingsDialog=True))
         settingsDialog.signalDepthAvgEdited.connect(lambda: self.depthAvgEdited(fromSettingsDialog=True))
         settingsDialog.signalAlongTrackAvgEdited.connect(self.alongTrackAvgEdited)
-        settingsDialog.signalDualSwathPolicyEdited.connect(self.dualSwathAvgEdited)
         settingsDialog.signalHeaveEdited.connect(self.heaveEdited)
         settingsDialog.signalGridCellsEdited.connect(self.gridCellsEdited)
         settingsDialog.signalPingBufferEdited.connect(self.pingBufferEdited)
 
+        # settingsDialog.signalKongsbergCaptureSettingsEdited.connect(self.kongsbergCaptureSettingsEdited)
+        # settingsDialog.signalKongsbergProcessSettingsEdited.connect(self.kongsbergProcessSettingsEdited)
+        # settingsDialog.signalKongsbergPlotterSettingsEdited.connect(self.kongsbergPlotterSettingsEdited)
+
+        # settingsDialog.signalIPSettingsEdited.connect(self.ipSettingsEdited)
         settingsDialog.signalProcessingSettingsEdited.connect(self.processingSettingsEdited)
+        # settingsDialog.signalSettingsEdited.connect(self.settingsEdited)
 
         settingsDialog.exec_()
 
     def displaySaveSettingsDialog(self):
+        """
+        Launches file browser to enable user to save settings.
+        """
         saveDialog = QFileDialog(self)
         filePath = saveDialog.getSaveFileName(self, __appname__, directory=".\Settings", filter="JSON (*.json)")
 
@@ -361,6 +428,10 @@ class MainWindow(QMainWindow):
                 json.dump(self.settings, f, indent=4)
 
     def displayLoadSettingsDialog(self, settingsDialog):
+        """
+        Launches file browser to enable user to load previously saved settings.
+        :param settingsDialog: An instance of AllSettingsDialog to load settings into.
+        """
         openDialog = QFileDialog(self)
         filePath = openDialog.getOpenFileName(self,  __appname__, directory=".\Settings", filter="JSON (*.json)")
 
@@ -371,45 +442,24 @@ class MainWindow(QMainWindow):
             settingsDialog.validateAndSetValuesFromFile(tempSettings)
 
     def closeEvent(self, event):
+        """
+        This method is called when GUI MainWindows close (X) button is clicked. Deactivates SonarMain and PlotterMain
+        processes in WaterColumn class, closes and unlinks shared memory in WaterColumn class.
+        :param event: Close event emitted by GUI MainWindow's close (X) button.
+        """
         with self.waterColumn.process_flag.get_lock():
             self.waterColumn.process_flag.value = False
-        # if self.waterColumn.process_flag.value:
-        #     self.waterColumn.process_flag.value = False
-        #     self.waterColumn.sonarMain.dg_capture.join()
-        #     self.waterColumn.sonarMain.dg_process.join()
-        #     self.waterColumn.plotterMain.plotter.join()
-        # if self.waterColumn.sonarMain:
-        #     self.waterColumn.sonarMain.dg_capture.sock_in.close()
-        # Quit using shared memory in the frontend
         self.waterColumn.closeSharedMemory()
         # Release shared memory definitely
         self.waterColumn.unlinkSharedMemory()
 
         event.accept()
 
-    def _initMenuBar(self):
-        menuBar = self.menuBar()
-
-        # Menu bar - Settings:
-        settings = menuBar.addMenu("Settings")
-
-        allSettingsAction = QAction("All Settings", self)
-        saveSettingsAction = QAction("Save Settings", self)
-        loadSettingsAction = QAction("Load Settings", self)
-
-        settings.addAction(allSettingsAction)
-        settings.addSeparator()
-        settings.addAction(saveSettingsAction)
-        settings.addAction(loadSettingsAction)
-
-        # Signals / SLots
-        allSettingsAction.triggered.connect(self.testSettingsDialog)
-        #allSettingsAction.triggered.connect(self.displaySettingsDialog)
-        saveSettingsAction.triggered.connect(self.displaySaveSettingsDialog)
-        self.tempdialog = AllSettingsDialog2(self.settings)
-        loadSettingsAction.triggered.connect(lambda: self.displayLoadSettingsDialog(self.tempdialog))
-
     def _initToolBar(self):
+        """
+        Initializes GUI MainWindow's Toolbar; connects signals / slots for toolbar buttons.
+        :return: GUI MainWindow's Toolbar.
+        """
         toolBar = GUI_Toolbar(self.settings, parent=self)
         self.addToolBar(toolBar)
 
@@ -422,25 +472,23 @@ class MainWindow(QMainWindow):
         return toolBar
 
     def _initStatusBar(self):
+        """
+        Initializes GUI MainWindow's StatusBar; connects signals / slots for updating status bar text.
+        :return: GUI MainWindow's StatusBar.
+        """
         statusBar = GUI_StatusBar()
-        self.update_timer.timeout.connect(self.updateStatusBar)
 
-        # This implementation probably doesn't need to be system specific...
-        # if self.settings['system_settings']['system'] == "Kongsberg":
-        #     statusBar = GUI_StatusBar_Kongsberg()
-        #     self.status_update_timer.timeout.connect(self.updateStatusBarKongsberg)
-        # else:  # Another system
-        #     statusBar = QStatusBar()
-        #     # self.status_update_timer.timeout.connect([<some_other_system_update_function>])
+        # Signals / Slots
+        self.update_timer.timeout.connect(self.updateStatusBar)
 
         return statusBar
 
-    # def _initKongsberStatusBar(self):
-    #     statusBar = GUI_StatusBar_Kongsberg()
-    #
-    #     return statusBar
-
     def _initMDI(self):
+        """
+        Initializes GUI MainWindow's Multiple Document Interface (MDI) with vertical, horizontal, and pie plots;
+        connects signals / slots for windows' settings buttons.
+        :return: GUI MainWindow's MDI
+        """
         mdi = GUI_MDI(self.settings, self.waterColumn.shared_ring_buffer_processed, parent=self)
 
         # Signals / Slots
@@ -456,14 +504,17 @@ class MainWindow(QMainWindow):
 
         return mdi
 
-# TODO: Test:
-import pyqtgraph as pg
-class MyCircleOverlay(pg.EllipseROI):
-    def __init__(self, pos, size, **args):
-        pg.ROI.__init__(self, pos, size, **args)
-        self.aspectLocked = True
+# # TODO: Test:
+# import pyqtgraph as pg
+# class MyCircleOverlay(pg.EllipseROI):
+#     def __init__(self, pos, size, **args):
+#         pg.ROI.__init__(self, pos, size, **args)
+#         self.aspectLocked = True
 
 def main():
+    """
+    Launches GUI MainWindow.
+    """
     app = QApplication(sys.argv)
     form = MainWindow()
     form.show()

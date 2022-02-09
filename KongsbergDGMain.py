@@ -18,14 +18,19 @@ __appname__ = "KongsbergDGMain"
 
 
 class KongsbergDGMain:
-    def __init__(self, settings, bin_size, max_heave, queue_datagram, queue_pie_object,
-                 full_ping_count, discard_ping_count, process_flag):
+    def __init__(self, settings, ip, port, protocol, socket_buffer_multiplier, bin_size, max_heave, max_grid_cells,
+                 queue_datagram, queue_pie_object, full_ping_count, discard_ping_count, process_flag):
 
         self.settings = settings
 
         # multiprocessing.Values
+        self.ip = ip
+        self.port = port
+        self.protocol = protocol
+        self.socket_buffer_multiplier = socket_buffer_multiplier
         self.bin_size = bin_size
         self.max_heave = max_heave
+        self.max_grid_cells = max_grid_cells
         # Flags to indicate to processes when settings have changed in main
         self.capture_settings_edited = Value(ctypes.c_bool, False, lock=True)
         self.process_settings_edited = Value(ctypes.c_bool, False, lock=True)
@@ -38,47 +43,41 @@ class KongsbergDGMain:
         self.full_ping_count = full_ping_count
         self.discard_ping_count = discard_ping_count
 
-        # self.process_flag = process_flag
-        # Flags to indicate whether processes are started, paused, or stopped in main
-        # self.capture_process_flag = Value(ctypes.c_bool, False, lock=True)
-        # self.process_process_flag = Value(ctypes.c_bool, False, lock=True)
-
-        # TODO: NEW
-        # self.capture_process_flag = Value(ctypes.c_wchar_p, "init", lock=True)
-        # self.process_process_flag = Value(ctypes.c_wchar_p, "init", lock=True)
-
         # 0 = initialization; 1 = play; 2 = pause; 3 = stop
         self.capture_process_flag = Value(ctypes.c_uint8, 0, lock=True)
         self.process_process_flag = Value(ctypes.c_uint8, 0, lock=True)
 
-
-
-
         self.dg_capture = None
         self.dg_process = None
 
-    def settings_changed(self):
+
+    def settings_changed(self, ip_settings_edited):
         print("in sonarmain settings_changed")
-        with self.capture_settings_edited.get_lock():
-            self.capture_settings_edited.value = True
+        if ip_settings_edited:
+            print("ip settings edited!")
+            with self.capture_settings_edited.get_lock():
+                self.capture_settings_edited.value = True
         with self.process_settings_edited.get_lock():
             self.process_settings_edited.value = True
+
+    # def settings_changed(self, capture_settings_edited, process_settings_edited):
+    #     print("in sonarmain settings_changed")
+    #     if capture_settings_edited:
+    #         with self.capture_settings_edited.get_lock():
+    #             self.capture_settings_edited.value = True
+    #     if process_settings_edited:
+    #         with self.process_settings_edited.get_lock():
+    #             self.process_settings_edited.value = True
 
     def play_processes(self):
         self._play_capture()
         self._play_process()
 
     def _play_capture(self):
-        # with self.capture_process_flag.get_lock():
-        #     self.capture_process_flag.value = True
-        # TODO: NEW
         with self.capture_process_flag.get_lock():
             self.capture_process_flag.value = 1
 
     def _play_process(self):
-        # with self.process_process_flag.get_lock():
-        #     self.process_process_flag.value = True
-        # TODO: NEW
         print("setting process flag to 1")
         with self.process_process_flag.get_lock():
             self.process_process_flag.value = 1
@@ -88,31 +87,23 @@ class KongsbergDGMain:
         # self._pause_process()
 
     def _pause_capture(self):
-        # TODO: NEW
         with self.capture_process_flag.get_lock():
             self.capture_process_flag.value = 2
 
     def _pause_process(self):
-        # TODO: NEW
         print("setting process flag to 2")
         with self.process_process_flag.get_lock():
             self.process_process_flag.value = 2
 
     def stop_processes(self):
         self._stop_capture()
-        # self._stop_process()
+        self._stop_process()
 
     def _stop_capture(self):
-        # with self.capture_process_flag.get_lock():
-        #     self.capture_process_flag.value = False
-        # TODO: NEW
         with self.capture_process_flag.get_lock():
             self.capture_process_flag.value = 3
 
     def _stop_process(self):
-        # with self.process_process_flag.get_lock():
-        #     self.process_process_flag.value = False
-        # TODO: NEW
         print("setting process flag to 3")
         with self.process_process_flag.get_lock():
             self.process_process_flag.value = 3
@@ -130,30 +121,23 @@ class KongsbergDGMain:
         #                                               ip_protocol=self.settings['ip_settings']['protocol'],
         #                                               socket_buffer_multiplier=
         #                                               self.settings['ip_settings']['socketBufferMultiplier'],
+        #                                               settings_edited=self.capture_settings_edited,
         #                                               queue_datagram=self.queue_datagram,
         #                                               full_ping_count=self.full_ping_count,
         #                                               discard_ping_count=self.discard_ping_count,
-        #                                               process_flag=self.process_flag)
+        #                                               process_flag=self.capture_process_flag)
 
-        # self.dg_process = KongsbergDGProcess(bin_size=self.settings['processing_settings']['binSize_m'],
-        #                                      max_heave=self.settings['buffer_settings']['maxHeave_m'],
-        #                                      queue_datagram=self.queue_datagram,
-        #                                      queue_pie_object=self.queue_pie_object,
-        #                                      process_flag=self.process_flag)
-
-        self.dg_capture = KongsbergDGCaptureFromSonar(rx_ip=self.settings['ip_settings']['ip'],
-                                                      rx_port=self.settings['ip_settings']['port'],
-                                                      ip_protocol=self.settings['ip_settings']['protocol'],
-                                                      socket_buffer_multiplier=
-                                                      self.settings['ip_settings']['socketBufferMultiplier'],
+        self.dg_capture = KongsbergDGCaptureFromSonar(ip=self.ip, port=self.port, protocol=self.protocol,
+                                                      socket_buffer_multiplier=self.socket_buffer_multiplier,
+                                                      settings_edited=self.capture_settings_edited,
                                                       queue_datagram=self.queue_datagram,
                                                       full_ping_count=self.full_ping_count,
                                                       discard_ping_count=self.discard_ping_count,
                                                       process_flag=self.capture_process_flag)
-        # self.dg_capture.signalBufferFlushed.connect(self.buffer_flushed)
 
         self.dg_process = KongsbergDGProcess(bin_size=self.bin_size,
                                              max_heave=self.max_heave,
+                                             max_grid_cells=self.max_grid_cells,
                                              settings_edited=self.process_settings_edited,
                                              queue_datagram=self.queue_datagram,
                                              queue_pie_object=self.queue_pie_object,
