@@ -43,7 +43,7 @@ class SubwindowPieSliceWidget(QWidget):
         self.plot.setLabel(axis='left', text='Depth')
         self.plot.setLabel(axis='bottom', text='Across-Track')
 
-        # Crosshair
+        # Crosshair - behind image
         self.vLine = pg.InfiniteLine(angle=90, movable=False)
         self.hLine = pg.InfiniteLine(angle=0, movable=False)
         self.plot.addItem(self.vLine, ignoreBounds=True)
@@ -56,6 +56,21 @@ class SubwindowPieSliceWidget(QWidget):
         self.depthIndicator.setPos(self.settings['processing_settings']['depth_m'] /
                                    self.settings['processing_settings']['binSize_m'])
         self.pie_plot.getView().addItem(self.depthIndicator)
+
+        # Omitted to decrease clutter over plot
+        # # Horizontal lines to indicate width and position of horizontal slice
+        # self.depthAvgIndicator1 = pg.InfiniteLine(angle=0, pen=pg.mkPen('c', width=1, style=Qt.DotLine), movable=False)
+        # self.depthAvgIndicator2 = pg.InfiniteLine(angle=0, pen=pg.mkPen('c', width=1, style=Qt.DotLine), movable=False)
+        # self.depthAvgIndicator1.setPos((self.settings['processing_settings']['depth_m'] /
+        #                                 self.settings['processing_settings']['binSize_m']) -
+        #                                ((self.settings['processing_settings']['depthAvg_m'] /
+        #                                  self.settings['processing_settings']['binSize_m']) / 2))
+        # self.depthAvgIndicator2.setPos((self.settings['processing_settings']['depth_m'] /
+        #                                 self.settings['processing_settings']['binSize_m']) +
+        #                                ((self.settings['processing_settings']['depthAvg_m'] /
+        #                                  self.settings['processing_settings']['binSize_m']) / 2))
+        # self.pie_plot.getView().addItem(self.depthAvgIndicator1)
+        # self.pie_plot.getView().addItem(self.depthAvgIndicator2)
 
         self.pie_plot.ui.histogram.setLevels(min=-95, max=35)
         # Based on https://stackoverflow.com/questions/38021869/getting-imageitem-values-from-pyqtgraph
@@ -262,6 +277,10 @@ class SubwindowPieSliceWidget(QWidget):
 
     def setDepthIndicator(self, y):
         self.depthIndicator.setPos(y)
+
+    def setDepthAvgIndicators(self, y1, y2):
+        self.depthAvgIndicator1.setPos(y1)
+        self.depthAvgIndicator2.setPos(y2)
 
     def setBinSize(self, binSize):
         self.spinboxBinSize.setValue(binSize)

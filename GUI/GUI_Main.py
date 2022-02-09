@@ -159,7 +159,8 @@ class MainWindow(QMainWindow):
         if self.waterColumn.get_processed_buffer_length() > 0:
 
             # UPDATE VERTICAL PLOT
-            temp_vertical = self.waterColumn.get_vertical_slice()
+            temp_vertical  = self.waterColumn.get_vertical_slice()
+            # temp_vertical, index_heave = self.waterColumn.get_vertical_slice()
             if temp_vertical is not None:
                 # if temp_vertical.any():  # For debugging
                 #     print("temp_vertical.shape", temp_vertical.shape)
@@ -167,14 +168,20 @@ class MainWindow(QMainWindow):
                 self.mdi.verticalWidget.vertical_plot.setImage(temp_vertical, autoRange=False,
                                                                autoLevels=False, autoHistogramRange=False,
                                                                pos=(-temp_vertical.shape[0],
-                                                                    -(self.settings['processing_settings']['maxHeave_m'] /
-                                                                    self.settings['processing_settings']['binSize_m'])))
+                                                                    -(self.settings
+                                                                       ['processing_settings']['maxHeave_m'] /
+                                                                       self.settings
+                                                                       ['processing_settings']['binSize_m'])))
+
                 # self.mdi.verticalWidget.vertical_plot.setImage(temp_vertical, autoRange=False,
                 #                                                autoLevels=False, autoHistogramRange=False,
                 #                                                pos=(-temp_vertical.shape[0],
-                #                                                      -self.settings['processing_settings']['maxHeave_m']))
-                # print("updating vertical plot: maxHeave: {}, binSize: {}".format(self.settings['processing_settings']['maxHeave_m'], self.settings['processing_settings']['binSize_m']))
-                # self.mdi.verticalWidget.setCoordinates()
+                #                                                     -((self.settings
+                #                                                        ['processing_settings']['maxHeave_m'] /
+                #                                                        self.settings
+                #                                                        ['processing_settings'][
+                #                                                            'binSize_m']) - index_heave)))
+
                 self.mdi.verticalWidget.updateTimestampAndIntensity()
 
             # UPDATE HORIZONTAL PLOT
@@ -208,40 +215,52 @@ class MainWindow(QMainWindow):
         """
         Updates IP settings.
         """
+        print("ipEdited")
         self.toolBar.setIPPort(self.settings['ip_settings']['ip'], self.settings['ip_settings']['port'])
 
         # NOTE: IP address stored as multiprocessing Array
         with self.waterColumn.ip.get_lock():
             self.waterColumn.ip[:] = self.waterColumn.editIP(self.settings['ip_settings']['ip'], append=True)
-        self.waterColumn.ip_settings_edited = True
+
+        if self.waterColumn.sonarMain:
+            self.waterColumn.ip_settings_edited = True
 
     def portEdited(self):
         """
         Updates port settings.
         """
+        print("portEdited")
         self.toolBar.setIPPort(self.settings['ip_settings']['ip'], self.settings['ip_settings']['port'])
 
         with self.waterColumn.port.get_lock():
             self.waterColumn.port.value = self.settings['ip_settings']['port']
-        self.waterColumn.ip_settings_edited = True
+
+        if self.waterColumn.sonarMain:
+            self.waterColumn.ip_settings_edited = True
 
     # TODO: Link to other processes
     def protocolEdited(self):
         """
         Updates protocol settings.
         """
+        print("protocolEdited")
         with self.waterColumn.protocol.get_lock():
             self.waterColumn.protocol.value = self.settings['ip_settings']['protocol']
-        self.waterColumn.ip_settings_edited = True
+
+        if self.waterColumn.sonarMain:
+            self.waterColumn.ip_settings_edited = True
 
     # TODO: Link to other processes
     def socketBufferEdited(self):
         """
         Updates socket buffer settings.
         """
+        print("socketBufferEdited")
         with self.waterColumn.socket_buffer_multiplier.get_lock():
             self.waterColumn.socket_buffer_multiplier.value = self.settings['ip_settings']['socketBufferMultiplier']
-        self.waterColumn.ip_settings_edited = True
+
+        if self.waterColumn.sonarMain:
+            self.waterColumn.ip_settings_edited = True
 
     # PROCESSING SETTINGS SLOTS:
     def binSizeEdited(self, fromSettingsDialog=False):
@@ -262,8 +281,9 @@ class MainWindow(QMainWindow):
 
         # TODO: This will get called twice if both depthEdited and binSizeEdited...
         # Move location of depth indicator in vertical slice and pie slice windows:
-        self.mdi.setDepthIndicator(round((self.settings['processing_settings']['depth_m'] /
-                                          self.settings['processing_settings']['binSize_m']), 2))
+        self.mdi.setDepthIndicator()
+        # Omitted to decrease clutter over plots
+        # self.mdi.setDepthAvgIndicators()
 
     def acrossTrackAvgEdited(self, fromSettingsDialog=False):
         """
@@ -293,8 +313,9 @@ class MainWindow(QMainWindow):
 
         # TODO: This will get called twice if both depthEdited and binSizeEdited...
         # Move location of depth indicator in vertical slice and pie slice windows:
-        self.mdi.setDepthIndicator(round((self.settings['processing_settings']['depth_m'] /
-                                   self.settings['processing_settings']['binSize_m']), 2))
+        self.mdi.setDepthIndicator()
+        # Omitted to decrease clutter over plots
+        # self.mdi.setDepthAvgIndicators()
 
     def depthAvgEdited(self, fromSettingsDialog=False):
         """
@@ -307,6 +328,9 @@ class MainWindow(QMainWindow):
 
         with self.waterColumn.depth_avg.get_lock():
             self.waterColumn.depth_avg.value = self.settings['processing_settings']['depthAvg_m']
+
+        # Omitted to decrease clutter over plots
+        # self.mdi.setDepthAvgIndicators()
 
     def alongTrackAvgEdited(self):
         """

@@ -48,7 +48,7 @@ class SubwindowHorizontalSliceWidget(QWidget):
         self.plot.setLabel(axis='left', text='Across-Track')
         self.plot.setLabel(axis='bottom', text='Pings')
 
-        # Crosshair
+        # Crosshair - behind image
         self.vLine = pg.InfiniteLine(angle=90, movable=False)
         self.hLine = pg.InfiniteLine(angle=0, movable=False)
         self.plot.addItem(self.vLine, ignoreBounds=True)

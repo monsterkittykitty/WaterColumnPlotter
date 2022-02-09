@@ -53,16 +53,28 @@ class SubwindowVerticalSliceWidget(QWidget):
         # ImageView
         self.vertical_plot = pg.ImageView(self, view=self.plot)
 
+        # Horizontal line to indicate position of horizontal slice
         self.depthIndicator = pg.InfiniteLine(angle=0, pen=pg.mkPen('m', width=1, style=Qt.DotLine), movable=False)
         self.depthIndicator.setPos(self.settings['processing_settings']['depth_m'] /
                                    self.settings['processing_settings']['binSize_m'])
         self.vertical_plot.getView().addItem(self.depthIndicator)
 
-        # Crosshair - in front of image
-        # self.vLine = pg.InfiniteLine(angle=90, movable=False)
-        # self.hLine = pg.InfiniteLine(angle=0, movable=False)
-        # self.vertical_plot.getView().addItem(self.vLine)
-        # self.vertical_plot.getView().addItem(self.hLine)
+        # Omitted to decrease clutter over plot
+        # # Horizontal lines to indicate width and position of horizontal slice
+        # self.depthAvgIndicator1 = pg.InfiniteLine(angle=0, pen=pg.mkPen('c', width=1, style=Qt.DotLine), movable=False)
+        # self.depthAvgIndicator2 = pg.InfiniteLine(angle=0, pen=pg.mkPen('c', width=1, style=Qt.DotLine), movable=False)
+        # self.depthAvgIndicator1.setPos((self.settings['processing_settings']['depth_m'] /
+        #                                 self.settings['processing_settings']['binSize_m']) -
+        #                                ((self.settings['processing_settings']['depthAvg_m'] /
+        #                                  self.settings['processing_settings']['binSize_m']) / 2))
+        # self.depthAvgIndicator2.setPos((self.settings['processing_settings']['depth_m'] /
+        #                                 self.settings['processing_settings']['binSize_m']) +
+        #                                ((self.settings['processing_settings']['depthAvg_m'] /
+        #                                  self.settings['processing_settings']['binSize_m']) / 2))
+        # # self.vertical_plot.getView().addItem(self.depthAvgIndicator1)
+        # # self.vertical_plot.getView().addItem(self.depthAvgIndicator2)
+        # self.plot.addItem(self.depthAvgIndicator1)
+        # self.plot.addItem(self.depthAvgIndicator2)
 
         self.vertical_plot.ui.histogram.setLevels(min=-95, max=35)
         # Based on https://stackoverflow.com/questions/38021869/getting-imageitem-values-from-pyqtgraph
@@ -353,6 +365,10 @@ class SubwindowVerticalSliceWidget(QWidget):
     def setDepthIndicator(self, y):
         self.depthIndicator.setPos(y)
 
+    def setDepthAvgIndicators(self, y1, y2):
+        self.depthAvgIndicator1.setPos(y1)
+        self.depthAvgIndicator2.setPos(y2)
+
     def setAcrossTrackAvg(self, acrossTrackAvg):
         self.spinboxAcrossTrackAvg.setValue(acrossTrackAvg)
 
@@ -388,6 +404,8 @@ class GUI_PlotItem(pg.PlotItem):
         self.enableAutoRange()
         self.setXRange(-(self.settings['buffer_settings']['maxBufferSize_ping'] /
                          self.settings['processing_settings']['alongTrackAvg_ping']), 0)
+        # self.vb.setLimits(yMin=-10)
+
         self.autoBtn.hide()
 
 

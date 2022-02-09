@@ -285,13 +285,16 @@ class WaterColumn:
         # Trim NaNs from matrices to be plotted:
         # This method will look for the index of the last row that is not completely filled with NaNs.
         # Add one to that index for the first full row of NaNs after all data.
-        index = np.argwhere(~np.isnan(slice).all(axis=0))[-1][0] + 1
+        # index_heave = np.argwhere(~np.isnan(slice).all(axis=0))[0][0] - 1
+        index_depth = np.argwhere(~np.isnan(slice).all(axis=0))[-1][0] + 1
 
         # Ensure that 'index' plus some small buffer does not exceed grid size.
         # (Because we want to allow some small buffer around bottom of data if possible.)
-        index = min((index + 10), self.MAX_NUM_GRID_CELLS)
+        # index_heave = max((index_heave - 10), 0)
+        index_depth = min((index_depth + 10), self.MAX_NUM_GRID_CELLS)
 
-        return slice[:, :index]
+        # return slice[:, index_heave:index_depth], index_heave
+        return slice[:, :index_depth]
 
     def _trim_nans_horizontal(self, slice):
         # Trim NaNs from matrices to be plotted:

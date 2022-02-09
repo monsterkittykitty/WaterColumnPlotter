@@ -60,6 +60,29 @@ class GUI_MDI(QMdiArea):
         # Disable close button:
         subwindow.setWindowFlags(Qt.CustomizeWindowHint | Qt.WindowCloseButtonHint)
 
-    def setDepthIndicator(self, y):
-        self.verticalWidget.setDepthIndicator(y)
-        self.pieWidget.setDepthIndicator(y)
+    # def setDepthIndicator(self, y):
+    #     self.verticalWidget.setDepthIndicator(y)
+    #     self.pieWidget.setDepthIndicator(y)
+
+    def setDepthIndicator(self):
+        bin_num_at_depth = round((self.settings['processing_settings']['depth_m'] /
+                                  self.settings['processing_settings']['binSize_m']), 2)
+
+        self.verticalWidget.setDepthIndicator(bin_num_at_depth)
+        self.pieWidget.setDepthIndicator(bin_num_at_depth)
+
+    # Omitted to decrease clutter over plot
+    def setDepthAvgIndicators(self):
+        bin_num_at_depth = (self.settings['processing_settings']['depth_m'] /
+                            self.settings['processing_settings']['binSize_m'])
+
+        num_bins_depth_avg = (self.settings['processing_settings']['depthAvg_m'] /
+                              self.settings['processing_settings']['binSize_m'])
+
+        self.verticalWidget.setDepthAvgIndicators(round((bin_num_at_depth - (num_bins_depth_avg / 2)), 2),
+                                                  round((bin_num_at_depth + (num_bins_depth_avg / 2)), 2))
+        self.pieWidget.setDepthAvgIndicators(round((bin_num_at_depth - (num_bins_depth_avg / 2)), 2),
+                                             round((bin_num_at_depth + (num_bins_depth_avg / 2)), 2))
+
+
+

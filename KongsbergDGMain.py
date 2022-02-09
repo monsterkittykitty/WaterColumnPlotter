@@ -52,7 +52,7 @@ class KongsbergDGMain:
 
 
     def settings_changed(self, ip_settings_edited):
-        print("in sonarmain settings_changed")
+        print("in sonarmain settings_changed, ip_settings_edited:", ip_settings_edited)
         if ip_settings_edited:
             print("ip settings edited!")
             with self.capture_settings_edited.get_lock():
