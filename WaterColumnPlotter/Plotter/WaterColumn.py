@@ -4,14 +4,13 @@
 # November 2021
 
 import ctypes
-from KongsbergDGMain import KongsbergDGMain
-from multiprocessing import Array, Process, Queue, RLock, shared_memory, Value
-import math
+from WaterColumnPlotter.Kongsberg.KongsbergDGMain import KongsbergDGMain
+from multiprocessing import Array, Queue, Value
 import numpy as np
-from PlotterMain import PlotterMain
+from WaterColumnPlotter.Plotter.PlotterMain import PlotterMain
 from PyQt5.QtWidgets import QMessageBox
-from SharedRingBufferProcessed import SharedRingBufferProcessed
-from SharedRingBufferRaw import SharedRingBufferRaw
+from WaterColumnPlotter.Plotter.SharedRingBufferProcessed import SharedRingBufferProcessed
+from WaterColumnPlotter.Plotter.SharedRingBufferRaw import SharedRingBufferRaw
 
 
 class WaterColumn:

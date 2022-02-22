@@ -6,7 +6,7 @@
 # Description:
 
 import ctypes
-from Plotter import Plotter
+from WaterColumnPlotter.Plotter.Plotter import Plotter
 import logging
 from multiprocessing import Value
 

@@ -6,18 +6,17 @@
 # University of New Hampshire
 # November 2021
 
-import ctypes
 import json
 import multiprocessing
 from PyQt5.QtWidgets import QApplication, QFileDialog, QMainWindow
 from PyQt5.QtCore import QTimer
 import sys
-from WaterColumn import WaterColumn
+from WaterColumnPlotter.Plotter.WaterColumn import WaterColumn
 
-from GUI.Dialogs.PYFiles.AllSettingsDialog import AllSettingsDialog
-from GUI_MDI import GUI_MDI
-from GUI.GUI_StatusBar import GUI_StatusBar
-from GUI.GUI_Toolbar import GUI_Toolbar
+from WaterColumnPlotter.GUI.Dialogs.PYFiles.AllSettingsDialog import AllSettingsDialog
+from WaterColumnPlotter.GUI.Widgets.GUI_MDI import GUI_MDI
+from WaterColumnPlotter.GUI.Widgets.GUI_StatusBar import GUI_StatusBar
+from WaterColumnPlotter.GUI.Widgets.GUI_Toolbar import GUI_Toolbar
 
 __appname__ = "Water Column Plotter"
 

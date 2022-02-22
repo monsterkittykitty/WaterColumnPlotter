@@ -8,7 +8,7 @@
 
 import argparse
 import datetime
-import KMALL
+from WaterColumnPlotter.Other.KmallPlayer import KMALL
 import logging
 import numpy as np
 import os

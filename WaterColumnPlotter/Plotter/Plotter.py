@@ -12,8 +12,8 @@ from multiprocessing import Process, shared_memory, Value
 import numpy as np
 # import pyvista as pv  # "Easier Pythonic interface to VTK"
 # from pyvistaqt import BackgroundPlotter, QtInteractor
-from SharedRingBufferProcessed import SharedRingBufferProcessed
-from SharedRingBufferRaw import SharedRingBufferRaw
+from WaterColumnPlotter.Plotter.SharedRingBufferProcessed import SharedRingBufferProcessed
+from WaterColumnPlotter.Plotter.SharedRingBufferRaw import SharedRingBufferRaw
 import threading
 import time
 import queue

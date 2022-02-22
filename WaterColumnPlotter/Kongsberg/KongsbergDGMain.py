@@ -5,10 +5,9 @@
 
 # Description:
 
-import argparse
 import ctypes
-from KongsbergDGCaptureFromSonar import KongsbergDGCaptureFromSonar
-from KongsbergDGProcess import KongsbergDGProcess
+from WaterColumnPlotter.Kongsberg.KongsbergDGCaptureFromSonar import KongsbergDGCaptureFromSonar
+from WaterColumnPlotter.Kongsberg.KongsbergDGProcess import KongsbergDGProcess
 import logging
 from multiprocessing import Value
 

@@ -14,9 +14,8 @@
 
 import argparse
 import ctypes
-import datetime
 import io
-from KmallReaderForMDatagrams import KmallReaderForMDatagrams as k
+from WaterColumnPlotter.Kongsberg.KmallReaderForMDatagrams import KmallReaderForMDatagrams as k
 import logging
 from multiprocessing import Process
 import multiprocessing as mp

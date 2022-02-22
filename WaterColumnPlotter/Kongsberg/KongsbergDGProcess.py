@@ -8,8 +8,8 @@
 import ctypes
 import datetime
 import io
-from KmallReaderForMDatagrams import KmallReaderForMDatagrams as k
-from KongsbergDGPie import KongsbergDGPie
+from WaterColumnPlotter.Kongsberg.KmallReaderForMDatagrams import KmallReaderForMDatagrams as k
+from WaterColumnPlotter.Plotter.KongsbergDGPie import KongsbergDGPie
 import logging
 from multiprocessing import Process, Value
 import numpy as np

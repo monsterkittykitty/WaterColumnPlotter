@@ -4,13 +4,13 @@
 # Center for Coastal and Ocean Mapping
 # November 2021
 
-from PyQt5.QtCore import pyqtSignal, Qt
-from PyQt5.QtWidgets import QAction, QApplication, QFileDialog, QGroupBox, QLabel, QMdiArea, QPushButton, QStyle, QToolBar, QToolButton, QVBoxLayout, QWidget
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QMdiArea
 
-from GUI.SubwindowPieSliceWidget import SubwindowPieSliceWidget
-from GUI.SubwindowVerticalSliceWidget import SubwindowVerticalSliceWidget
-from GUI.SubwindowHorizontalSliceWidget import SubwindowHorizontalSliceWidget
-from GUI.SubwindowSettingsDisplay import SubwindowSettingsDisplay
+from WaterColumnPlotter.GUI.Widgets.SubwindowPieSliceWidget import SubwindowPieSliceWidget
+from WaterColumnPlotter.GUI.Widgets.SubwindowVerticalSliceWidget import SubwindowVerticalSliceWidget
+from WaterColumnPlotter.GUI.Widgets.SubwindowHorizontalSliceWidget import SubwindowHorizontalSliceWidget
+
 
 class GUI_MDI(QMdiArea):
 
