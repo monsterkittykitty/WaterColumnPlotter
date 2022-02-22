@@ -8,7 +8,6 @@
 
 from multiprocessing import shared_memory
 import numpy as np
-from RingBuffer import RingBuffer
 
 
 class SharedRingBufferRaw:
