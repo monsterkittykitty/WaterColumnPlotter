@@ -9,7 +9,7 @@ import ctypes
 import datetime
 import io
 from WaterColumnPlotter.Kongsberg.KmallReaderForMDatagrams import KmallReaderForMDatagrams as k
-from WaterColumnPlotter.Plotter.KongsbergDGPie import KongsbergDGPie
+from WaterColumnPlotter.Plotter.SwathStandardFormat import SwathStandardFormat
 import logging
 from multiprocessing import Process, Value
 import numpy as np
@@ -196,7 +196,7 @@ class KongsbergDGProcess(Process):
             pie_chart_values = np.zeros(shape=(self.max_grid_cells_local, self.max_grid_cells_local))
             pie_chart_count = np.zeros(shape=(self.max_grid_cells_local, self.max_grid_cells_local))
 
-            pie_object = KongsbergDGPie(self.bin_size_local, self.max_heave_local,
+            pie_object = SwathStandardFormat(self.bin_size_local, self.max_heave_local,
                                         pie_chart_values, pie_chart_count, header['dgTime'])
 
         # Full datagram (all partitions received):
@@ -383,8 +383,8 @@ class KongsbergDGProcess(Process):
             # ###################### END NEW - OUTSIDE ###################### #
 
             # This results in mirror-image pie display. Use flip!
-            # pie_object = KongsbergDGPie(pie_chart_values, pie_chart_count, dg['header']['dgTime'])
-            pie_object = KongsbergDGPie(self.bin_size_local, self.max_heave_local, np.flip(pie_chart_values, axis=1),
+            # pie_object = SwathStandardFormat(pie_chart_values, pie_chart_count, dg['header']['dgTime'])
+            pie_object = SwathStandardFormat(self.bin_size_local, self.max_heave_local, np.flip(pie_chart_values, axis=1),
                                         np.flip(pie_chart_count, axis=1), dg['header']['dgTime'])
 
             # print("(((((((((((((((((((((((((((((((((((KONGSBERGDGPROCESS TIMESTAMP: ", dg['header']['dgTime'])

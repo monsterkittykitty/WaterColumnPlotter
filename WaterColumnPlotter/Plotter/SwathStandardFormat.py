@@ -5,7 +5,7 @@
 
 # Description:
 
-class KongsbergDGPie:
+class SwathStandardFormat:
     def __init__(self, bin_size, max_heave, pie_chart_values,
                  pie_chart_count, timestamp, latitude=None, longitude=None):
 
