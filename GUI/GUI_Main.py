@@ -33,7 +33,7 @@ class MainWindow(QMainWindow):
                          'ip_settings': {'ip': '127.0.0.1', 'port': 8080, 'protocol': "UDP",
                                          'socketBufferMultiplier': 4},
                          'processing_settings': {'binSize_m': 0.20, 'acrossTrackAvg_m': 10, 'depth_m': 2,
-                                                 'depthAvg_m': 2, 'alongTrackAvg_ping': 5, 'maxHeave_m': 5},
+                                                 'depthAvg_m': 2, 'alongTrackAvg_ping': 5, 'maxHeave_m': 2.5},
                          'buffer_settings': {'maxGridCells': 500, 'maxBufferSize_ping': 1000}}
 
         # Shared queue to contain pie objects:
