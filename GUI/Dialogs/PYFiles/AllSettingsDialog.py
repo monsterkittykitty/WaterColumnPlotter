@@ -35,7 +35,7 @@ class AllSettingsDialog(QtWidgets.QDialog):
     # signalSettingsEdited = pyqtSignal(list, name="settingsEdited")
 
     def __init__(self, settings, parent=None):
-        super(AllSettingsDialog2, self).__init__(parent)
+        super(AllSettingsDialog, self).__init__(parent)
 
         self.settings = settings
 
