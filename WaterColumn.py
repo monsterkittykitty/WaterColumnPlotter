@@ -58,7 +58,6 @@ class WaterColumn:
         self.full_ping_count = Value(ctypes.c_uint32, 0, lock=True)  # multiprocessing.Value
         self.discard_ping_count = Value(ctypes.c_uint32, 0, lock=True)  # multiprocessing.Value
 
-        # TODO
         self.process_flag = Value(ctypes.c_bool, False, lock=True)  # multiprocessing.Value
         self.sonar_process_flag = Value(ctypes.c_bool, False, lock=True)  # multiprocessing.Value
         self.plotter_process_flag = Value(ctypes.c_bool, False, lock=True)  # multiprocessing.Value

@@ -236,11 +236,11 @@
 # import pyqtgraph.examples
 # pyqtgraph.examples.run()
 
-if __name__ == "__main__":
-    x = 0
-    while True:
-        for i in range(10):
-            x += 1
-        if x > 5:
-            break
-    print("after true")
+# if __name__ == "__main__":
+#     x = 0
+#     while True:
+#         for i in range(10):
+#             x += 1
+#         if x > 5:
+#             break
+#     print("after true")

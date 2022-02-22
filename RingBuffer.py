@@ -9,7 +9,6 @@
 from multiprocessing import shared_memory
 import numpy as np
 
-
 class RingBuffer:
     #def __init__(self, settings, indices):
     def __init__(self, settings, counter, full_flag, size, dtype, shmem_buf=None):

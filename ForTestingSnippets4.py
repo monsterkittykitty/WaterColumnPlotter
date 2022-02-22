@@ -1,78 +1,60 @@
-import argparse
-import ctypes
-import datetime
-import io
-from KmallReaderForMDatagrams import KmallReaderForMDatagrams as k
-import logging
-#from multiprocessing import Process, Value
-import multiprocessing as mp
-mp.allow_connection_pickling()
-import socket
-import struct
 import sys
+from PyQt5 import QtCore, QtGui, QtWidgets
+import pyqtgraph as pg
+from pyqtgraph.dockarea import *
 
-logger = logging.getLogger(__name__)
-
-class Snippet:
-    #class KongsbergDGCaptureFromSonar:
-    def __init__(self, rx_ip, rx_port):
-        #super().__init__()
-
-        #self.name = "Snippet"
-
-        print("New instance of ForTestingSnippets4.")
-
-        self.rx_ip = rx_ip
-        self.rx_port = rx_port
-
-        self.SOCKET_TIMEOUT = 5  # Seconds
-        self.MAX_DATAGRAM_SIZE = 2 ** 16
-        self.sock_in = self.__init_socket()
-
-        self.REQUIRED_DATAGRAMS = [b'#MRZ', b'#MWC', b'#SKM', b'#SPO']
+# I use Qt Designer, below I just cut generated code to minimum
+class Ui_StartForm(object):
+    def setupUi(self, StartForm):
+        StartForm.setObjectName("StartForm")
+        StartForm.resize(1507, 968)
+        self.GraphLayout = QtWidgets.QGridLayout(StartForm)
 
 
-    def __init_socket(self):
-        temp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        # Allow reuse of addresses
-        temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        # TODO: Change buffer size if packets are being lost:
-        temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.MAX_DATAGRAM_SIZE * 2 * 2)
-        temp_sock.bind((self.rx_ip, self.rx_port))
-        #temp_sock.settimeout(self.SOCKET_TIMEOUT)
-        return temp_sock
+class MyPlotWidget(pg.PlotWidget):
 
-    def run(self):
-        while True:
-            print("Listening")
-            try:
-                data, address = self.sock_in.recvfrom(self.MAX_DATAGRAM_SIZE)
-            except BlockingIOError:
-                print('error')
-                continue
-            except socket.timeout:
-                logger.exception("Socket timeout exception.")
-                self.sock_in.close()
-                break
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
-            bytes_io = io.BytesIO(data)
-
-            header = k.read_EMdgmHeader(bytes_io)
-            print("hi")
-            print("header[numBytesDgm]: ", header['numBytesDgm'], type(header['dgmType']))
+        # self.scene() is a pyqtgraph.GraphicsScene.GraphicsScene.GraphicsScene
+        self.scene().sigMouseClicked.connect(self.mouse_clicked)
 
 
-class Main:
+    def mouse_clicked(self, mouseClickEvent):
+        # mouseClickEvent is a pyqtgraph.GraphicsScene.mouseEvents.MouseClickEvent
+        print('clicked plot 0x{:x}, event: {}'.format(id(self), mouseClickEvent))
+
+
+
+# my application
+class AppWindow(QtWidgets.QWidget, Ui_StartForm):
     def __init__(self):
-        self.snippet = None
+        super(AppWindow, self).__init__()
+        self.setupUi(self)
 
-    def run(self):
-        self.snippet = Snippet("127.0.0.1", 8080)
-        #self.snippet.daemon = True
-        #self.snippet.start()
-        #self.snippet.join()
-        self.snippet.run()
+        self.dock_area_main = DockArea()
+        self.GraphLayout.addWidget(self.dock_area_main)
+
+        # Best to use lower case for variables and upper case for types, so I
+        # renamed self.Dock1 to self.dock1.
+
+        self.dock1 = Dock("Dock 1", size=(1, 1))
+        self.dock_area_main.addDock(self.dock1, 'left')
+
+        self.dock2 = Dock("Dock 2", size=(1, 1))
+        self.dock_area_main.addDock(self.dock2, 'right')
+
+        self.GraphViewList = []
+
+        self.pl1 = MyPlotWidget()
+        self.pl2 = MyPlotWidget()
+
+        self.dock1.addWidget(self.pl1)
+        self.dock2.addWidget(self.pl2)
+
 
 if __name__ == "__main__":
-    main = Main()
-    main.run()
+    app = QtWidgets.QApplication(sys.argv)
+    w = AppWindow()
+    w.show()
+    sys.exit(app.exec_())
