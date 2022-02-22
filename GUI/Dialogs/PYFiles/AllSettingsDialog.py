@@ -11,7 +11,7 @@ import ipaddress
 
 __appname__ = "Settings Dialog"
 
-class AllSettingsDialog2(QtWidgets.QDialog):
+class AllSettingsDialog(QtWidgets.QDialog):
 
     signalSystemEdited = pyqtSignal(name="systemEdited")
     signalIPEdited = pyqtSignal(name="ipEdited")

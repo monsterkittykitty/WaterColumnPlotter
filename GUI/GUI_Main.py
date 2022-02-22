@@ -14,7 +14,7 @@ from PyQt5.QtCore import QTimer
 import sys
 from WaterColumn import WaterColumn
 
-from GUI.Dialogs.PYFiles.AllSettingsDialog2 import AllSettingsDialog2
+from GUI.Dialogs.PYFiles.AllSettingsDialog import AllSettingsDialog
 from GUI_MDI import GUI_MDI
 from GUI.GUI_StatusBar import GUI_StatusBar
 from GUI.GUI_Toolbar import GUI_Toolbar
@@ -411,7 +411,7 @@ class MainWindow(QMainWindow):
         """
         Initializes and launches settings dialog; connects signals / slots.
         """
-        settingsDialog = AllSettingsDialog2(self.settings, parent=self)
+        settingsDialog = AllSettingsDialog(self.settings, parent=self)
 
         # Signals / Slots
         settingsDialog.pushButtonLoadSettings.clicked.connect(lambda: self.displayLoadSettingsDialog(settingsDialog))
