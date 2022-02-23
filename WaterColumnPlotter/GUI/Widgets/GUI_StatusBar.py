@@ -1,11 +1,14 @@
-# Toolbar class for Water Column Plotter MainWindow.
-
 # Lynette Davis
+# ldavis@ccom.unh.edu
 # Center for Coastal and Ocean Mapping
+# University of New Hampshire
 # November 2021
 
-from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QStatusBar, QGridLayout, QGroupBox, QLabel, QSizePolicy, QStyle, QToolBar, QToolButton, QVBoxLayout, QWidget
+# Description: Status Bar class for WaterColumnPlotter MainWindow;
+# initializes status bar to display number of received and lost pings.
+
+from PyQt5.QtWidgets import QStatusBar, QGridLayout, QLabel, QSizePolicy, QWidget
+
 
 class GUI_StatusBar(QStatusBar):
 
@@ -15,17 +18,20 @@ class GUI_StatusBar(QStatusBar):
         # Spacer Widget:
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        #self.addWidget(spacer)
 
         layoutPings = QGridLayout()
 
         labelRxToLost = QLabel("WC Pings, Rxed:Lost", parent=self)
-        #layoutPings.addWidget(labelRxToLost, 0, 0)
         self.labelRxToLostValues = QLabel("0:0", parent=self)
-        #layoutPings.addWidget(self.labelRxToLostValues, 0, 1)
 
         self.addPermanentWidget(labelRxToLost)
         self.addPermanentWidget(self.labelRxToLostValues)
 
     def set_ping_counts(self, full_count, discard_count):
+        """
+        Sets status bar labels with number of received (full_count) and lost (discard_count) pings.
+        :param full_count: Integer indicating number of successfully reconstructed pings (from partitioned datagrams)
+        :param discard_count: Integer indicating number of unsuccessfully reconstructed pings
+        (from partitioned datagrams)
+        """
         self.labelRxToLostValues.setText(str(full_count) + ":" + str(discard_count))

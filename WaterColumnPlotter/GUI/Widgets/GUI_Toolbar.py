@@ -1,11 +1,15 @@
-# Toolbar class for Water Column Plotter MainWindow.
-
 # Lynette Davis
+# ldavis@ccom.unh.edu
 # Center for Coastal and Ocean Mapping
+# University of New Hampshire
 # November 2021
 
+# Description: Description: Toolbar class for WaterColumnPlotter MainWindow;
+# initializes toolbar to display current IP, port, and buttons (play, pause, stop, settings).
+
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QGridLayout, QGroupBox, QLabel, QSizePolicy, QStyle, QToolBar, QToolButton, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QGroupBox, QLabel, QSizePolicy, QStyle, QToolBar, QToolButton, QVBoxLayout, QWidget
+
 
 class GUI_Toolbar(QToolBar):
 
@@ -78,73 +82,7 @@ class GUI_Toolbar(QToolBar):
         spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.addWidget(spacer)
 
-        # Create display mechanism for rxed to lost pings
-        # groupBoxPings = QGroupBox("Pings: ", parent=self)
-        # layoutPings = QGridLayout()
-        #
-        # labelRxToLost = QLabel("Rxed:Lost", parent=self)
-        # layoutPings.addWidget(labelRxToLost, 0, 0)
-        # self.labelRxToLostValues = QLabel("0:0", parent=self)
-        # layoutPings.addWidget(self.labelRxToLostValues, 0, 1)
-        #
-        # groupBoxPings.setLayout(layoutPings)
-        #
-        # self.addWidget(groupBoxPings)
-
-        # For adding additional settings to toolbar. Note: This is incomplete and signals / slots are not enabled.
-        # # Settings:
-        # groupBoxSettings = QGroupBox("Additional Settings: ", parent=self)
-        #
-        # layoutSettings = QGridLayout()
-        #
-        # labelAlongTrackAvg = QLabel("Along-Track Avg (pings):", parent=self)
-        # layoutSettings.addWidget(labelAlongTrackAvg, 0, 0)
-        #
-        # self.spinboxAlongTrackAvg = QSpinBox()
-        # self.spinboxAlongTrackAvg.setToolTip("Number of pings to average along-track.")
-        # self.spinboxAlongTrackAvg.setRange(1, 100)
-        # self.spinboxAlongTrackAvg.setSingleStep(1)
-        # self.setAlongTrackAvg(self.settings)
-        # layoutSettings.addWidget(self.spinboxAlongTrackAvg, 0, 1)
-        #
-        # layoutSettings.setColumnMinimumWidth(2, 5)
-        #
-        # labelDualSwath = QLabel("Dual Swath Policy:", parent=self)
-        # layoutSettings.addWidget(labelDualSwath, 0, 3)
-        #
-        # self.comboboxDualSwath = QComboBox()
-        # self.comboboxDualSwath.addItems(["Keep all pings.", "Keep first ping only.", "Keep second ping only."])
-        # self.setDualSwath(self.settings)
-        # layoutSettings.addWidget(self.comboboxDualSwath, 0, 4)
-        #
-        # layoutSettings.setColumnMinimumWidth(5, 5)
-        #
-        # # pushButtonApply = QPushButton("Apply")
-        # iconApply = self.style().standardIcon(QStyle.SP_DialogApplyButton)
-        # pushButtonApply = QPushButton()
-        # pushButtonApply.setToolTip("Apply")
-        # pushButtonApply.setIcon(iconApply)
-        # # pushButtonApply.clicked.connect(self.acrossTrackAvgEditedFunction)
-        # layoutSettings.addWidget(pushButtonApply, 0, 6)
-        #
-        # # pushButtonCancel = QPushButton("Cancel")
-        # iconCancel = self.style().standardIcon(QStyle.SP_DialogCancelButton)
-        # pushButtonCancel = QPushButton()
-        # pushButtonCancel.setToolTip("Cancel")
-        # pushButtonCancel.setIcon(iconCancel)
-        # # pushButtonCancel.clicked.connect(self.resetAcrossTrackAvg)
-        # layoutSettings.addWidget(pushButtonCancel, 0, 7)
-        #
-        # groupBoxSettings.setLayout(layoutSettings)
-        #
-        # # Spacer Widget:
-        # spacer = QWidget()
-        # spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        # self.addWidget(spacer)
-        #
-        # self.addWidget(groupBoxSettings)
-
-        # Instead of above, add icon to toolbar that brings up settings dialog
+        # Add icon to toolbar that brings up settings dialog
         iconSettings = self.style().standardIcon(QStyle.SP_FileDialogDetailedView)
         self.toolButtonSettings = QToolButton(self)
         self.toolButtonSettings.setToolTip("Settings")
@@ -154,26 +92,28 @@ class GUI_Toolbar(QToolBar):
         # Connect signals / slots
         self.toolButtonSettings.clicked.connect(self.settingsClicked.emit)
 
-        # # Spacer Widget:
-        # spacer = QWidget()
-        # spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        # self.addWidget(spacer)
-
         self.addWidget(self.toolButtonSettings)
 
     def setIPPort(self, ip, port):
+        """
+        Sets toolbar labels with current port and ip address.
+        :param ip: Current IP address used for listening for incoming datagrams
+        :param port: Current port used for listening for incoming datagrams
+        """
         self.labelIPPort.setText(ip + ":" + str(port))
 
     def setSystem(self, system):
+        """
+        Sets toolbar labels with current sonar system.
+        :param system: Current sonar system that is providing data
+        """
         self.labelSystem.setText(system)
 
-    # def setAlongTrackAvg(self, settings):
-    #     self.spinboxAlongTrackAvg.setValue(settings['processing_settings']['alongTrackAvg_ping'])
-    #
-    # def setDualSwath(self, settings):
-    #     self.comboboxDualSwath.setCurrentIndex(settings['processing_settings']['dualSwathPolicy'])
-
     def playButtonClicked(self):
+        """
+        Enables and disables appropriate buttons when play button is clicked;
+        emits signal indicating play button clicked.
+        """
         # Play button is pressed.
         # Disable play button
         self.toolButtonPlay.setDisabled(True)
@@ -191,12 +131,14 @@ class GUI_Toolbar(QToolBar):
         self.playClicked.emit()
 
     def pauseButtonClicked(self):
+        """
+        Enables and disables appropriate buttons when pause button is clicked;
+        emits signal indicating pause button clicked.
+        """
         # Pause button is pressed.
         # Disable pause button
         self.toolButtonPause.setDisabled(True)
         # self.toolBar.toolButtonPause.setStyleSheet("background-color : rgb(158, 158, 158)")  # Grey
-        # self.toolButtonPause.setStyleSheet("background-color : rgb(219, 141, 141)")  # Red
-        # self.toolButtonPause.setStyleSheet("background-color : rgb(225, 161, 53)")  # Yellow
         self.toolButtonPause.setStyleSheet("background-color : rgb(212, 170, 65)")  # Yellow
 
         # Enable play button
@@ -206,6 +148,10 @@ class GUI_Toolbar(QToolBar):
         self.pauseClicked.emit()
 
     def stopButtonClicked(self):
+        """
+        Enables and disables appropriate buttons when stop button is clicked;
+        emits signal indicating stop button clicked.
+        """
         # Stop button is pressed.
         # Disable pause button
         self.toolButtonPause.setDisabled(True)

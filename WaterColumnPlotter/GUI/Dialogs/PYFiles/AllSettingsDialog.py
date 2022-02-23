@@ -1,11 +1,14 @@
 # Lynette Davis
+# ldavis@ccom.unh.edu
 # Center for Coastal and Ocean Mapping
+# University of New Hampshire
 # November 2021
+
+# Description: Provides functions to update internal settings through a settings dialog.
 
 from PyQt5 import QtWidgets, uic
 from PyQt5.QtGui import QIntValidator, QRegExpValidator
 from PyQt5.QtCore import pyqtSignal, QRegExp
-import sys
 
 import ipaddress
 
@@ -26,13 +29,7 @@ class AllSettingsDialog(QtWidgets.QDialog):
     signalHeaveEdited = pyqtSignal(name="heaveEdited")
     signalGridCellsEdited = pyqtSignal(name="gridCellsEdited")
     signalPingBufferEdited = pyqtSignal(name="pingBufferEdited")
-
-    # signalKongsbergCaptureSettingsEdited = pyqtSignal(name="kongsbergCaptureSettingsEdited")
-    # signalKongsbergProcessSettingsEdited = pyqtSignal(name="kongsbergProcessSettingsEdited")
-    # signalKongsbergPlotterSettingsEdited = pyqtSignal(name="kongsbergPlotterSettingsEdited")
-
     signalProcessingSettingsEdited = pyqtSignal(name="processingSettingsEdited")
-    # signalSettingsEdited = pyqtSignal(list, name="settingsEdited")
 
     def __init__(self, settings, parent=None):
         super(AllSettingsDialog, self).__init__(parent)
@@ -40,10 +37,7 @@ class AllSettingsDialog(QtWidgets.QDialog):
         self.settings = settings
 
         self.ui = uic.loadUi('Dialogs/UIFiles/AllSettingsDialog.ui', self)
-        # Disable ability to resize settings window
-        #self.setFixedSize(self.size())
 
-        #self.setDefaultValues()
         self.setValues()
 
         # Preventative validation:
@@ -55,7 +49,6 @@ class AllSettingsDialog(QtWidgets.QDialog):
         """
         Enables preventative validation to ensure valid entries in select fields of setting dialog.
         """
-        # Preventative validation:
 
         # IP
         ipRange = "(?:[0-1]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])"
@@ -74,7 +67,6 @@ class AllSettingsDialog(QtWidgets.QDialog):
         Based on this solution: https://www.qtcentre.org/threads/8048-Validate-Data-in-QDialog
         :param i: 0 when 'Cancel' clicked; 1 when 'OK' clicked.
         """
-        # print("done")
         if QtWidgets.QDialog.Accepted == i:  # OK clicked
             if self.validateAndSetValuesFromDialog():
                 QtWidgets.QDialog.done(self, i)
@@ -123,7 +115,6 @@ class AllSettingsDialog(QtWidgets.QDialog):
         :param loadedSettings: A python dictionary of the same format as self.settings,
         containing settings loaded from a file.
         """
-        print("validateAndSetValuesFromFile")
         systemEdited = False
         ipEdited = False
         portEdited = False
@@ -439,18 +430,18 @@ class AllSettingsDialog(QtWidgets.QDialog):
                     gridCellsEdited, pingBufferEdited):
         """
         Emits signals for all True parameters.
-        :param systemEdited: Boolean indicating whether field was edited.
-        :param ipEdited: Boolean indicating whether field was edited.
-        :param portEdited: Boolean indicating whether field was edited.
-        :param protocolEdited: Boolean indicating whether field was edited.
-        :param binSizeEdited: Boolean indicating whether field was edited.
-        :param acrossTrackAvgEdited: Boolean indicating whether field was edited.
-        :param depthEdited: Boolean indicating whether field was edited.
-        :param depthAvgEdited: Boolean indicating whether field was edited.
-        :param alongTrackAvgEdited: Boolean indicating whether field was edited.
-        :param heaveEdited: Boolean indicating whether field was edited.
-        :param gridCellsEdited: Boolean indicating whether field was edited.
-        :param pingBufferEdited: Boolean indicating whether field was edited.
+        :param systemEdited: Boolean indicating whether system field was edited.
+        :param ipEdited: Boolean indicating whether IP field was edited.
+        :param portEdited: Boolean indicating whether port field was edited.
+        :param protocolEdited: Boolean indicating whether protocol field was edited.
+        :param binSizeEdited: Boolean indicating whether binSize field was edited.
+        :param acrossTrackAvgEdited: Boolean indicating whether acrossTrackAvg field was edited.
+        :param depthEdited: Boolean indicating whether depth field was edited.
+        :param depthAvgEdited: Boolean indicating whether depthAvg field was edited.
+        :param alongTrackAvgEdited: Boolean indicating whether alongTrackAvg field was edited.
+        :param heaveEdited: Boolean indicating whether heave field was edited.
+        :param gridCellsEdited: Boolean indicating whether gridCells field was edited.
+        :param pingBufferEdited: Boolean indicating whether pingBuffer field was edited.
         """
         if systemEdited:
             self.systemEdited.emit()
@@ -479,41 +470,8 @@ class AllSettingsDialog(QtWidgets.QDialog):
         if pingBufferEdited:
             self.pingBufferEdited.emit()
 
-
-        # if self.settings['system_settings']['system'] == "Kongsberg":
-        #     kongsbergCaptureSettingsEdited = False
-        #     kongsbergProcessSettingsEdited = False
-        #     kongsbergPlotterSettingsEdited = False
-        #
-        #     if ipEdited or portEdited or protocolEdited or socketBufferEdited:
-        #         kongsbergCaptureSettingsEdited = True
-        #     if binSizeEdited or heaveEdited or gridCellsEdited:
-        #         kongsbergProcessSettingsEdited = True
-        #     if binSizeEdited or acrossTrackAvgEdited or depthEdited or depthAvgEdited or \
-        #             alongTrackAvgEdited or heaveEdited or gridCellsEdited:
-        #         kongsbergPlotterSettingsEdited = True
-        #
-        #     self.settingsEdited.emit([kongsbergCaptureSettingsEdited,
-        #                               kongsbergProcessSettingsEdited,
-        #                               kongsbergPlotterSettingsEdited])
-
-        # if self.settings['system_settings']['system'] == "Kongsberg":
-        #     if ipEdited or portEdited or protocolEdited or socketBufferEdited:
-        #         self.kongsbergCaptureSettingsEdited.emit()
-        #     if binSizeEdited or heaveEdited or gridCellsEdited:
-        #         self.kongsbergProcessSettingsEdited.emit()
-        #     if binSizeEdited or acrossTrackAvgEdited or depthEdited or depthAvgEdited or \
-        #             alongTrackAvgEdited or heaveEdited or gridCellsEdited:
-        #         self.kongsbergPlotterSettingsEdited.emit()
-
-
-        # if binSizeEdited or acrossTrackAvgEdited or depthEdited or depthAvgEdited or alongTrackAvgEdited or heaveEdited:
-        #     self.processingSettingsEdited.emit()
-
+        # If any settings edited, emit processingSettingsEdited signal
         if systemEdited or ipEdited or portEdited or protocolEdited or socketBufferEdited or \
                 binSizeEdited or acrossTrackAvgEdited or depthEdited or depthAvgEdited or \
                 alongTrackAvgEdited or heaveEdited or gridCellsEdited or pingBufferEdited:
             self.processingSettingsEdited.emit()
-
-
-        print("end of emit signals")

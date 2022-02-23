@@ -1,17 +1,18 @@
 # Lynette Davis
+# ldavis@ccom.unh.edu
 # Center for Coastal and Ocean Mapping
+# University of New Hampshire
 # October 2021
+
+# Description: A widget to be used as an MDI (Multiple Document Interface) subwindow;
+# displays plots and settings relevant to the horizontal slice display.
 
 import datetime
 import math
-import numpy as np
-from PyQt5.QtCore import pyqtSignal, Qt
-from PyQt5.QtWidgets import QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QStyle, QVBoxLayout, QWidget
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QDoubleSpinBox, QFrame, QHBoxLayout, QLabel, \
+    QPushButton, QSizePolicy, QStyle, QVBoxLayout, QWidget
 import pyqtgraph as pg
-# import pyvista as pv
-# from pyvistaqt import BackgroundPlotter, QtInteractor
-# from qtrangeslider import QRangeSlider
-import sys
 
 
 class SubwindowHorizontalSliceWidget(QWidget):
@@ -36,7 +37,6 @@ class SubwindowHorizontalSliceWidget(QWidget):
         self.setWindowTitle("Horizontal Slice")
 
         self.plot = GUI_PlotItem(self.settings)
-        # self.plot = pg.PlotItem()
         # self.plot.hideButtons()
         self.plot.vb.state['aspectLocked'] = False
         self.plot.setXRange(-(self.settings['buffer_settings']['maxBufferSize_ping'] /
@@ -56,10 +56,25 @@ class SubwindowHorizontalSliceWidget(QWidget):
 
         # ImageView
         self.horizontal_plot = pg.ImageView(self, view=self.plot)
-
         self.horizontal_plot.ui.histogram.setLevels(min=-95, max=35)
         # Based on: https://stackoverflow.com/questions/38021869/getting-imageitem-values-from-pyqtgraph
         self.horizontal_plot.scene.sigMouseMoved.connect(self.mouseMoved)
+
+        # TODO: Change axis labels to indicate meters and pings rather than bins???
+        # https://stackoverflow.com/questions/63619065/pyqtgraph-use-arbitrary-values-for-axis-with-imageitem
+        # self.horizontal_plot.getImageItem().setRect()
+
+        # self.xval = np.linspace(0, self.settings['processing_settings']['alongTrackAvg_ping'],
+        #                           self.settings['buffer_settings']['maxBufferSize'])
+        # self.yval = np.linspace(0, self.settings['processing_settings']['binSize_m'],
+        #                         self.settings['buffer_settings']['maxGridCells'])
+        #
+        # # image_width = abs(self.xval_h[0]-self.xval_h[0])
+        # # image_height = abs(self.xval_h[0]-self.xval_h[0])  # if x and y-scales are the same
+        # image_
+        # pixel_size = image_width/(self.xval_h.size-1)
+        # self.image_h.setRect(QRectF(self.xval_h[0]-pixel_size/2, self.xval_h[0]-pixel_size/2, image_width, image_height))
+        # TODO: END
 
         # Disable ROI button:
         self.horizontal_plot.ui.roiBtn.hide()
@@ -81,6 +96,7 @@ class SubwindowHorizontalSliceWidget(QWidget):
         spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         top_row_layout.addWidget(spacer)
 
+        # Depth settings
         labelDepth = QLabel("Depth (m):")
         top_row_layout.addWidget(labelDepth)
 
@@ -92,6 +108,7 @@ class SubwindowHorizontalSliceWidget(QWidget):
         self.setDepth(self.settings['processing_settings']['depth_m'])
         top_row_layout.addWidget(self.spinboxDepth)
 
+        # Depth average settings
         labelDepthAvg = QLabel("Depth Average (m):")
         top_row_layout.addWidget(labelDepthAvg)
 
@@ -103,7 +120,7 @@ class SubwindowHorizontalSliceWidget(QWidget):
         self.setDepthAvg(self.settings['processing_settings']['depthAvg_m'])
         top_row_layout.addWidget(self.spinboxDepthAvg)
 
-        # pushButtonApply = QPushButton("Apply")
+        # Apply button
         iconApply = self.style().standardIcon(QStyle.SP_DialogApplyButton)
         pushButtonApply = QPushButton()
         pushButtonApply.setToolTip("Apply")
@@ -111,7 +128,7 @@ class SubwindowHorizontalSliceWidget(QWidget):
         pushButtonApply.clicked.connect(self.editedAllFunction)
         top_row_layout.addWidget(pushButtonApply)
 
-        # pushButtonCancel = QPushButton("Cancel")
+        # Cancel button
         iconCancel = self.style().standardIcon(QStyle.SP_DialogCancelButton)
         pushButtonCancel = QPushButton()
         pushButtonCancel.setToolTip("Cancel")
@@ -171,17 +188,21 @@ class SubwindowHorizontalSliceWidget(QWidget):
         layout.addWidget(self.horizontal_plot)
         layout.addLayout(bottom_row_layout)
 
-        # rangeSlider = QRangeSlider(Qt.Horizontal)
-        # layout.addWidget(rangeSlider, 4, 1, 1, 2)
-
-        # layout.addWidget(QtWidgets.QPushButton("Bottom"))
-
         self.setLayout(layout)
 
     def setSharedRingBufferProcessed(self, shared_ring_buffer_processed):
+        """
+        Sets reference to shared_ring_buffer_processed
+        :param shared_ring_buffer_processed: An instance of SharedRingBufferProcessed
+        """
         self.shared_ring_buffer_processed = shared_ring_buffer_processed
 
     def mouseMoved(self, pos):
+        """
+        Function is called upon movement of mouse over plot.
+        Determines x, y, z values at cursor position and updates labels.
+        :param pos: Passed when sigMouseMoved signal is emitted; contains position data.
+        """
         try:
             position = self.horizontal_plot.getImageItem().mapFromScene(pos)
 
@@ -211,6 +232,13 @@ class SubwindowHorizontalSliceWidget(QWidget):
             pass
 
     def setMousePositionLabels(self, ping, across_track, intensity):
+        """
+        Updates window's timestamp, ping number, across-track distance,
+        and intensity according to given (x, y) position.
+        :param ping: x-position of mouse over plot
+        :param across_track: y-position of mouse over plot
+        :param intensity: Intensity at given (x, y) position
+        """
         timestamp = float('nan')
         try:
             if not math.isnan(self.matrix_x):
@@ -223,9 +251,6 @@ class SubwindowHorizontalSliceWidget(QWidget):
                     timestamp_epoch_sec = temp_timestamp_buffer_elements[round(self.matrix_x)]
                     timestamp = datetime.datetime.utcfromtimestamp(timestamp_epoch_sec).time()
 
-                # timestamp_epoch_sec = self.shared_ring_buffer_processed.view_buffer_elements(
-                #     self.shared_ring_buffer_processed.timestamp_buffer_avg)[round(self.matrix_x)]
-                # timestamp = datetime.datetime.utcfromtimestamp(timestamp_epoch_sec).time()
         except TypeError:  # Triggered when self.shared_ring_buffer_processed not fully initialized?
             pass
 
@@ -240,9 +265,17 @@ class SubwindowHorizontalSliceWidget(QWidget):
         self.labelMousePosIntensityValue.setText(str(intensity))
 
     def getMousePosition(self):
+        """
+        Return cursor position over plot.
+        :return: (x, y) position of cursor over plot in bin number
+        """
         return self.matrix_x, self.matrix_y
 
     def updateTimestamp(self):
+        """
+        Provides a mechanism to update window's timestamp value when
+        cursor is *not* moving using last recorded mouse position.
+        """
         # NOTE: When cursor is not moving, last known plot coordinates
         # (self.plot_x, self.plot_y) will remain valid. Use these!
         timestamp = float('nan')
@@ -251,7 +284,6 @@ class SubwindowHorizontalSliceWidget(QWidget):
                 if not math.isnan(self.plot_x):
                     # TODO: It might be more correct to us self.shared_ring_buffer_processed... here
                     #  instead of self.horizontal_plot...
-
                     # Ensure indices fall within matrix bounds
                     if 0 <= abs(round(self.plot_x)) < self.horizontal_plot.image.shape[0]:
                         timestamp_epoch_sec = self.shared_ring_buffer_processed.view_buffer_elements(
@@ -262,6 +294,10 @@ class SubwindowHorizontalSliceWidget(QWidget):
         self.labelMousePosTimeValue.setText(str(timestamp))
 
     def updateIntensity(self):
+        """
+        Provides a mechanism to update window's intensity value when
+        cursor is *not* moving using last recorded mouse position.
+        """
         # NOTE: When cursor is not moving, last known plot coordinates
         # (self.plot_x, self.plot_y) will remain valid. Use these!
         if self.intensity:  # Ensure that self.intensity is not None
@@ -275,42 +311,70 @@ class SubwindowHorizontalSliceWidget(QWidget):
                 if 0 <= abs(round(self.plot_x)) < self.horizontal_plot.image.shape[0] and \
                         0 <= round(y) < self.horizontal_plot.image.shape[1]:
                     self.intensity = self.horizontal_plot.image[round(self.plot_x)][round(y)]
-                # else:
-                #     self.intensity = float('nan')
 
         self.labelMousePosIntensityValue.setText(str(self.intensity))
 
     def updateTimestampAndIntensity(self):
+        """
+        Called when plot is updated. Displays an updated timestamp and intensity value at cursor hover position.
+        """
         self.updateTimestamp()
         self.updateIntensity()
 
     def setDepth(self, depth):
+        """
+        Sets value of depth spinbox.
+        :param depth: Depth value to assign to depth spinbox
+        """
         self.spinboxDepth.setValue(depth)
 
     def setDepthAvg(self, depthAvg):
+        """
+        Sets value of depth average spinbox.
+        :param depthAvg: Depth average value to assign to depth average spinbox
+        """
         self.spinboxDepthAvg.setValue(depthAvg)
 
     def resetAll(self):
+        """
+        Resets values of both depth and depth average spinboxes to the values contained in current settings.
+        """
         self.resetDepth()
         self.resetDepthAvg()
 
     def resetDepth(self):
+        """
+        Resets value of depth spinbox to value contained in current settings.
+        """
         self.spinboxDepth.setValue(self.settings['processing_settings']['depth_m'])
 
     def resetDepthAvg(self):
+        """
+        Resets value of depth average spinbox to value contained in current settings.
+        """
         self.spinboxDepthAvg.setValue(self.settings['processing_settings']['depthAvg_m'])
 
     def editedAllFunction(self):
+        """
+        Updates current settings to reflect values in depth and depth average spinboxes;
+        emits depth edited, depth average edited, and processing settings edited signals.
+        """
         self.depthEditedFunction()
         self.depthAvgEditedFunction()
         self.processingSettingsEdited.emit()
 
     def depthEditedFunction(self):
+        """
+        Updates current settings to reflect value in depth spinbox; emits depth edited signal.
+        """
         if self.settings['processing_settings']['depth_m'] != self.spinboxDepth.value():
             self.settings['processing_settings']['depth_m'] = round(self.spinboxDepth.value(), 2)
             self.depthEdited.emit()
 
     def depthAvgEditedFunction(self):
+        """
+        Updates current settings to reflect value in depth average spinbox; emits depth average edited signal.
+        """
         if self.settings['processing_settings']['depthAvg_m'] != self.spinboxDepthAvg.value():
             self.settings['processing_settings']['depthAvg_m'] = round(self.spinboxDepthAvg.value(), 2)
             self.depthAvgEdited.emit()
@@ -330,11 +394,9 @@ class GUI_PlotItem(pg.PlotItem):
         # This ensures that full, specified x, y range will be displayed, but 1:1 aspect ratio may not be maintained.
         self.vb.state['aspectLocked'] = False
 
-        # self.setXRange(-(self.settings['buffer_settings']['maxBufferSize'] /
-        #                  self.settings['processing_settings']['alongTrackAvg_ping']), 0)
-        # self.setYRange(self.settings['buffer_settings']['maxGridCells'], 0)
-
         self.enableAutoRange()
         self.setXRange(-(self.settings['buffer_settings']['maxBufferSize_ping'] /
                          self.settings['processing_settings']['alongTrackAvg_ping']), 0)
+        # self.setYRange(self.settings['buffer_settings']['maxGridCells'], 0)
+
         self.autoBtn.hide()

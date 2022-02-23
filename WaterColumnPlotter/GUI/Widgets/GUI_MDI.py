@@ -1,8 +1,11 @@
-# MDI (Multiple Document Interface) class for Water Column Plotter MainWindow.
-
 # Lynette Davis
+# ldavis@ccom.unh.edu
 # Center for Coastal and Ocean Mapping
+# University of New Hampshire
 # November 2021
+
+# Description: MDI (Multiple Document Interface) class for WaterColumnPlotter MainWindow;
+# initializes widgets for vertical, pie, and horizontal slices.
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QMdiArea
@@ -25,23 +28,24 @@ class GUI_MDI(QMdiArea):
         SUBWINDOW_HEIGHT_LARGE = 360
         SUBWINDOW_HEIGHT_SMALL = 360
 
-        # Create 3 widgets for plots; 1 widget to display settings:
-        # VERTICAL:
+        # Create 3 widgets for plots
+        # VERTICAL
         self.verticalWidget = SubwindowVerticalSliceWidget(self.settings, self.shared_ring_buffer_processed, self)
         # PIE
         self.pieWidget = SubwindowPieSliceWidget(self.settings, self.shared_ring_buffer_processed, self)
-        # HORIZONTAL:
+        # HORIZONTAL
         self.horizontalWidget = SubwindowHorizontalSliceWidget(self.settings, self.shared_ring_buffer_processed, self)
-        # SETTINGS:
-        #self.subwindowSettingsDisplay = SubwindowSettingsDisplay(self.settings, self)
 
         # Add widgets to subwindow in QMdiArea
         self.__setupAndAddSubwindow(self.verticalWidget, SUBWINDOW_WIDTH_LARGE, SUBWINDOW_HEIGHT_LARGE)
         self.__setupAndAddSubwindow(self.pieWidget, SUBWINDOW_WIDTH_SMALL, SUBWINDOW_HEIGHT_SMALL)
         self.__setupAndAddSubwindow(self.horizontalWidget, SUBWINDOW_WIDTH_LARGE, SUBWINDOW_HEIGHT_LARGE)
-        #self.__setupAndAddSubwindow(self.subwindowSettingsDisplay, SUBWINDOW_WIDTH_SMALL, SUBWINDOW_HEIGHT_SMALL)
 
     def setSharedRingBufferProcessed(self, shared_ring_buffer_processed):
+        """
+        Provides each widget (vertical, pie, horizontal) with a reference to shared_ring_buffer_processed.
+        :param shared_ring_buffer_processed: An instance of SharedRingBufferProcessed
+        """
         self.shared_ring_buffer_processed = shared_ring_buffer_processed
         self.verticalWidget.setSharedRingBufferProcessed(self.shared_ring_buffer_processed)
         self.pieWidget.setSharedRingBufferProcessed(self.shared_ring_buffer_processed)
@@ -60,19 +64,21 @@ class GUI_MDI(QMdiArea):
         # Disable close button:
         subwindow.setWindowFlags(Qt.CustomizeWindowHint | Qt.WindowCloseButtonHint)
 
-    # def setDepthIndicator(self, y):
-    #     self.verticalWidget.setDepthIndicator(y)
-    #     self.pieWidget.setDepthIndicator(y)
-
     def setDepthIndicator(self):
+        """
+        Sets horizontal line on vertical and pie plots to indicate depth of horizontal slice.
+        """
         bin_num_at_depth = round((self.settings['processing_settings']['depth_m'] /
                                   self.settings['processing_settings']['binSize_m']), 2)
 
         self.verticalWidget.setDepthIndicator(bin_num_at_depth)
         self.pieWidget.setDepthIndicator(bin_num_at_depth)
 
-    # Omitted to decrease clutter over plot
+    # Omitted from implementation to decrease clutter over plot
     def setDepthAvgIndicators(self):
+        """
+        Sets horizontal lines on vertical and pie plots to indicate range of depth average of horizontal slice.
+        """
         bin_num_at_depth = (self.settings['processing_settings']['depth_m'] /
                             self.settings['processing_settings']['binSize_m'])
 
@@ -83,6 +89,3 @@ class GUI_MDI(QMdiArea):
                                                   round((bin_num_at_depth + (num_bins_depth_avg / 2)), 2))
         self.pieWidget.setDepthAvgIndicators(round((bin_num_at_depth - (num_bins_depth_avg / 2)), 2),
                                              round((bin_num_at_depth + (num_bins_depth_avg / 2)), 2))
-
-
-

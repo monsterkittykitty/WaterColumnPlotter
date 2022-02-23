@@ -1,14 +1,18 @@
 # Lynette Davis
+# ldavis@ccom.unh.edu
 # Center for Coastal and Ocean Mapping
+# University of New Hampshire
 # October 2021
+
+# Description: A widget to be used as an MDI (Multiple Document Interface) subwindow;
+# displays plots and settings relevant to the vertical slice display.
 
 import datetime
 import math
 import numpy as np
-from PyQt5.QtWidgets import QDoubleSpinBox, QFrame, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QStyle, \
-    QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QDoubleSpinBox, QFrame, QHBoxLayout, QLabel, \
+    QPushButton, QSizePolicy, QStyle, QVBoxLayout, QWidget
 from PyQt5.QtCore import pyqtSignal, Qt
-from PyQt5.QtGui import QPen
 import pyqtgraph as pg
 
 
@@ -34,6 +38,7 @@ class SubwindowVerticalSliceWidget(QWidget):
         self.setWindowTitle("Vertical Slice")
 
         self.plot = GUI_PlotItem(self.settings)
+        # self.plot.hideButtons()
         self.plot.vb.state['aspectLocked'] = False
         self.plot.setXRange(-(self.settings['buffer_settings']['maxBufferSize_ping'] /
                               self.settings['processing_settings']['alongTrackAvg_ping']), 0)
@@ -79,9 +84,8 @@ class SubwindowVerticalSliceWidget(QWidget):
         self.vertical_plot.ui.histogram.setLevels(min=-95, max=35)
         # Based on https://stackoverflow.com/questions/38021869/getting-imageitem-values-from-pyqtgraph
         self.vertical_plot.scene.sigMouseMoved.connect(self.mouseMoved)
-        # self.vertical_plot.scene.sigMouseClicked.connect(self.mouseClicked)
 
-        # # TODO: TEST
+        # TODO: Change axis labels to indicate meters and pings rather than bins???
         # https://stackoverflow.com/questions/63619065/pyqtgraph-use-arbitrary-values-for-axis-with-imageitem
         # self.vertical_plot.getImageItem().setRect()
 
@@ -95,7 +99,7 @@ class SubwindowVerticalSliceWidget(QWidget):
         # image_
         # pixel_size = image_width/(self.xval_h.size-1)
         # self.image_h.setRect(QRectF(self.xval_h[0]-pixel_size/2, self.xval_h[0]-pixel_size/2, image_width, image_height))
-        # # TODO: END TEST
+        # TODO: END
 
         # Disable ROI button:
         self.vertical_plot.ui.roiBtn.hide()
@@ -116,6 +120,7 @@ class SubwindowVerticalSliceWidget(QWidget):
         spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         top_row_layout.addWidget(spacer)
 
+        # Across-track average settings
         labelAcrossTrackAvg = QLabel("Across-Track Avg (m):")
         top_row_layout.addWidget(labelAcrossTrackAvg)
 
@@ -127,7 +132,7 @@ class SubwindowVerticalSliceWidget(QWidget):
         self.setAcrossTrackAvg(self.settings['processing_settings']['acrossTrackAvg_m'])
         top_row_layout.addWidget(self.spinboxAcrossTrackAvg)
 
-        # pushButtonApply = QPushButton("Apply")
+        # Apply button
         iconApply = self.style().standardIcon(QStyle.SP_DialogApplyButton)
         pushButtonApply = QPushButton()
         pushButtonApply.setToolTip("Apply")
@@ -135,7 +140,7 @@ class SubwindowVerticalSliceWidget(QWidget):
         pushButtonApply.clicked.connect(self.acrossTrackAvgEditedFunction)
         top_row_layout.addWidget(pushButtonApply)
 
-        # pushButtonCancel = QPushButton("Cancel")
+        # Cancel button
         iconCancel = self.style().standardIcon(QStyle.SP_DialogCancelButton)
         pushButtonCancel = QPushButton()
         pushButtonCancel.setToolTip("Cancel")
@@ -198,50 +203,59 @@ class SubwindowVerticalSliceWidget(QWidget):
         self.setLayout(layout)
 
     def setSharedRingBufferProcessed(self, shared_ring_buffer_processed):
+        """
+        Sets reference to shared_ring_buffer_processed
+        :param shared_ring_buffer_processed: An instance of SharedRingBufferProcessed
+        """
         self.shared_ring_buffer_processed = shared_ring_buffer_processed
 
-    def setCoordinates(self):
-        # https://stackoverflow.com/questions/63619065/pyqtgraph-use-arbitrary-values-for-axis-with-imageitem
-        image_x = self.vertical_plot.image.shape[0]
-        image_y = self.vertical_plot.image.shape[1]
-
-        num_bins_heave = self.settings['processing_settings']['maxHeave_m'] / \
-                         self.settings['processing_settings']['binSize_m']
-
-        num_bins_depth = image_y - num_bins_heave
-
-        meters_at_max_depth = num_bins_depth * self.settings['processing_settings']['binSize_m']
-
-        print("meters_at_max_depth:", meters_at_max_depth)
-
-        # We want our scale to go from -heave through max depth
-        y_val = np.linspace(-self.settings['processing_settings']['maxHeave_m'], 5, int(meters_at_max_depth))
-
-        x_pos = 0
-        # y_pos = (self.settings['processing_settings']['maxHeave_m'] /
-        #           self.settings['processing_settings']['binSize_m'])
-        y_pos = 0
-        # I don't want to change x_scale
-        x_scale = self.settings['buffer_settings']['maxBufferSize_ping'] / \
-                  self.settings['processing_settings']['alongTrackAvg_ping']
-        y_scale = self.vertical_plot.image.shape[1] * self.settings['processing_settings']['binSize_m']
-
-        print("x_scale, y_scale: ", x_scale, y_scale)
-
-        self.vertical_plot.getImageItem().setRect(x_pos, y_pos, x_scale, y_scale)
-
-        # self.xval = np.linspace(0, self.settings['processing_settings']['alongTrackAvg_ping'],
-        #                           self.settings['buffer_settings']['maxBufferSize'])
-        # self.yval = np.linspace(0, self.settings['processing_settings']['binSize_m'],
-        #                         self.settings['buffer_settings']['maxGridCells'])
-        #
-        # # image_width = abs(self.xval_h[0]-self.xval_h[0])
-        # # image_height = abs(self.xval_h[0]-self.xval_h[0])  # if x and y-scales are the same
-        # image_
-        # pixel_size = image_width/(self.xval_h.size-1)
-        # self.image_h.setRect(QRectF(self.xval_h[0]-pixel_size/2, self.xval_h[0]-pixel_size/2, image_width, image_height))
+    # def setCoordinates(self):
+    #     # https://stackoverflow.com/questions/63619065/pyqtgraph-use-arbitrary-values-for-axis-with-imageitem
+    #     image_x = self.vertical_plot.image.shape[0]
+    #     image_y = self.vertical_plot.image.shape[1]
+    #
+    #     num_bins_heave = self.settings['processing_settings']['maxHeave_m'] / \
+    #                      self.settings['processing_settings']['binSize_m']
+    #
+    #     num_bins_depth = image_y - num_bins_heave
+    #
+    #     meters_at_max_depth = num_bins_depth * self.settings['processing_settings']['binSize_m']
+    #
+    #     print("meters_at_max_depth:", meters_at_max_depth)
+    #
+    #     # We want our scale to go from -heave through max depth
+    #     y_val = np.linspace(-self.settings['processing_settings']['maxHeave_m'], 5, int(meters_at_max_depth))
+    #
+    #     x_pos = 0
+    #     # y_pos = (self.settings['processing_settings']['maxHeave_m'] /
+    #     #           self.settings['processing_settings']['binSize_m'])
+    #     y_pos = 0
+    #     # I don't want to change x_scale
+    #     x_scale = self.settings['buffer_settings']['maxBufferSize_ping'] / \
+    #               self.settings['processing_settings']['alongTrackAvg_ping']
+    #     y_scale = self.vertical_plot.image.shape[1] * self.settings['processing_settings']['binSize_m']
+    #
+    #     print("x_scale, y_scale: ", x_scale, y_scale)
+    #
+    #     self.vertical_plot.getImageItem().setRect(x_pos, y_pos, x_scale, y_scale)
+    #
+    #     # self.xval = np.linspace(0, self.settings['processing_settings']['alongTrackAvg_ping'],
+    #     #                           self.settings['buffer_settings']['maxBufferSize'])
+    #     # self.yval = np.linspace(0, self.settings['processing_settings']['binSize_m'],
+    #     #                         self.settings['buffer_settings']['maxGridCells'])
+    #     #
+    #     # # image_width = abs(self.xval_h[0]-self.xval_h[0])
+    #     # # image_height = abs(self.xval_h[0]-self.xval_h[0])  # if x and y-scales are the same
+    #     # image_
+    #     # pixel_size = image_width/(self.xval_h.size-1)
+    #     # self.image_h.setRect(QRectF(self.xval_h[0]-pixel_size/2, self.xval_h[0]-pixel_size/2, image_width, image_height))
 
     def mouseMoved(self, pos):
+        """
+        Function is called upon movement of mouse over plot.
+        Determines x, y, z values at cursor position and updates labels.
+        :param pos: Passed when sigMouseMoved signal is emitted; contains position data.
+        """
         try:
             position = self.vertical_plot.getImageItem().mapFromScene(pos)
 
@@ -253,7 +267,6 @@ class SubwindowVerticalSliceWidget(QWidget):
             self.plot_x = self.matrix_x - self.vertical_plot.image.shape[0]
             self.plot_y = self.matrix_y - (self.settings['processing_settings']['maxHeave_m'] /
                                 self.settings['processing_settings']['binSize_m'])
-            # x, y = self.calcCursorPositionInPlot(self.matrix_x, self.matrix_y)
 
             self.vLine.setPos(self.plot_x)
             self.hLine.setPos(self.plot_y)
@@ -273,12 +286,13 @@ class SubwindowVerticalSliceWidget(QWidget):
         except AttributeError:  # Triggered when nothing is plotted
             pass
 
-    # def cursorPositionInPlotCoordinates(self, x, y):
-    #     plot_x = x - self.vertical_plot.image.shape[0]
-    #     plot_y = y - (self.settings['processing_settings']['maxHeave_m'] /
-    #                             self.settings['processing_settings']['binSize_m'])
-
     def setMousePositionLabels(self, ping, depth, intensity):
+        """
+        Updates window's timestamp, ping number, depth, and intensity according to given (x, y) position.
+        :param ping: x-position of mouse over plot
+        :param depth: y-position of mouse over plot
+        :param intensity: Intensity at given (x, y) position
+        """
         timestamp = float('nan')
         try:
             if not math.isnan(self.matrix_x):
@@ -291,9 +305,6 @@ class SubwindowVerticalSliceWidget(QWidget):
                     timestamp_epoch_sec = temp_timestamp_buffer_elements[round(self.matrix_x)]
                     timestamp = datetime.datetime.utcfromtimestamp(timestamp_epoch_sec).time()
 
-                # timestamp_epoch_sec = self.shared_ring_buffer_processed.view_buffer_elements(
-                #     self.shared_ring_buffer_processed.timestamp_buffer_avg)[round(self.matrix_x)]
-                # timestamp = datetime.datetime.utcfromtimestamp(timestamp_epoch_sec).time()
         except TypeError:  # Triggered when self.shared_ring_buffer_processed not fully initialized?
             pass
 
@@ -308,9 +319,17 @@ class SubwindowVerticalSliceWidget(QWidget):
         self.labelMousePosIntensityValue.setText(str(self.intensity))
 
     def getMousePosition(self):
+        """
+        Return cursor position over plot.
+        :return: (x, y) position of cursor over plot in bin number
+        """
         return self.matrix_x, self.matrix_y
 
     def updateTimestamp(self):
+        """
+        Provides a mechanism to update window's timestamp value when
+        cursor is *not* moving using last recorded mouse position.
+        """
         # NOTE: When cursor is not moving, last known plot coordinates
         # (self.plot_x, self.plot_y) will remain valid. Use these!
         timestamp = float('nan')
@@ -319,7 +338,6 @@ class SubwindowVerticalSliceWidget(QWidget):
                 if not math.isnan(self.plot_x):
                     # TODO: It might be more correct to us self.shared_ring_buffer_processed... here
                     #  instead of self.vertical_plot...
-
                     # Ensure indices fall within matrix bounds
                     if 0 <= abs(round(self.plot_x)) < self.vertical_plot.image.shape[0]:
                         timestamp_epoch_sec = self.shared_ring_buffer_processed.view_buffer_elements(
@@ -330,6 +348,10 @@ class SubwindowVerticalSliceWidget(QWidget):
         self.labelMousePosTimeValue.setText(str(timestamp))
 
     def updateIntensity(self):
+        """
+        Provides a mechanism to update window's intensity value when
+        cursor is *not* moving using last recorded mouse position.
+        """
         # NOTE: When cursor is not moving, last known plot coordinates
         # (self.plot_x, self.plot_y) will remain valid. Use these!
         if self.intensity:  # Ensure that self.intensity is not None
@@ -350,39 +372,52 @@ class SubwindowVerticalSliceWidget(QWidget):
         self.labelMousePosIntensityValue.setText(str(self.intensity))
 
     def updateTimestampAndIntensity(self):
+        """
+        Called when plot is updated. Displays an updated timestamp and intensity value at cursor hover position.
+        """
         self.updateTimestamp()
         self.updateIntensity()
 
-    # def mouseClicked(self):
-    #     self.mouseClickedFlag = not self.mouseClickedFlag
-    #
-    #     if self.mouseClickedFlag:
-    #         # circle overlay
-    #         pen = QPen(Qt.darkYellow, 0.05)
-    #         r = CircleOverlay(pos=(self.plot_x, self.plot_y), size=3, pen=pen, movable=False)
-    #         self.vertical_plot.getView().addItem(r)
-
     def setDepthIndicator(self, y):
+        """
+        Sets horizontal line to indicate depth of horizontal slice.
+        :param y: Depth (by bin number) at which to set depth indicator
+        """
         self.depthIndicator.setPos(y)
 
     def setDepthAvgIndicators(self, y1, y2):
+        """
+        Sets horizontal lines to indicate range of depth average of horizontal slice.
+        :param y1: Depth (by bin number) at which to set first depth average indicator
+        :param y2: Depth (by bin number) at which to set second depth average indicator
+        """
         self.depthAvgIndicator1.setPos(y1)
         self.depthAvgIndicator2.setPos(y2)
 
     def setAcrossTrackAvg(self, acrossTrackAvg):
+        """
+        Sets value of across-track average spinbox.
+        :param acrossTrackAvg: Across-track average value to assign to across-track average spinbox
+        """
         self.spinboxAcrossTrackAvg.setValue(acrossTrackAvg)
 
     def resetAcrossTrackAvg(self):
+        """
+        Resets values of across-track average spinbox to the value contained in current settings.
+        """
         self.spinboxAcrossTrackAvg.setValue(self.settings['processing_settings']['acrossTrackAvg_m'])
 
     def acrossTrackAvgEditedFunction(self):
+        """
+        Updates current settings to reflect value in across-track average spinbox;
+        emits across-track average edited and processing settings edited signals.
+        """
         if self.settings['processing_settings']['acrossTrackAvg_m'] != self.spinboxAcrossTrackAvg.value():
             self.settings['processing_settings']['acrossTrackAvg_m'] = round(self.spinboxAcrossTrackAvg.value(), 2)
             self.acrossTrackAvgEdited.emit()
             self.processingSettingsEdited.emit()
 
 
-# class GUI_PlotItem(pg.PlotWidget):
 class GUI_PlotItem(pg.PlotItem):
     def __init__(self, settings, parent=None):
         super(GUI_PlotItem, self).__init__(parent)
@@ -397,19 +432,10 @@ class GUI_PlotItem(pg.PlotItem):
         # This ensures that full, specified x, y range will be displayed, but 1:1 aspect ratio may not be maintained.
         self.vb.state['aspectLocked'] = False
 
-        # self.setXRange(-(self.settings['buffer_settings']['maxBufferSize'] /
-        #                  self.settings['processing_settings']['alongTrackAvg_ping']), 0)
-        # self.setYRange(self.settings['buffer_settings']['maxGridCells'], 0)
-
         self.enableAutoRange()
         self.setXRange(-(self.settings['buffer_settings']['maxBufferSize_ping'] /
                          self.settings['processing_settings']['alongTrackAvg_ping']), 0)
+        # self.setYRange(self.settings['buffer_settings']['maxGridCells'], 0)
         # self.vb.setLimits(yMin=-10)
 
         self.autoBtn.hide()
-
-
-class CircleOverlay(pg.EllipseROI):
-    def __init__(self, pos, size, **args):
-        pg.ROI.__init__(self, pos, size, **args)
-        self.aspectLocked = True

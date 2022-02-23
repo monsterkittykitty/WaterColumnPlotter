@@ -1,10 +1,10 @@
-# Main class for Water Column Plotter.
-
 # Lynette Davis
 # ldavis@ccom.unh.edu
 # Center for Coastal and Ocean Mapping
 # University of New Hampshire
 # November 2021
+
+# Description: Main class for Water Column Plotter. Initiates GUI and all other processes.
 
 import json
 import multiprocessing
@@ -67,7 +67,6 @@ class MainWindow(QMainWindow):
         self.waterColumn.initRingBuffers(create_shmem=True)
         self.mdi.setSharedRingBufferProcessed(self.waterColumn.shared_ring_buffer_processed)
 
-
     def playProcesses(self):
         """
         This method called when toolbar's play button is pressed. Activates SonarMain and PlotterMain processes in
@@ -105,32 +104,8 @@ class MainWindow(QMainWindow):
         """
         Updates GUI MainWindow's MDI windows' plots.
         """
-        # Look into this: https://groups.google.com/g/pyqtgraph/c/HAFx-wIpmGA
-        # test = np.ones((50, 100))
-        # test[:] = 50
-        # self.mdi.pieWidget.pie_plot.setImage(test, autoRange=False,
-        #                                      autoLevels=False, autoHistogramRange=False,
-        #                                      pos=(-(test.shape[1] / 2), 0))
-        # This does kind of work! Find way to make linear overlay!
-        # # circle overlay
-        # pen = QPen(Qt.red, 0.1)
-        # r = MyCircleOverlay(pos=(-20, 20), size=10, pen=pen, movable=False)
-        # self.mdi.pieWidget.pie_plot.getView().addItem(r)
-
-        # This just replaces image...
-        # test2 = np.empty((50, 100))
-        # test2[:] = np.nan
-        # test2[:, 20] = 100
-        # self.mdi.pieWidget.pie_plot.setImage(test2, autoRange=False,
-        #                                      autoLevels=False, autoHistogramRange=False,
-        #                                      pos=(-(test2.shape[1] / 2), 0))
 
         print("updating plots")
-
-        # with self.waterColumn.processing_settings_edited.get_lock():
-        #     if self.waterColumn.processing_settings_edited.value:
-        #         print("self.waterColumn.processing_settings_edited: ", self.waterColumn.processing_settings_edited.value)
-        #         self.waterColumn.update_buffers()
 
         if self.waterColumn.get_raw_buffer_length() > 0:
 
@@ -158,7 +133,7 @@ class MainWindow(QMainWindow):
         if self.waterColumn.get_processed_buffer_length() > 0:
 
             # UPDATE VERTICAL PLOT
-            temp_vertical  = self.waterColumn.get_vertical_slice()
+            temp_vertical = self.waterColumn.get_vertical_slice()
             # temp_vertical, index_heave = self.waterColumn.get_vertical_slice()
             if temp_vertical is not None:
                 # if temp_vertical.any():  # For debugging
@@ -194,10 +169,6 @@ class MainWindow(QMainWindow):
                                                                    pos=(-temp_horizontal.shape[0],
                                                                         -int(temp_horizontal.shape[1] / 2)))
                 self.mdi.horizontalWidget.updateTimestampAndIntensity()
-        # else:
-        #     self.mdi.pieWidget.pie_plot.clear()
-        #     self.mdi.verticalWidget.vertical_plot.clear()
-        #     self.mdi.horizontalWidget.horizontal_plot.clear()
 
     # SYSTEM SETTINGS SLOTS:
     def systemEdited(self):
@@ -214,7 +185,6 @@ class MainWindow(QMainWindow):
         """
         Updates IP settings.
         """
-        print("ipEdited")
         self.toolBar.setIPPort(self.settings['ip_settings']['ip'], self.settings['ip_settings']['port'])
 
         # NOTE: IP address stored as multiprocessing Array
@@ -228,7 +198,6 @@ class MainWindow(QMainWindow):
         """
         Updates port settings.
         """
-        print("portEdited")
         self.toolBar.setIPPort(self.settings['ip_settings']['ip'], self.settings['ip_settings']['port'])
 
         with self.waterColumn.port.get_lock():
@@ -242,7 +211,6 @@ class MainWindow(QMainWindow):
         """
         Updates protocol settings.
         """
-        print("protocolEdited")
         with self.waterColumn.protocol.get_lock():
             self.waterColumn.protocol.value = self.settings['ip_settings']['protocol']
 
@@ -254,7 +222,6 @@ class MainWindow(QMainWindow):
         """
         Updates socket buffer settings.
         """
-        print("socketBufferEdited")
         with self.waterColumn.socket_buffer_multiplier.get_lock():
             self.waterColumn.socket_buffer_multiplier.value = self.settings['ip_settings']['socketBufferMultiplier']
 
@@ -288,7 +255,6 @@ class MainWindow(QMainWindow):
         """
         Updates across-track average settings.
         :param fromSettingsDialog: Indicates whether update was made from settings dialog (rather than MDI window).
-        :return:
         """
         # Only need to update MDI windows if setting was updated in settings dialog:
         if fromSettingsDialog:
@@ -302,7 +268,6 @@ class MainWindow(QMainWindow):
         Updates depth settings.
         :param fromSettingsDialog: Indicates whether update was made from settings dialog (rather than MDI window).
         """
-        print("depthEdited")
         # Only need to update MDI windows if setting was updated in settings dialog:
         if fromSettingsDialog:
             self.mdi.horizontalWidget.setDepth(self.settings['processing_settings']['depth_m'])
@@ -335,7 +300,6 @@ class MainWindow(QMainWindow):
         """
         Updates along-track average settings.
         """
-        print("along track edited")
         with self.waterColumn.along_track_avg.get_lock():
             self.waterColumn.along_track_avg.value = self.settings['processing_settings']['alongTrackAvg_ping']
 
@@ -343,7 +307,6 @@ class MainWindow(QMainWindow):
         """
         Updates heave settings.
         """
-        print("In gui main; heaveEdited")
         with self.waterColumn.max_heave.get_lock():
             self.waterColumn.max_heave.value = self.settings['processing_settings']['maxHeave_m']
 
@@ -364,47 +327,11 @@ class MainWindow(QMainWindow):
         """
         pass
 
-    # def ipSettingsEdited(self):
-    #     self.waterColumn.ip_settings_edited = True
-
     def processingSettingsEdited(self):
         """
         Signals WaterColumn class that settings have been updated / changed.
         """
-        print("in gui main; processingSettingsEdited")
         self.waterColumn.settingsChanged()
-
-    # def settingsEdited(self, list):
-    #     print("in gui main; settingsEdited", list)
-    #     if self.settings['system_settings']['system'] == "Kongsberg":
-    #         assert len(list) == 3
-    #         settings_edited = {'Kongsberg': {'capture': list[0], 'process': list[1], 'plotter': list[2]}}
-    #     self.waterColumn.settingsChanged(settings_edited)
-
-    # def settingsEdited(self, list):
-    #     """
-    #     Signals WaterColumn class which settings have been updated / changed.
-    #     :param list: A list of booleans corresponding to keys in self.settings dictionary.
-    #     True indicates a value has been edited; False indicates that it has not.
-    #
-    #     self.settings = {'system_settings': {'system': _0_},
-    #                      'ip_settings': {'ip': _1_, 'port': _2_, 'protocol': _3_, 'socketBufferMultiplier': _4_},
-    #                      'processing_settings': {'binSize_m': _5_, 'acrossTrackAvg_m': _6_, 'depth_m': _7_,
-    #                                              'depthAvg_m': _8_, 'alongTrackAvg_ping': _9_, 'maxHeave_m': _10_},
-    #                      'buffer_settings': {'maxGridCells': _11_, 'maxBufferSize_ping': _12_}}
-    #     """
-    #     capture_settings_edited = False
-    #     process_settings_edited = False
-    #     plotter_settings_edited = False
-    #
-    #     if list[1] or list[2] or list[3] or list[4]:
-    #         capture_settings_edited = True
-    #     if list[5] or list[10] or list[11]:
-    #         process_settings_edited = True
-    #     if list[5] or list[6] or list[7] or list[8] or list[9] or list[10]:
-    #         plotter_settings_edited = True
-    #
-    #     self.waterColumn.settingsChanged(capture_settings_edited, process_settings_edited, plotter_settings_edited)
 
     def displaySettingsDialog(self):
         """
@@ -428,14 +355,7 @@ class MainWindow(QMainWindow):
         settingsDialog.signalHeaveEdited.connect(self.heaveEdited)
         settingsDialog.signalGridCellsEdited.connect(self.gridCellsEdited)
         settingsDialog.signalPingBufferEdited.connect(self.pingBufferEdited)
-
-        # settingsDialog.signalKongsbergCaptureSettingsEdited.connect(self.kongsbergCaptureSettingsEdited)
-        # settingsDialog.signalKongsbergProcessSettingsEdited.connect(self.kongsbergProcessSettingsEdited)
-        # settingsDialog.signalKongsbergPlotterSettingsEdited.connect(self.kongsbergPlotterSettingsEdited)
-
-        # settingsDialog.signalIPSettingsEdited.connect(self.ipSettingsEdited)
         settingsDialog.signalProcessingSettingsEdited.connect(self.processingSettingsEdited)
-        # settingsDialog.signalSettingsEdited.connect(self.settingsEdited)
 
         settingsDialog.exec_()
 
@@ -527,12 +447,6 @@ class MainWindow(QMainWindow):
 
         return mdi
 
-# # TODO: Test:
-# import pyqtgraph as pg
-# class MyCircleOverlay(pg.EllipseROI):
-#     def __init__(self, pos, size, **args):
-#         pg.ROI.__init__(self, pos, size, **args)
-#         self.aspectLocked = True
 
 def main():
     """
@@ -542,6 +456,7 @@ def main():
     form = MainWindow()
     form.show()
     sys.exit(app.exec_())
+
 
 if __name__ == '__main__':
     main()
