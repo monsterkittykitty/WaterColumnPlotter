@@ -1,15 +1,18 @@
 # Lynette Davis
+# ldavis@ccom.unh.edu
 # Center for Coastal and Ocean Mapping
 # University of New Hampshire
 # April 2021
 
-# Description:
+# Description: Receives reconstructed #MWC records from KongsbergDGCaptureFromSonar via a shared multiprocessing Queue.
+# Reads data from #MWC records, bins water column data, creates standard format pie records,
+# and adds this record to a shared multiprocessing.Queue for use by the next process.
 
 import ctypes
 import datetime
 import io
 from WaterColumnPlotter.Kongsberg.KmallReaderForMDatagrams import KmallReaderForMDatagrams as k
-from WaterColumnPlotter.Plotter.SwathStandardFormat import SwathStandardFormat
+from WaterColumnPlotter.Plotter.PieStandardFormat import PieStandardFormat
 import logging
 from multiprocessing import Process, Value
 import numpy as np
@@ -18,22 +21,19 @@ import queue
 
 logger = logging.getLogger(__name__)
 
+
 class KongsbergDGProcess(Process):
-    # TODO: Change these to non-optional variables...
     def __init__(self, bin_size, max_heave, max_grid_cells, settings_edited,
-                 queue_datagram, queue_pie_object, process_flag=None):
+                 queue_datagram, queue_pie_object, process_flag):
         super(KongsbergDGProcess, self).__init__()
 
-        print("New instance of KongsbergDGProcess.")
-
-        # TODO: Create a function that ensure bin size is not larger than range resolution
-        #  and will not exceed max 1000 x 1000 matrix
         # multiprocessing.Values (shared between processes)
-        self.bin_size = bin_size
-        self.max_heave = max_heave
-        self.max_grid_cells = max_grid_cells
+        self.bin_size = bin_size  # multiprocessing.Value
+        self.max_heave = max_heave  # multiprocessing.Value
+        self.max_grid_cells = max_grid_cells  # multiprocessing.Value
 
-        self.settings_edited = settings_edited
+        # A boolean flag to indicate when settings have been edited
+        self.settings_edited = settings_edited  # multiprocessing.Value
 
         # Local copies of above multiprocessing.Values (to avoid frequent accessing of locks)
         self.bin_size_local = None
@@ -48,25 +48,25 @@ class KongsbergDGProcess(Process):
         # Queue shared between DGProcess and DGPlot ('put' pie in this queue)
         self.queue_pie_object = queue_pie_object
 
-        # Boolean shared across processes (multiprocessing.Value)
-        if process_flag:
-            self.process_flag = process_flag
-        else:
-            self.process_flag = Value(ctypes.c_bool, True)
+        # A flag to indicate status of process. # 0 = initialization; 1 = play; 2 = pause; 3 = stop
+        self.process_flag = process_flag  # multiprocessing.Value
 
-        self.mrz = None
-        self.mwc = None
-        self.skm = None
+        # self.mrz = None
+        # self.mwc = None
+        # self.skm = None
 
         self.QUEUE_DATAGRAM_TIMEOUT = 60  # Seconds
 
-        self.dg_counter = 0  # For testing
-        self.mwc_counter = 0  # For testing
+        self.dg_counter = 0  # For debugging
+        self.mwc_counter = 0  # For debugging
 
     def update_local_settings(self):
-        # print("^^^^^^^ Process UPDATE LOCAL SETTINGS")
-        print("In kongsberg process, update_local_settings.")
-        with self.settings_edited.get_lock():  # Outer lock to ensure atomicity of updates:
+        """
+        At object initialization, this method initializes local copies of shared variables;
+        after initialization, this method updates local copies of shared variables when settings are changed.
+        """
+        # Outer lock to ensure atomicity of updates; this lock must be held when updating settings.
+        with self.settings_edited.get_lock():
             with self.bin_size.get_lock():
                 self.bin_size_local = self.bin_size.value
             with self.max_heave.get_lock():
@@ -75,113 +75,80 @@ class KongsbergDGProcess(Process):
                 self.max_grid_cells_local = self.max_grid_cells.value
 
     def get_and_process_dg(self):
-        # print("DGProcess: get_and_process")  # For debugging
-        first_tx_time = None  # For testing
-
-        count = 0  # For testing
-
+        """
+        Receives datagrams from queue and processed data.
+        Note that queue's get() method is blocking, but does have a timeout.
+        """
         while True:
             # Check for signal to play / pause / stop:
             with self.process_flag.get_lock():
                 local_process_flag_value = self.process_flag.value
 
             try:
-                print("In kongsberg process, getting datagram: ", self.queue_datagram.qsize())
                 dg_bytes = self.queue_datagram.get(block=True, timeout=self.QUEUE_DATAGRAM_TIMEOUT)
-                print("In kongsberg process, got datagram.")
-
-                if self.dg_counter == 0:  # For testing
-                    first_tx_time = datetime.datetime.now()
-                self.dg_counter += 1
 
                 if dg_bytes:
-                    print("In kongsberg process, dgbytes.")
                     if local_process_flag_value == 1 or local_process_flag_value == 2:  # Play pressed or pause pressed
-                        print("In kongsberg process, local_process_flag_value.", local_process_flag_value)
-                        # Process data pulled from queue
-
                         # Check for signal to update settings:
-                        print("In kongsberg process, getting settings_edited lock.")
                         with self.settings_edited.get_lock():
-                            print("In kongsberg process, got settings_edited lock.")
                             if self.settings_edited.value:
-                                print("In kongsberg process, settings edited value is true.")
                                 self.update_local_settings()
-                                print("In kongsberg process, changing settings edited value to false.")
                                 self.settings_edited.value = False
-                        print("In kongsberg process, processing dgm.")
+                        # Process data pulled from queue
                         self.process_dgm(dg_bytes)
-
                     elif local_process_flag_value == 3:  # Stop pressed
                         # Do not process datagram. Instead, only empty queue.
                         pass
-
                     else:
                         logger.error("Error in KongsbergDGProcess. Invalid process_flag value: {}."
                                      .format(local_process_flag_value))
                         break  # Exit loop
-
                 else:
-                    print("breaking out of kongsbergdgprocess loop because dg_bytes is None")
-                    # Poison pill
+                    # Poison pill received; pass poison pill to next process
                     self.queue_pie_object.put(None)
                     break
 
-                # count += 1  # For testing
-                # print("DGProcess Count: ", count)  # For testing
-                #print("DGProcess Queue Size: ", self.queue_datagram.qsize())
-
             except queue.Empty:
-                # TODO: Shutdown processes when queue is empty?
                 logger.exception("Datagram queue empty exception.")
                 break
 
-            # if self.queue_datagram.qsize() == 0:
-            #     last_tx_time = datetime.datetime.now()
-            #     print("DGPROCESS, queue_rx_data is empty.")
-            #     print("DGPROCESS, Received: ", self.dg_counter)
-            #     print("DGPROCESS, Received MWCs: ", self.mwc_counter)
-            #     print("DGPROCESS, First transmit: {}; Final transmit: {}; Total time: {}".format(first_tx_time,
-            #                                                                                      last_tx_time,
-            #                                                                                      (last_tx_time - first_tx_time).total_seconds()))
-
-        # TODO: Testing
-        print("Breaking out of DGProcess infinite loop")
-
     def process_dgm(self, dg_bytes):
-
+        """
+        Reads header of datagram and initiates processing of datagram based on datagram type.
+        :param dg_bytes: Datagram as pulled from shared multiprocessing.Queue (bytes).
+        """
         bytes_io = io.BytesIO(dg_bytes)
         header = k.read_EMdgmHeader(bytes_io)
 
-        #print("DGProcess, process_dgm. header[1]: ", header[1])
-
         if header['dgmType'] == b'#MRZ':
-            self.mrz = dg_bytes
+            # self.mrz = dg_bytes
             self.process_MRZ(header, bytes_io)
 
         elif header['dgmType'] == b'#MWC':
-            self.mwc_counter += 1  # For testing
-            #print("mwc_counter:", self.mwc_counter)
-            self.mwc = dg_bytes
-
-            # TODO: !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            # pie_matrix = self.process_MWC(header, bytes_io)
-            # self.queue_pie_object.put(pie_matrix)
+            # self.mwc = dg_bytes
             pie_object = self.process_MWC(header, bytes_io)
             self.queue_pie_object.put(pie_object)
-            #print("putting pie object in queue_pie. size: ", self.queue_pie_object.qsize())
 
         elif header['dgmType'] == b'#SKM':
-            self.skm = dg_bytes
+            # self.skm = dg_bytes
             self.process_SKM(header, bytes_io)
 
     def process_MRZ(self, header, bytes_io):
+        """
+        Process #MRZ datagram; not currently implemented.
+        :param header: Header field of #MRZ datagram.
+        :param bytes_io: #MRZ datagram as BytesIO object.
+        :return: None
+        """
         pass
 
     def process_MWC(self, header, bytes_io):
-        # print("DGProcess: process_MWC()")  # For debugging
-        process_MWC_start_time = datetime.datetime.now()  # For testing
-
+        """
+        Process #MWC datagram. Bins water column data, creates standard format pie records.
+        :param header: Header field of #MWC datagram.
+        :param bytes_io: #MWC datagram as BytesIO object.
+        :return: #MWC data as a PieStandardFormat object.
+        """
         header_struct_format = k.read_EMdgmHeader(None, return_format=True)
         partition_struct_format = k.read_EMdgmMpartition(None, header['dgmType'],
                                                          header['dgmVersion'], return_format=True)
@@ -189,29 +156,22 @@ class KongsbergDGProcess(Process):
         length_to_strip = struct.calcsize(header_struct_format) + \
                           struct.calcsize(partition_struct_format)
 
-        # If datagram is 'empty' (did not receive all partitions):
+        # If #MWC record is 'empty' (did not receive all partitions):
         if header['numBytesDgm'] == length_to_strip:
             print("Processing empty datagram.")
 
-            pie_chart_values = np.zeros(shape=(self.max_grid_cells_local, self.max_grid_cells_local))
-            pie_chart_count = np.zeros(shape=(self.max_grid_cells_local, self.max_grid_cells_local))
+            pie_chart_amplitudes = np.zeros(shape=(self.max_grid_cells_local, self.max_grid_cells_local))
+            pie_chart_counts = np.zeros(shape=(self.max_grid_cells_local, self.max_grid_cells_local))
 
-            pie_object = SwathStandardFormat(self.bin_size_local, self.max_heave_local,
-                                        pie_chart_values, pie_chart_count, header['dgTime'])
+            # Create an 'empty' PieStandardFormat record
+            pie_object = PieStandardFormat(self.bin_size_local, self.max_heave_local,
+                                        pie_chart_amplitudes, pie_chart_counts, header['dgTime'])
 
         # Full datagram (all partitions received):
         else:
             dg = k.read_EMdgmMWC(bytes_io)
 
-            # Header fields:
-            timestamp = dg['header']['dgTime']
-            dg_datetime = dg['header']['dgdatetime']
-
-            # CmnPart fields:
-            swaths_per_ping = dg['cmnPart']['swathsPerPing']
-
             # TxInfo fields:
-            num_tx_sectors = dg['txInfo']['numTxSectors']
             heave = dg['txInfo']['heave_m']
 
             # SectorData fields:
@@ -223,52 +183,47 @@ class KongsbergDGProcess(Process):
             sample_freq = dg['rxInfo']['sampleFreq_Hz']
             sound_speed = dg['rxInfo']['soundVelocity_mPerSec']
 
-            pie_chart_values = np.zeros(shape=(self.max_grid_cells_local, self.max_grid_cells_local))
-            pie_chart_count = np.zeros(shape=(self.max_grid_cells_local, self.max_grid_cells_local))
+            pie_chart_amplitudes = np.zeros(shape=(self.max_grid_cells_local, self.max_grid_cells_local))
+            pie_chart_counts = np.zeros(shape=(self.max_grid_cells_local, self.max_grid_cells_local))
 
             # ###################### START NEW - OUTSIDE ###################### #
-            # for beam in range(num_beams):
             # Across-track beam angle array:
             beam_point_angle_re_vertical_np = np.array(dg['beamData']['beamPointAngReVertical_deg'])
             # Along-track beam angle array:
             sector_tilt_angle_re_tx_deg_np = np.array([tilt_angle_re_tx_deg_3_sectors[i] for i
                                                        in dg['beamData']['beamTxSectorNum']])
 
-            # TODO: Interpolate pitch to find tilt_angle_re_vertical_deg:
-            #  tilt_angle_re_vertical_deg = tilt_angle_re_tx_deg + interpolated_pitch
-            temp_tilt_angle_re_vertical_deg = sector_tilt_angle_re_tx_deg_np
+            # TODO: With access to #SKM datagrams, interpolate pitch to find tilt_angle_re_vertical_deg:
+            # tilt_angle_re_vertical_deg = sector_tilt_angle_re_tx_deg + interpolated_pitch
+            # TODO: For now, use sector_tilt_angle_re_tx_deg_np as an approximation for tilt_angle_re_vertical_deg.
+            tilt_angle_re_vertical_deg = sector_tilt_angle_re_tx_deg_np
 
-            # Index in sampleAmplitude05dB array where bottom detected
-            # detected_range = dg['beamData']['detectedRangeInSamples'][beam]
-
+            # Detected range indicates bottom-detect point (zero bottom not detected)
             detected_range_np = np.array(dg['beamData']['detectedRangeInSamples'])
             # Compute average for non-zero values:
             average_detected_range_for_swath = np.average(detected_range_np[detected_range_np > 0])
-            # Replace zero values with average value:
+            # Replace zero values (no bottom detect) with average value:
             detected_range_np[detected_range_np == 0] = average_detected_range_for_swath
 
-            # TODO: Use harmonic sound speed to determine bottom strike point; assume all other points for this
-            #  beam on straight line from bottom strike point to transducer.
-
-            start_wc_i = datetime.datetime.now()  # For testing
-
-            # #*#*#*#*#*#*#*#*#*# START NEW, FAST VERSION - INSIDE #*#*#*#*#*#*#*#*#*# #
             # Create an array from 0 to max(detected_range_np), with a step size of 1
             # Tile above array num_beams number of times
             range_indices_np = np.tile(np.arange(0, (np.max(detected_range_np) + 1), 1), (num_beams, 1))
             # Mask values beyond actual reported detected range for any given beam
-            # Based on: https://stackoverflow.com/questions/67978532/how-to-mask-rows-of-a-2d-numpy-matrix-by-values-in-1d-list
-            # And: https: // stackoverflow.com / questions / 29046162 / numpy - array - loss - of - dimension - when - masking
+            # Based on: https://stackoverflow.com/questions/67978532/
+            # how-to-mask-rows-of-a-2d-numpy-matrix-by-values-in-1d-list
+            # And: https://stackoverflow.com/questions/29046162/numpy-array-loss-of-dimension-when-masking
             range_indices_np = np.where(range_indices_np <= detected_range_np[:, None], range_indices_np, np.nan)
 
             # Calculate range (distance) to every point from 0 to detected range:
             range_to_wc_data_point_np = (sound_speed * range_indices_np) / (sample_freq * 2)
 
-            # TODO: Change temp_tilt_angle_re_vertical_deg to tilt_angle_re_vertical_deg
-            kongs_x_np = range_to_wc_data_point_np * (np.sin(np.radians(temp_tilt_angle_re_vertical_deg)))[:, np.newaxis]
-            kongs_y_np = range_to_wc_data_point_np * (np.sin(np.radians(beam_point_angle_re_vertical_np)))[:, np.newaxis]
-            kongs_z_np = range_to_wc_data_point_np * (np.cos(np.radians(temp_tilt_angle_re_vertical_deg)))[:, np.newaxis] \
-                         * (np.cos(np.radians(beam_point_angle_re_vertical_np)))[:, np.newaxis] + heave
+            kongs_x_np = range_to_wc_data_point_np * \
+                         (np.sin(np.radians(tilt_angle_re_vertical_deg)))[:, np.newaxis]
+            kongs_y_np = range_to_wc_data_point_np * \
+                         (np.sin(np.radians(beam_point_angle_re_vertical_np)))[:, np.newaxis]
+            kongs_z_np = range_to_wc_data_point_np * \
+                         (np.cos(np.radians(tilt_angle_re_vertical_deg)))[:, np.newaxis] * \
+                         (np.cos(np.radians(beam_point_angle_re_vertical_np)))[:, np.newaxis] + heave
 
             # Note: For x and y, we need "(self.max_grid_cells_local / 2)" to 'normalize position'--otherwise, negative
             # indices insert values at the end of the array (think negative indexing into array).
@@ -280,15 +235,6 @@ class KongsbergDGProcess(Process):
 
             # We only need x bin index for bottom strike points (the last value in the np array).
             # (Though, I'm not sure we need the x bin index at all, given that we have actual positions (kongs_x_np).)
-            # TODO: Testing settings update:
-            # with self.bin_size.get_lock() and self.max_heave.get_lock():
-            #     bin_index_x_np = np.floor(kongs_x_np[-1] / round(self.bin_size.value, 2)) + \
-            #                      int(self.max_grid_cells_local / 2)
-            #     bin_index_y_np = np.floor(kongs_y_np / round(self.bin_size.value, 2)) + \
-            #                      int(self.max_grid_cells_local / 2)
-            #     bin_index_z_np = np.floor(kongs_z_np / self.bin_size.value) + \
-            #                      int(round(self.max_heave.value, 2) / round(self.bin_size.value, 2))
-
 
             bin_index_x_np = np.floor(kongs_x_np[-1] / round(self.bin_size_local, 2)) + \
                              int(self.max_grid_cells_local / 2)
@@ -299,7 +245,6 @@ class KongsbergDGProcess(Process):
 
             # Mask indices that fall outside of accepted values: 0 to (MAX_NUM_GRID_CELLS - 1)
             # Mask will read False for values outside of range, True for values inside range
-            # TODO: Do we need to do this for x indices too?
             mask_index_y = np.ma.masked_inside(bin_index_y_np, 0, (self.max_grid_cells_local - 1))
             mask_index_z = np.ma.masked_inside(bin_index_z_np, 0, (self.max_grid_cells_local - 1))
 
@@ -313,22 +258,13 @@ class KongsbergDGProcess(Process):
                                "{} data points beyond bounds will be lost. Consider increasing bin size."
                                .format(len(bin_index_y_np[~mask_index_y.mask]) -
                                        np.count_nonzero(np.isnan(bin_index_y_np[~mask_index_y.mask]))))
-                               #.format(len(bin_index_y_np[~mask_index_y.mask])))
 
             # if len(bin_index_z_np[~mask_index_z.mask]) > 0:  # This doesn't work because NaNs are masked.
-            # np.count_nonzero(np.isnan(bin_index_z_np[~mask_index_z.mask])) will count the number of nans that have been
-            # masked; only if length of masked array is greater than this are real values being masked.
-            # TODO: Something is wrong here.
-            #  Sometimes we get a warning like: "Heave (-0.2) exceeds maximum heave (1) by 1.2 meters.
+            # np.count_nonzero(np.isnan(bin_index_z_np[~mask_index_z.mask])) will count the number of nans that have
+            # been masked; only if length of masked array is greater than this are real values being masked.
+            # TODO: Something might be wrong here.
+            #  Occasional warning like: "Heave (-0.2) exceeds maximum heave (1) by 1.2 meters.
             if len(bin_index_z_np[~mask_index_z.mask]) > np.count_nonzero(np.isnan(bin_index_z_np[~mask_index_z.mask])):
-                print("Masked z values: ", bin_index_z_np[~mask_index_z.mask])
-                # with self.max_heave.get_lock():
-                #     logger.warning("Heave ({:.5f}) exceeds maximum heave ({}) by {:.5f} meters. {} data points "
-                #                    "beyond maximum heave will be lost. Consider increasing maximum heave."
-                #                    .format(heave, round(self.max_heave.value, 2),
-                #                            (heave + round(self.max_heave.value, 2)),
-                #                            len(bin_index_z_np[~mask_index_z.mask])))
-
                 logger.warning("Heave ({:.5f}) exceeds maximum heave ({}) by {:.5f} meters. {} data points "
                                "beyond maximum heave will be lost. Consider increasing maximum heave."
                                .format(heave, round(self.max_heave_local, 2),
@@ -342,25 +278,13 @@ class KongsbergDGProcess(Process):
             # Combine y, z indices, convert from float to int:
             y_z_indices = np.vstack((bin_index_z_np[mask_index_y_z], bin_index_y_np[mask_index_y_z])).astype(int)
 
-            # For testing:
-            # print("len(dg['beamData']['sampleAmplitude05dB_p']): ", len(dg['beamData']['sampleAmplitude05dB_p'])) #256
-            # #print("dg[beamData]: ", dg['beamData'])
-            # for i in range(len(dg['beamData']['sampleAmplitude05dB_p'])):
-            #     print("i:", i)
-            #     print("len(dg['beamData']['sampleAmplitude05dB_p'][i]: ", len(dg['beamData']['sampleAmplitude05dB_p'][i])) # This varies, bigger at outer beams, smaller at nadir
-            #
-            # print("shape: ", np.array(dg['beamData']['sampleAmplitude05dB_p']).shape)
-            # print("type: ", type(np.array(dg['beamData']['sampleAmplitude05dB_p'][0])))
-
+            # amplitude_np = (np.array(dg['beamData']['sampleAmplitude05dB_p']) * 0.5) - tvg_offset_db
             # NOTE: This method results in two errors:
             # Creating an ndarray from ragged nested sequences (which is a list-or-tuple of lists-or-tuples-or ndarrays
             # with different lengths or shapes) is deprecated. If you meant to do this, you must specify 'dtype=object'
             # when creating the ndarray.
             # TypeError: can't multiply sequence by non-int of type 'float'
-            # amplitude_np = (np.array(dg['beamData']['sampleAmplitude05dB_p']) * 0.5) - tvg_offset_db
-
-            # TODO: Changed 30 August 2021 on RVGS. Based on:
-            # https://stackoverflow.com/questions/10346336/list-of-lists-into-numpy-array
+            # NOTE: Fixed based on: https://stackoverflow.com/questions/10346336/list-of-lists-into-numpy-array
             # First, make all sub-lists (nested lists) the same length:
             max_len = max(map(len, (dg['beamData']['sampleAmplitude05dB_p'])))
             amplitude_np = (np.array([list(sub_list) + [np.nan] * (max_len - len(sub_list))
@@ -374,28 +298,32 @@ class KongsbergDGProcess(Process):
 
             # This method of indexing based on:
             # https://stackoverflow.com/questions/47015578/numpy-assigning-values-to-2d-array-with-list-of-indices
-            # print("y_z_indices.shape: ", y_z_indices.shape)
-            # print("pie_chart_values.shape: ",  pie_chart_values.shape)
-            # print("pie_chart_count.shape: ", pie_chart_count.shape)
-            # print("amplitude_np.shape: ", amplitude_np.shape)
-            pie_chart_values[tuple(y_z_indices)] += amplitude_np
-            pie_chart_count[tuple(y_z_indices)] += 1
-            # ###################### END NEW - OUTSIDE ###################### #
+            pie_chart_amplitudes[tuple(y_z_indices)] += amplitude_np
+            pie_chart_counts[tuple(y_z_indices)] += 1
 
             # This results in mirror-image pie display. Use flip!
-            # pie_object = SwathStandardFormat(pie_chart_values, pie_chart_count, dg['header']['dgTime'])
-            pie_object = SwathStandardFormat(self.bin_size_local, self.max_heave_local, np.flip(pie_chart_values, axis=1),
-                                        np.flip(pie_chart_count, axis=1), dg['header']['dgTime'])
-
-            # print("(((((((((((((((((((((((((((((((((((KONGSBERGDGPROCESS TIMESTAMP: ", dg['header']['dgTime'])
+            # pie_object = PieStandardFormat(pie_chart_amplitudes, pie_chart_counts, dg['header']['dgTime'])
+            pie_object = PieStandardFormat(self.bin_size_local, self.max_heave_local,
+                                           np.flip(pie_chart_amplitudes, axis=1),
+                                           np.flip(pie_chart_counts, axis=1), dg['header']['dgTime'])
 
         return pie_object
 
     def process_SKM(self, header, bytes_io):
+        """
+        Process #SKM datagram; not currently implemented.
+        :param header: Header field of #SKM datagram.
+        :param bytes_io: #SKM datagram as BytesIO object.
+        :return: None
+        """
         pass
 
     def print_MWC(self, bytes_io):
-        print("In print_MWC.")
+        """
+        Prints full #MWC record as dictionary. For debugging.
+        :param bytes_io: #MWC datagram as BytesIO object.
+        """
+        print("Printing #MWC record:")
         bytes_io.seek(0, 0)
         header = k.read_EMdgmHeader(bytes_io, return_fields=True)
         print("Header: ", header)
@@ -426,5 +354,8 @@ class KongsbergDGProcess(Process):
             print("Beam Data: ", beamData)
 
     def run(self):
-        #print("Running KongsbergDGProcess process.")
+        """
+        Runs process. Pulls data from multiprocessing.Queue; reads data from #MWC records, bins water column data,
+        creates standard format pie records, adds this record to shared multiprocessing.Queue for use by next process.
+        """
         self.get_and_process_dg()

@@ -136,7 +136,7 @@ class WaterColumn:
             self.sonarMain = KongsbergDGMain(self.settings, self.ip, self.port, self.protocol,
                                              self.socket_buffer_multiplier, self.bin_size, self.max_heave,
                                              self.max_grid_cells, self.queue_datagram, self.queue_pie_object,
-                                             self.full_ping_count, self.discard_ping_count, self.process_flag)
+                                             self.full_ping_count, self.discard_ping_count)
 
             self.sonarMain.play_processes()
 

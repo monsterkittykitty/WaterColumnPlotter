@@ -1,11 +1,12 @@
 # Lynette Davis
+# ldavis@ccom.unh.edu
 # Center for Coastal and Ocean Mapping
 # University of New Hampshire
 # April 2021
 
 # Description:
 
-class SwathStandardFormat:
+class PieStandardFormat:
     def __init__(self, bin_size, max_heave, pie_chart_values,
                  pie_chart_count, timestamp, latitude=None, longitude=None):
 

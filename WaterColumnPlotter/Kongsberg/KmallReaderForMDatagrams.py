@@ -1,10 +1,11 @@
 # Lynette Davis
+# ldavis@ccom.unh.edu
 # Center for Coastal and Ocean Mapping
 # University of New Hampshire
 # May 2021
 
-# Description: A modified version of select methods from KMALL.kmall for
-# reading / parsing Kongsberg kmall 'M' datagramsreceived directly from SIS.
+# Description: A modified version of select methods from KMALL.kmall for reading / parsing
+# Kongsberg kmall 'M' datagrams received directly from Kongsberg sonar system or SIS.
 
 import datetime
 import logging
@@ -23,6 +24,10 @@ class KmallReaderForMDatagrams:
     def read_EMdgmHeader(file_io, return_format=False, return_fields=False):
         """
         Read general datagram header.
+        :param file_io: File or Bytes_IO object to be read.
+        :param return_format: Optional boolean parameter. When true, returns struct format string. Default is false.
+        :param return_fields: Optional boolean parameter. When true, returns fields as a list;
+        when false, returns fields as a dictionary. Default is false.
         :return: A list containing EMdgmHeader ('header') fields: [0] = numBytesDgm; [1] = dgmType; [2] = dgmVersion;
         [3] = systemID; [4] = echoSounderID; [5] = time_sec; [6] = time_nanosec.
         """
@@ -52,7 +57,7 @@ class KmallReaderForMDatagrams:
         # Echo sounder identity, e.g. 122, 302, 710, 712, 2040, 2045, 850.
         dg['echoSounderID'] = fields[4]
         # UTC time in seconds. Epoch 1970-01-01. time_nanosec part to be added for more exact time.
-        dg['time_sec']  = fields[5]
+        dg['time_sec'] = fields[5]
         # Nano seconds remainder. time_nanosec part to be added to time_sec for more exact time.
         dg['time_nanosec'] = fields[6]
         # UTC time in seconds + Nano seconds remainder. Epoch 1970-01-01.
@@ -71,6 +76,12 @@ class KmallReaderForMDatagrams:
         all UDP packets/datagram parts to one datagram, and store it as one datagram in the .kmall files. Datagrams
         stored in .kmall files will therefore always have numOfDgm = 1 and dgmNum = 1, and may have size > 64 kB.
         The maximum number of partitions from PU is given by MAX_NUM_MWC_DGMS and MAX_NUM_MRZ_DGMS."
+        :param file_io: File or Bytes_IO object to be read.
+        :param dgm_type: Byte string indicating type of M datagram: b'#MRZ' or b'#MWC'
+        :param dgm_version: Kongsberg M datagram version.
+        :param return_format: Optional boolean parameter. When true, returns struct format string. Default is false.
+        :param return_fields: Optional boolean parameter. When true, returns fields as a list;
+        when false, returns fields as a dictionary. Default is false.
         :return: A list containing EMdgmMpartition ('partition') fields:
             MRZ, MWC dgmVersion 0: [0] = numOfDgms; [1] = dgmNum.
             MRZ, MWC dgmVersion 1 (REV G): (See dgmVersion 0.)
@@ -107,6 +118,12 @@ class KmallReaderForMDatagrams:
         """
         Read multibeam (M) datagrams - body part. Start of body of all M datagrams.
         Contains information of transmitter and receiver used to find data in datagram.
+        :param file_io: File or Bytes_IO object to be read.
+        :param dgm_type: Byte string indicating type of M datagram: b'#MRZ' or b'#MWC'
+        :param dgm_version: Kongsberg M datagram version.
+        :param return_format: Optional boolean parameter. When true, returns struct format string. Default is false.
+        :param return_fields: Optional boolean parameter. When true, returns fields as a list;
+        when false, returns fields as a dictionary. Default is false.
         :return: A list containing EMdgmMbody ('cmnPart') fields:
             MRZ, MWC dgmVersion 0: [0] = numBytesCmnPart; [1] = pingCnt; [2] = rxFansPerPing; [3] = rxFanIndex;
                 [4] = swathsPerPing; [5] = swathAlongPosition; [6] = txTransducerInd; [7] = rxTransducerInd;
@@ -175,6 +192,8 @@ class KmallReaderForMDatagrams:
         :param file_io: File or Bytes_IO object to be read.
         :param dgm_version: Kongsberg MRZ datagram version.
         :param return_format: Optional boolean parameter. When true, returns struct format string. Default is false.
+        :param return_fields: Optional boolean parameter. When true, returns fields as a list;
+        when false, returns fields as a dictionary. Default is false.
         :return: A list containing EMdgmMRZ_pingInfo fields:
             MRZ dgmVersion 0:
             MRZ dgmVersion 1:
@@ -212,14 +231,15 @@ class KmallReaderForMDatagrams:
             # # # # # Ping Info # # # # #
             # Ping rate. Filtered/averaged.
             dg['pingRate_Hz'] = fields_a[2]
-            # 0 = Eqidistance; 1 = Equiangle; 2 = High density
+            # 0 = Equidistance; 1 = Equiangle; 2 = High density
             dg['beamSpacing'] = fields_a[3]
-            # Depth mode. Describes setting of depth in K-Controller. Depth mode influences the PUs choice of pulse length
-            # and pulse type. If operator has manually chosen the depth mode to use, this is flagged by adding 100 to the
-            # mode index. 0 = Very Shallow; 1 = Shallow; 2 = Medium; 3 = Deep; 4 = Deeper; 5 = Very Deep; 6 = Extra Deep;
-            # 7 = Extreme Deep
+            # Depth mode. Describes setting of depth in K-Controller. Depth mode influences the PUs choice of
+            # pulse length and pulse type. If operator has manually chosen the depth mode to use, this is flagged
+            # by adding 100 to the mode index. 0 = Very Shallow; 1 = Shallow; 2 = Medium; 3 = Deep; 4 = Deeper;
+            # 5 = Very Deep; 6 = Extra Deep; 7 = Extreme Deep
             dg['depthMode'] = fields_a[4]
-            # For advanced use when depth mode is set manually. 0 = Sub depth mode is not used (when depth mode is auto).
+            # For advanced use when depth mode is set manually.
+            # 0 = Sub depth mode is not used (when depth mode is auto).
             dg['subDepthMode'] = fields_a[5]
             # Achieved distance between swaths, in percent relative to required swath distance.
             # 0 = function is not used; 100 = achieved swath distance equals required swath distance.
@@ -230,7 +250,8 @@ class KmallReaderForMDatagrams:
             # Pulse forms used for current swath. 0 = CW; 1 = mix; 2 = FM
             dg['pulseForm'] = fields_a[8]
             # Kongsberg documentation lists padding1 as "Ping rate. Filtered/averaged." This appears to be incorrect.
-            # In testing, padding1 prints all zeros. I'm assuming this is for byte alignment, as with other 'padding' cases.
+            # In testing, padding1 prints all zeros. I'm assuming this is for byte alignment,
+            # as with other 'padding' cases.
             # Byte alignment.
             dg['padding1'] = fields_a[9]
             # Ping frequency in hertz. E.g. for EM 2040: 200 000 Hz, 300 000 Hz or 400 000 Hz.
@@ -252,17 +273,17 @@ class KmallReaderForMDatagrams:
             dg['maxEffTxBandWidth_Hz'] = fields_a[15]
             # Average absorption coefficient, in dB/km, for vertical beam at current depth. Not currently in use.
             dg['absCoeff_dBPerkm'] = fields_a[16]
-            # Port sector edge, used by beamformer, Coverage is refered to z of SCS.. Unit degree.
+            # Port sector edge, used by beam former, Coverage is referred to z of SCS.. Unit degree.
             dg['portSectorEdge_deg'] = fields_a[17]
             # Starboard sector edge, used by beamformer. Coverage is referred to z of SCS. Unit degree.
             dg['starbSectorEdge_deg'] = fields_a[18]
-            # Coverage achieved, corrected for raybending. Coverage is referred to z of SCS. Unit degree.
+            # Coverage achieved, corrected for ray bending. Coverage is referred to z of SCS. Unit degree.
             dg['portMeanCov_deg'] = fields_a[19]
-            # Coverage achieved, corrected for raybending. Coverage is referred to z of SCS. Unit degree.
+            # Coverage achieved, corrected for ray bending. Coverage is referred to z of SCS. Unit degree.
             dg['stbdMeanCov_deg'] = fields_a[20]
-            # Coverage achieved, corrected for raybending. Coverage is referred to z of SCS. Unit meter.
+            # Coverage achieved, corrected for ray bending. Coverage is referred to z of SCS. Unit meter.
             dg['portMeanCov_m'] = fields_a[21]
-            # Coverage achieved, corrected for raybending. Unit meter.
+            # Coverage achieved, corrected for ray bending. Unit meter.
             dg['starbMeanCov_m'] = fields_a[22]
             # Modes and stabilisation settings as chosen by operator. Each bit refers to one setting in K-Controller.
             # Unless otherwise stated, default: 0 = off, 1 = on/auto.
@@ -274,7 +295,8 @@ class KmallReaderForMDatagrams:
             # Bit: 1 = Slope filter; 2 = Aeration filter; 3 = Sector filter;
             # 4 = Interference filter; 5 = Special amplitude detect; 6-8 = Future use
             dg['runtimeFilter1'] = fields_a[24]
-            # Filter settings as chosen by operator. Refers to settings in runtime display of K-Controller. 4 bits used per filter.
+            # Filter settings as chosen by operator. Refers to settings in runtime display of K-Controller.
+            # 4 bits used per filter.
             # Bits: 1-4 = Range gate size: 0 = small, 1 = normal, 2 = large
             # 5-8 = Spike filter strength: 0 = off, 1= weak, 2 = medium, 3 = strong
             # 9-12 = Penetration filter: 0 = off, 1 = weak, 2 = medium, 3 = strong
@@ -289,8 +311,8 @@ class KmallReaderForMDatagrams:
             dg['receiveArraySizeUsed_deg'] = fields_a[28]
             # Operator selected tx power level re maximum. Unit dB. E.g. 0 dB, -10 dB, -20 dB.
             dg['transmitPower_dB'] = fields_a[29]
-            # For marine mammal protection. The parameters describes time remaining until max source level (SL) is achieved.
-            # Unit %.
+            # For marine mammal protection. The parameters describes time remaining
+            # until max source level (SL) is achieved. Unit %.
             dg['SLrampUpTimeRemaining'] = fields_a[30]
             # Byte alignment.
             dg['padding2'] = fields_a[31]
@@ -316,25 +338,27 @@ class KmallReaderForMDatagrams:
             # from water line to transducer (reference point of old datagram format).
             dg['txTransducerDepth_m'] = fields_a[37]
             # Distance between water line and vessel reference point in meters. At time of midpoint of first tx pulse.
-            # Measured in the surface coordinate system (SCS).See Coordinate systems 'Coordinate systems' for definition.
-            # Used this to move depth point (XYZ) from vessel reference point to waterline.
+            # Measured in the surface coordinate system (SCS).See Coordinate systems 'Coordinate systems' for
+            # definition. Used this to move depth point (XYZ) from vessel reference point to waterline.
             dg['z_waterLevelReRefPoint_m'] = fields_a[38]
-            # Distance between *.all reference point and *.kmall reference point (vessel referenece point) in meters,
-            # in the surface coordinate system, at time of midpoint of first tx pulse. Used this to move depth point (XYZ)
-            # from vessel reference point to the horisontal location (X,Y) of the active position sensor's reference point
-            # (old datagram format).
+            # Distance between *.all reference point and *.kmall reference point (vessel reference point)
+            # in meters, in the surface coordinate system, at time of midpoint of first tx pulse. Used this
+            # to move depth point (XYZ) from vessel reference point to the horizontal location (X,Y) of the
+            # active position sensor's reference point (old datagram format).
             dg['x_kmallToall_m'] = fields_a[39]
-            # Distance between *.all reference point and *.kmall reference point (vessel referenece point) in meters,
-            # in the surface coordinate system, at time of midpoint of first tx pulse. Used this to move depth point (XYZ)
-            # from vessel reference point to the horisontal location (X,Y) of the active position sensor's reference point
-            # (old datagram format).
+            # Distance between *.all reference point and *.kmall reference point (vessel reference point)
+            # in meters, in the surface coordinate system, at time of midpoint of first tx pulse. Used this
+            # to move depth point (XYZ) from vessel reference point to the horizontal location (X,Y) of the
+            # active position sensor's reference point (old datagram format).
             dg['y_kmallToall_m'] = fields_a[40]
             # Method of position determination from position sensor data:
             # 0 = last position received; 1 = interpolated; 2 = processed.
             dg['latLongInfo'] = fields_a[41]
-            # Status/quality for data from active position sensor. 0 = valid data, 1 = invalid data, 2 = reduced performance
+            # Status/quality for data from active position sensor.
+            # 0 = valid data, 1 = invalid data, 2 = reduced performance
             dg['posSensorStatus'] = fields_a[42]
-            # Status/quality for data from active attitude sensor. 0 = valid data, 1 = invalid data, 2 = reduced performance
+            # Status/quality for data from active attitude sensor.
+            # 0 = valid data, 1 = invalid data, 2 = reduced performance
             dg['attitudeSensorStatus'] = fields_a[43]
             # Padding for byte alignment.
             dg['padding3'] = fields_a[44]
@@ -384,6 +408,8 @@ class KmallReaderForMDatagrams:
         :param file_io: File or Bytes_IO object to be read.
         :param dgm_version: Kongsberg MRZ datagram version.
         :param return_format: Optional boolean parameter. When true, returns struct format string. Default is false.
+        :param return_fields: Optional boolean parameter. When true, returns fields as a list;
+        when false, returns fields as a dictionary. Default is false.
         :return: A list containing EMdgmMRZ_txSectorInfo fields:
             MRZ dgmVersion 0:
             MRZ dgmVersion 1:
@@ -471,6 +497,8 @@ class KmallReaderForMDatagrams:
         :param file_io: File or Bytes_IO object to be read.
         :param dgm_version: Kongsberg MRZ datagram version.
         :param return_format: Optional boolean parameter. When true, returns struct format string. Default is false.
+        :param return_fields: Optional boolean parameter. When true, returns fields as a list;
+        when false, returns fields as a dictionary. Default is false.
         :return: A list containing EMdgmMRZ_rxInfo fields:
             MRZ dgmVersion 0:
             MRZ dgmVersion 1:
@@ -533,7 +561,9 @@ class KmallReaderForMDatagrams:
         :param file_io: File or Bytes_IO object to be read.
         :param dgm_version: Kongsberg MRZ datagram version.
         :param return_format: Optional boolean parameter. When true, returns struct format string. Default is false.
-        :return: A list containing EMdgmMRZ_rxInfo fields:
+        :param return_fields: Optional boolean parameter. When true, returns fields as a list;
+        when false, returns fields as a dictionary. Default is false.
+        :return: By default, a dictionary containing EMdgmMRZ_rxInfo fields:
             MRZ dgmVersion 0:
             MRZ dgmVersion 1:
             MRZ dgmVersion 2:
@@ -573,7 +603,9 @@ class KmallReaderForMDatagrams:
         :param file_io: File or Bytes_IO object to be read.
         :param dgm_version: Kongsberg MRZ datagram version.
         :param return_format: Optional boolean parameter. When true, returns struct format string. Default is false.
-        :return: A list containing EMdgmMRZ_rxInfo fields:
+        :param return_fields: Optional boolean parameter. When true, returns fields as a list;
+        when false, returns fields as a dictionary. Default is false.
+        :return: By default, a dictionary containing EMdgmMRZ_rxInfo fields:
             MRZ dgmVersion 0:
             MRZ dgmVersion 1:
             MRZ dgmVersion 2:
@@ -713,6 +745,14 @@ class KmallReaderForMDatagrams:
 
     @classmethod
     def read_EMdgmMRZ(cls, file_io, return_format=False, return_fields=False):
+        """
+        Read full #MRZ Multibeam Raw Range and Depth datagram (#MRZ). The datagram also contains seabed image data.
+        :param file_io: File or Bytes_IO object to be read.
+        :param return_format: Optional boolean parameter. When true, returns struct format string. Default is false.
+        :param return_fields: Optional boolean parameter. When true, returns fields as a list;
+        when false, returns fields as a dictionary. Default is false.
+        :return: By default, a dictionary containing all #MRZ fields.
+        """
         # TODO: Test!
         file_io.seek(0, 0)
 
@@ -749,7 +789,7 @@ class KmallReaderForMDatagrams:
 
         # Read seabed image sample.
         format_to_unpack = str(Nseabedimage_samples) + "h"
-        dg['SIsample_desidB'] = struct.unpack(format_to_unpack, cls.FID.read(struct.Struct(format_to_unpack).size))
+        dg['SIsample_desidB'] = struct.unpack(format_to_unpack, file_io.read(struct.Struct(format_to_unpack).size))
 
     # ##### ----- METHODS FOR READING MWC DATAGRAMS ----- ##### #
 
@@ -757,6 +797,11 @@ class KmallReaderForMDatagrams:
     def read_EMdgmMWC_txInfo(file_io, dgm_version, return_format=False, return_fields=False):
         """
         Read #MWC - data block 1: transmit sectors, general info for all sectors.
+        :param file_io: File or Bytes_IO object to be read.
+        :param dgm_version: Kongsberg MWC datagram version.
+        :param return_format: Optional boolean parameter. When true, returns struct format string. Default is false.
+        :param return_fields: Optional boolean parameter. When true, returns fields as a list;
+        when false, returns fields as a dictionary. Default is false.
         :return: A list containing EMdgmMWCtxInfo fields:
             MWC dgmVersion 0: [0] = numBytesTxInfo; [1] = numTxSectors; [2] = numBytesPerTxSector;
                 [3] = padding; [4] = heave_m.
@@ -802,6 +847,11 @@ class KmallReaderForMDatagrams:
     def read_EMdgmMWC_txSectorData(file_io, dgm_version, return_format=False, return_fields=False):
         """
         Read #MWC - data block 1: transmit sector data, loop for all i = numTxSectors.
+        :param file_io: File or Bytes_IO object to be read.
+        :param dgm_version: Kongsberg MWC datagram version.
+        :param return_format: Optional boolean parameter. When true, returns struct format string. Default is false.
+        :param return_fields: Optional boolean parameter. When true, returns fields as a list;
+        when false, returns fields as a dictionary. Default is false.
         :return: A list containing EMdgmMWCtxSectorData fields:
             MWC dgmVersion 0: [0] = tiltAngleReTx_deg; [1] = centreFreq_Hz; [2] = txBeamWidthAlong_deg;
                 [3] = txSectorNum; [4] = padding.
@@ -822,8 +872,9 @@ class KmallReaderForMDatagrams:
 
             dg = {}
 
-            # Along ship steering angle of the TX beam (main lobe of transmitted pulse), angle referred to transducer face.
-            # Angle as used by beamformer (includes stabilisation). Unit degree.
+            # Along ship steering angle of the TX beam (main lobe of transmitted pulse),
+            # angle referred to transducer face.
+            # Angle as used by beam former (includes stabilisation). Unit degree.
             dg['tiltAngleReTx_deg'] = fields[0]
             # Centre frequency of current sector. Unit hertz.
             dg['centreFreq_Hz'] = fields[1]
@@ -844,7 +895,12 @@ class KmallReaderForMDatagrams:
     def read_EMdgmMWC_rxInfo(file_io, dgm_version, return_format=False, return_fields=False):
         """
         Read #MWC - data block 2: receiver, general info.
-        :return: A list containing EMdgmMWCrxInfo fields:
+        :param file_io: File or Bytes_IO object to be read.
+        :param dgm_version: Kongsberg MWC datagram version.
+        :param return_format: Optional boolean parameter. When true, returns struct format string. Default is false.
+        :param return_fields: Optional boolean parameter. When true, returns fields as a list;
+        when false, returns fields as a dictionary. Default is false.
+        :return: By default, a dictionary containing EMdgmMWCrxInfo fields:
             MWC dgmVersion 0: [0] = numBytesRxInfo; [1] = numBeams; [2] = numBytesPerBeamEntry; [3] = phaseFlag;
                 [4] = TVGfunctionApplied; [5] = TVGoffset_dB; [6] = sampleFreq_Hz; [7] = soundVelocity_mPerSec.
             MWC dgmVersion 1 (REV G): (See dgmVersion 0.)
@@ -897,7 +953,12 @@ class KmallReaderForMDatagrams:
     def read_EMdgmMWC_rxBeamData(file_io, dgm_version, return_format=False, return_fields=False):
         """
         Read #MWC - data block 2: receiver, specific info for each beam.
-        :return: A list containing EMdgmMWCrxBeamData fields:
+        :param file_io: File or Bytes_IO object to be read.
+        :param dgm_version: Kongsberg MWC datagram version.
+        :param return_format: Optional boolean parameter. When true, returns struct format string. Default is false.
+        :param return_fields: Optional boolean parameter. When true, returns fields as a list;
+        when false, returns fields as a dictionary. Default is false.
+        :return: By default, a dictionary containing EMdgmMWCrxBeamData fields:
             MWC dgmVersion 0: [0] = beamPointAngReVertical_deg; [1] = startRangeSampleNum;
                 [2] = detectedRangeInSamples; [3] = beamTxSectorNum; [4] = numSampleData; [5] = sampleAmplitude05dB_p.
                 (If phase_flag > 0: [6] = rxBeamPhase.)
@@ -957,8 +1018,19 @@ class KmallReaderForMDatagrams:
         return dg
 
     @staticmethod
-    def read_EMdgmMWC_rxBeamPhase1(file_io, dgm_version, num_sample_data,
-                                   return_format=False, return_fields=False):
+    def read_EMdgmMWC_rxBeamPhase1(file_io, dgm_version, num_sample_data, return_format=False, return_fields=False):
+        """
+        Read #MWC - Beam sample phase info, specific for each beam and water column sample.
+        numBeams * numSampleData = (Nrx * Ns) entries. Only added to datagram if phaseFlag = 1.
+        Total size of phase block is numSampleData * int8_t.
+        :param file_io: File or Bytes_IO object to be read.
+        :param dgm_version: Kongsberg MWC datagram version.
+        :param num_sample_data: Total number of samples. Value found in MWCrxBeamData.
+        :param return_format: Optional boolean parameter. When true, returns struct format string. Default is false.
+        :param return_fields: Optional boolean parameter. When true, returns fields as a list;
+        when false, returns fields as a dictionary. Default is false.
+        :return: By default, a dictionary containing EMdgmMWCrxBeamPhase1 fields.
+        """
 
         if dgm_version in [0, 1, 2]:
             format_to_unpack = str(num_sample_data) + "b"
@@ -980,8 +1052,19 @@ class KmallReaderForMDatagrams:
         return dg
 
     @staticmethod
-    def read_EMdgmMWC_rxBeamPhase2(file_io, dgm_version, num_sample_data,
-                                   return_format=False, return_fields=False):
+    def read_EMdgmMWC_rxBeamPhase2(file_io, dgm_version, num_sample_data, return_format=False, return_fields=False):
+        """
+        Read #MWC - Beam sample phase info, specific for each beam and water column sample.
+        numBeams * numSampleData = (Nrx * Ns) entries. Only added to datagram if phaseFlag = 2.
+        Total size of phase block is numSampleData * int16_t
+        :param file_io: File or Bytes_IO object to be read.
+        :param dgm_version: Kongsberg MWC datagram version.
+        :param num_sample_data: Total number of samples. Value found in MWCrxBeamData.
+        :param return_format: Optional boolean parameter. When true, returns struct format string. Default is false.
+        :param return_fields: Optional boolean parameter. When true, returns fields as a list;
+        when false, returns fields as a dictionary. Default is false.
+        :return: By default, a dictionary containing EMdgmMWCrxBeamPhase2 fields.
+        """
 
         if dgm_version in [0, 1, 2]:
             format_to_unpack = str(num_sample_data) + "h"
@@ -1004,14 +1087,22 @@ class KmallReaderForMDatagrams:
 
     @classmethod
     def read_EMdgmMWC(cls, file_io, return_format=False, return_fields=False):
+        """
+        Read full #MWC - Multibeam Water Column Datagram. Entire datagram containing several sub structs.
+        :param file_io: File or Bytes_IO object to be read.
+        :param return_format: Optional boolean parameter. When true, returns struct format string. Default is false.
+        :param return_fields: Optional boolean parameter. When true, returns fields as a list;
+        when false, returns fields as a dictionary. Default is false.
+        :return: By default, a dictionary containing all #MWC fields.
+        """
         file_io.seek(0, 0)
 
         dg = {}
         dg['header'] = cls.read_EMdgmHeader(file_io)
         dg['partition'] = cls.read_EMdgmMpartition(file_io, dgm_type=dg['header']['dgmType'],
-                                                    dgm_version=dg['header']['dgmVersion'])
+                                                   dgm_version=dg['header']['dgmVersion'])
         dg['cmnPart'] = cls.read_EMdgmMbody(file_io, dgm_type=dg['header']['dgmType'],
-                                                    dgm_version=dg['header']['dgmVersion'])
+                                            dgm_version=dg['header']['dgmVersion'])
         dg['txInfo'] = cls.read_EMdgmMWC_txInfo(file_io, dgm_version=dg['header']['dgmVersion'])
 
         # Read TX sector info for each sector
@@ -1046,12 +1137,12 @@ class KmallReaderForMDatagrams:
             elif dg['rxInfo']['phaseFlag'] == 1:
                 # TODO: Test with water column data, phaseFlag = 1 to complete/test this function.
                 rxPhaseInfo.append(cls.read_EMdgmMWC_rxBeamPhase1(file_io, dgm_version=dg['header']['dgmVersion'],
-                                                                   num_sample_data=rxBeamData[idx]['numSampleData']))
+                                                                  num_sample_data=rxBeamData[idx]['numSampleData']))
 
             elif dg['rxInfo']['phaseFlag'] == 2:
                 # TODO: Test with water column data, phaseFlag = 2 to complete/test this function.
                 rxPhaseInfo.append(cls.read_EMdgmMWC_rxBeamPhase2(file_io, dgm_version=dg['header']['dgmVersion'],
-                                                                   num_sample_data=rxBeamData[idx]['numSampleData']))
+                                                                  num_sample_data=rxBeamData[idx]['numSampleData']))
             else:
                 logger.warning("Phase flag {} unsupported.".format(dg['rxInfo']['phaseFlag']))
                 sys.exit(1)
@@ -1066,11 +1157,20 @@ class KmallReaderForMDatagrams:
 
     @staticmethod
     def read_format(file_io, format_to_unpack):
+        """
+        A tool to read any given struct format (format_to_unpack) from any given file or Bytes_IO object (file_io).
+        :param file_io: File or Bytes_IO object to be read.
+        :param format_to_unpack: Format of struct to read from file_io.
+        :return:
+        """
         return struct.unpack(format_to_unpack, file_io.read(struct.Struct(format_to_unpack).size))
 
     @staticmethod
     def listofdicts2dictoflists(listofdicts):
-        """ A utility  to convert a list of dicts to a dict of lists."""
+        """
+        A utility  to convert a list of dicts to a dict of lists.
+        :param listofdicts: A list of dictionaries to be converted to a dictionary of lists.
+        """
         if listofdicts:
             needs_flattening = [k for (k, v) in listofdicts[0].items() if isinstance(v, list)]
             d_of_l = {k: [dic[k] for dic in listofdicts] for k in listofdicts[0]}
