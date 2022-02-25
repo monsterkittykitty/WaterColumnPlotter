@@ -156,7 +156,7 @@ class KongsbergDGProcess(Process):
 
         # If #MWC record is 'empty' (did not receive all partitions):
         if header['numBytesDgm'] == length_to_strip:
-            print("Processing empty datagram.")
+            # print("Processing empty datagram.")
 
             pie_chart_amplitudes = np.zeros(shape=(self.max_grid_cells_local, self.max_grid_cells_local))
             pie_chart_counts = np.zeros(shape=(self.max_grid_cells_local, self.max_grid_cells_local))
