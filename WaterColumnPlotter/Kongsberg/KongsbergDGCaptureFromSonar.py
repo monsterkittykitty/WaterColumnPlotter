@@ -704,7 +704,8 @@ class KongsbergDGCaptureFromSonar(Process):
 
     def run(self):
         """
-        Runs process. Queues data in multiprocessing.Queue if provided; otherwise, writes raw binary data to file.
+        Runs process. Process queues data in multiprocessing.Queue if provided;
+        otherwise, writes raw binary data to file.
         """
         if self.queue_datagram:
             self.receive_dg_and_queue()

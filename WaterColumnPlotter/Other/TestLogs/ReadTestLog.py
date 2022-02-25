@@ -1,4 +1,5 @@
 # Lynette Davis
+# ldavis@ccom.unh.edu
 # Center for Coastal and Ocean Mapping
 # University of New Hampshire
 # May 2021
@@ -10,12 +11,13 @@
 import argparse
 import io
 from WaterColumnPlotter.Other.KmallPlayer import KMALL
-from KmallReaderForWaterColumn import KmallReaderForWaterColumn as k
+from WaterColumnPlotter.Kongsberg.KmallReaderForMDatagrams import KmallReaderForMDatagrams as k
 import logging
 import struct
 import sys
 
 logger = logging.getLogger(__name__)
+
 
 class ReadTestLog:
     def __init__(self, in_file):

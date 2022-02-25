@@ -76,7 +76,7 @@ class KongsbergDGProcess(Process):
 
     def get_and_process_dg(self):
         """
-        Receives datagrams from queue and processed data.
+        Receives datagrams from shared multiprocessing queue and processes data according to datagram type.
         Note that queue's get() method is blocking, but does have a timeout.
         """
         while True:
@@ -355,7 +355,8 @@ class KongsbergDGProcess(Process):
 
     def run(self):
         """
-        Runs process. Pulls data from multiprocessing.Queue; reads data from #MWC records, bins water column data,
-        creates standard format pie records, adds this record to shared multiprocessing.Queue for use by next process.
+        Runs process. Process pulls data from multiprocessing.Queue; reads data from #MWC records,
+        bins water column data, creates standard format pie records, adds this record to shared
+        multiprocessing.Queue for use by next process.
         """
         self.get_and_process_dg()

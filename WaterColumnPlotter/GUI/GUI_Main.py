@@ -12,7 +12,6 @@ from PyQt5.QtWidgets import QApplication, QFileDialog, QMainWindow
 from PyQt5.QtCore import QTimer
 import sys
 from WaterColumnPlotter.Plotter.WaterColumn import WaterColumn
-
 from WaterColumnPlotter.GUI.Dialogs.PYFiles.AllSettingsDialog import AllSettingsDialog
 from WaterColumnPlotter.GUI.Widgets.GUI_MDI import GUI_MDI
 from WaterColumnPlotter.GUI.Widgets.GUI_StatusBar import GUI_StatusBar
@@ -104,9 +103,6 @@ class MainWindow(QMainWindow):
         """
         Updates GUI MainWindow's MDI windows' plots.
         """
-
-        print("updating plots")
-
         if self.waterColumn.get_raw_buffer_length() > 0:
 
             # UPDATE PIE PLOT
@@ -316,7 +312,6 @@ class MainWindow(QMainWindow):
         """
         Updates grid cell settings. (Indicates maximum size of square matrix for pie plots.)
         """
-        # pass
         with self.waterColumn.max_grid_cells.get_lock():
             self.waterColumn.max_grid_cells.value = self.settings['buffer_settings']['maxGridCells']
 
@@ -325,7 +320,8 @@ class MainWindow(QMainWindow):
         """
         Updates ping buffer settings. (Indicates maximum number of pings to store in raw buffer.)
         """
-        pass
+        with self.waterColumn.max_ping_buffer.get_lock():
+            self.waterColumn.max_ping_buffer.value = self.settings['buffer_settings']['maxBufferSize_ping']
 
     def processingSettingsEdited(self):
         """
@@ -338,6 +334,14 @@ class MainWindow(QMainWindow):
         Initializes and launches settings dialog; connects signals / slots.
         """
         settingsDialog = AllSettingsDialog(self.settings, parent=self)
+
+        # Once raw and processed ring buffers are initialized,
+        # changing max_grid_cells and max_ping_buffer is no longer allowable.
+        if self.waterColumn.shared_ring_buffer_raw and self.waterColumn.shared_ring_buffer_processed:
+            settingsDialog.spinBoxMaxGridCells.setDisabled(True)
+            settingsDialog.spinBoxMaxGridCells.setToolTip("Editing of this field is not allowed after initialization.")
+            settingsDialog.spinBoxMaxPingBuffer.setDisabled(True)
+            settingsDialog.spinBoxMaxPingBuffer.setToolTip("Editing of this field is not allowed after initialization.")
 
         # Signals / Slots
         settingsDialog.pushButtonLoadSettings.clicked.connect(lambda: self.displayLoadSettingsDialog(settingsDialog))
@@ -390,8 +394,8 @@ class MainWindow(QMainWindow):
         processes in WaterColumn class, closes and unlinks shared memory in WaterColumn class.
         :param event: Close event emitted by GUI MainWindow's close (X) button.
         """
-        with self.waterColumn.process_flag.get_lock():
-            self.waterColumn.process_flag.value = False
+        # with self.waterColumn.process_flag.get_lock():
+        #     self.waterColumn.process_flag.value = False
         self.waterColumn.closeSharedMemory()
         # Release shared memory definitely
         self.waterColumn.unlinkSharedMemory()

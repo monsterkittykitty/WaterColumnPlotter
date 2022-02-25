@@ -14,6 +14,9 @@ from PyQt5.QtWidgets import QDoubleSpinBox, QFrame, QHBoxLayout, QLabel, \
 from PyQt5.QtCore import pyqtSignal, Qt
 import pyqtgraph as pg
 
+# TODO: Consider use of pyvista for data visualization rather than pyqtgraph?
+# import pyvista as pv  # "Easier Pythonic interface to VTK"
+
 
 class SubwindowPieSliceWidget(QWidget):
 

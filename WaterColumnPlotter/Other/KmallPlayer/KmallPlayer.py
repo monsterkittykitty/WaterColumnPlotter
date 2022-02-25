@@ -1,10 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# A python class to replay Kongsberg .kmall and .kmwcd files over unicast/multicast.
+# Lynette Davis
+# ldavis@ccom.unh.edu
+# Center for Coastal and Ocean Mapping
+# University of New Hampshire
+# February 2021
+
+# Description: A python class to replay Kongsberg .kmall and .kmwcd files over unicast/multicast.
 # Adapted from Giuseppe Masetti's HydrOffice hyo2_kng code.
-#
-# Lynette Davis, CCOM
 
 import argparse
 import datetime
@@ -18,7 +22,6 @@ import sys
 import threading
 import math
 
-# __name__ is module's name
 logger = logging.getLogger(__name__)
 
 
@@ -87,6 +90,9 @@ class KmallPlayer:
             sys.exit(1)
 
     def __init_sockets(self):
+        """
+        Initializes UDP or Multicast socket; TCP sockets not supported.
+        """
         if self.connection == "TCP":
             # temp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             logger.warning("Only UDP and Multicast connections supported at this time.")
@@ -117,7 +123,6 @@ class KmallPlayer:
     #         return False
     #     else:
     #         return True
-
 
     def calculate_dgm_schedule(self, df):
         """
@@ -251,9 +256,6 @@ class KmallPlayer:
 
             return messages
 
-    def test_message_partition(self, messages):
-        pass
-
     def send_all_datagrams(self, fp, df):
         """
         Sends all UDP datagrams extracted from kmall file. Will send at scheduled time
@@ -262,8 +264,8 @@ class KmallPlayer:
         :param df: Dataframe containing datagram offsets, message sizes, and scheduled times.
         :param final_byteOffset: Close file when current byte offset equals final_byteOffset.
         """
-        first_tx_time = None  # For testing
-        mwc_counter = 0  # For testing
+        first_tx_time = None  # For debugging
+        mwc_counter = 0  # For debugging
 
         # Open file:
         with open(fp, 'rb') as file:
@@ -276,7 +278,7 @@ class KmallPlayer:
                 while row['ScheduledPlay'] > datetime.datetime.now():
                     pass
 
-                if self.dg_counter == 0:  # For testing
+                if self.dg_counter == 0:  # For debugging
                     first_tx_time = datetime.datetime.now()
 
                 # Seek to position in file:
@@ -301,17 +303,16 @@ class KmallPlayer:
                         if sent:
                             self.dg_counter += 1
 
-                    if row['MessageType'] == "b'#MWC'":  # For testing
+                    if row['MessageType'] == "b'#MWC'":  # For debugging
                         mwc_counter += 1
                     logging.warning("Split message : size %s of type %s", str(row['MessageSize']), row['MessageType'])
 
-            last_tx_time = datetime.datetime.now()  # For testing
+            last_tx_time = datetime.datetime.now()  # For debugging
 
             print("KMALLPLAYER, Sent: ", self.dg_counter)
             print("KMALLPLAYER, Sent MWCs: ", mwc_counter)
-            print("KMALLPLAYER, First transmit: {}; Final transmit: {}; Total time: {}".format(first_tx_time, last_tx_time,
-                                                                                  (last_tx_time - first_tx_time).total_seconds()))
-
+            print("KMALLPLAYER, First transmit: {}; Final transmit: {}; Total time: {}"
+                  .format(first_tx_time, last_tx_time, (last_tx_time - first_tx_time).total_seconds()))
 
     def play_datagrams(self, fp, df):
         if self.replay_timing is None:  # Real-time replay:
