@@ -348,7 +348,6 @@ class SubwindowPieSliceWidget(QWidget):
         """
         if self.settings['processing_settings']['binSize_m'] != self.spinboxBinSize.value():
             self.settings['processing_settings']['binSize_m'] = round(self.spinboxBinSize.value(), 2)
-            print("pie slice settings: ", self.settings['processing_settings']['binSize_m'])
             self.binSizeEdited.emit()
             self.processingSettingsEdited.emit()
 

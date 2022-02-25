@@ -49,7 +49,6 @@ class PlotterMain:
         """
         Signals subprocess (Plotter) when settings have changed through the use of shared multiprocessing.Values.
         """
-        print("in plottermain settings_changed")
         with self.plotter_settings_edited.get_lock():
             self.plotter_settings_edited.value = True
 
