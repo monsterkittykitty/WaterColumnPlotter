@@ -9,7 +9,6 @@
 
 import datetime
 import math
-import numpy as np
 from PyQt5.QtWidgets import QDoubleSpinBox, QFrame, QHBoxLayout, QLabel, \
     QPushButton, QSizePolicy, QStyle, QVBoxLayout, QWidget
 from PyQt5.QtCore import pyqtSignal, Qt

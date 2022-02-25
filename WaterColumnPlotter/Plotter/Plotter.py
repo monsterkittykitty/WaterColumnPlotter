@@ -7,7 +7,6 @@
 # Description: Receives standard format pie records from shared multiprocessing.Queue;
 # performs along-track, across-track, and depth slicing and averaging as specified by user settings.
 
-import datetime
 import logging
 import math
 from multiprocessing import Process

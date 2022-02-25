@@ -5,11 +5,11 @@
 # November 2021
 
 import ctypes
-from WaterColumnPlotter.Kongsberg.KongsbergDGMain import KongsbergDGMain
 from multiprocessing import Array, Queue, Value
 import numpy as np
-from WaterColumnPlotter.Plotter.PlotterMain import PlotterMain
 from PyQt5.QtWidgets import QMessageBox
+from WaterColumnPlotter.Kongsberg.KongsbergDGMain import KongsbergDGMain
+from WaterColumnPlotter.Plotter.PlotterMain import PlotterMain
 from WaterColumnPlotter.Plotter.SharedRingBufferProcessed import SharedRingBufferProcessed
 from WaterColumnPlotter.Plotter.SharedRingBufferRaw import SharedRingBufferRaw
 

@@ -18,13 +18,13 @@
 import argparse
 import ctypes
 import io
-from WaterColumnPlotter.Kongsberg.KmallReaderForMDatagrams import KmallReaderForMDatagrams as k
 import logging
 from multiprocessing import Process
 import multiprocessing as mp
 import socket
 import struct
 import sys
+from WaterColumnPlotter.Kongsberg.KmallReaderForMDatagrams import KmallReaderForMDatagrams as k
 
 logger = logging.getLogger(__name__)
 

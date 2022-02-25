@@ -6,13 +6,13 @@
 
 # Description: Provides functions to update internal settings through a settings dialog.
 
+import ipaddress
 from PyQt5 import QtWidgets, uic
 from PyQt5.QtGui import QIntValidator, QRegExpValidator
 from PyQt5.QtCore import pyqtSignal, QRegExp
 
-import ipaddress
-
 __appname__ = "Settings Dialog"
+
 
 class AllSettingsDialog(QtWidgets.QDialog):
 

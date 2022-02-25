@@ -7,14 +7,12 @@
 # Description: Launches and manages Kongsberg-specific subprocesses KongsbergDGCaptureFromSonar and KongsbergDGProcess.
 
 import ctypes
-from WaterColumnPlotter.Kongsberg.KongsbergDGCaptureFromSonar import KongsbergDGCaptureFromSonar
-from WaterColumnPlotter.Kongsberg.KongsbergDGProcess import KongsbergDGProcess
 import logging
 from multiprocessing import Value
+from WaterColumnPlotter.Kongsberg.KongsbergDGCaptureFromSonar import KongsbergDGCaptureFromSonar
+from WaterColumnPlotter.Kongsberg.KongsbergDGProcess import KongsbergDGProcess
 
 logger = logging.getLogger(__name__)
-
-__appname__ = "KongsbergDGMain"
 
 
 class KongsbergDGMain:

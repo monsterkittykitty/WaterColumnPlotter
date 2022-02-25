@@ -9,7 +9,6 @@
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QMdiArea
-
 from WaterColumnPlotter.GUI.Widgets.SubwindowPieSliceWidget import SubwindowPieSliceWidget
 from WaterColumnPlotter.GUI.Widgets.SubwindowVerticalSliceWidget import SubwindowVerticalSliceWidget
 from WaterColumnPlotter.GUI.Widgets.SubwindowHorizontalSliceWidget import SubwindowHorizontalSliceWidget

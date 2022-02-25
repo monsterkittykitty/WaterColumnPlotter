@@ -10,11 +10,11 @@
 
 import argparse
 import io
-from WaterColumnPlotter.Other.KmallPlayer import KMALL
-from WaterColumnPlotter.Kongsberg.KmallReaderForMDatagrams import KmallReaderForMDatagrams as k
 import logging
 import struct
 import sys
+from WaterColumnPlotter.Other.KmallPlayer import KMALL
+from WaterColumnPlotter.Kongsberg.KmallReaderForMDatagrams import KmallReaderForMDatagrams as k
 
 logger = logging.getLogger(__name__)
 

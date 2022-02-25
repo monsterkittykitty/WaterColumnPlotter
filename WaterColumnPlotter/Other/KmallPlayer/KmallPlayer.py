@@ -12,7 +12,6 @@
 
 import argparse
 import datetime
-from WaterColumnPlotter.Other.KmallPlayer import KMALL
 import logging
 import numpy as np
 import os
@@ -21,6 +20,7 @@ import struct
 import sys
 import threading
 import math
+from WaterColumnPlotter.Other.KmallPlayer import KMALL
 
 logger = logging.getLogger(__name__)
 

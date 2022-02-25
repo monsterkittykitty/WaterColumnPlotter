@@ -8,16 +8,14 @@
 # Reads data from #MWC records, bins water column data, creates standard format pie records,
 # and adds this record to a shared multiprocessing.Queue for use by the next process.
 
-import ctypes
-import datetime
 import io
-from WaterColumnPlotter.Kongsberg.KmallReaderForMDatagrams import KmallReaderForMDatagrams as k
-from WaterColumnPlotter.Plotter.PieStandardFormat import PieStandardFormat
 import logging
 from multiprocessing import Process, Value
 import numpy as np
 import struct
 import queue
+from WaterColumnPlotter.Kongsberg.KmallReaderForMDatagrams import KmallReaderForMDatagrams as k
+from WaterColumnPlotter.Plotter.PieStandardFormat import PieStandardFormat
 
 logger = logging.getLogger(__name__)
 
