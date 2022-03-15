@@ -20,7 +20,7 @@ import pyqtgraph as pg
 
 class SubwindowVerticalSliceWidget(QWidget):
     signalAcrossTrackAvgEdited = pyqtSignal(name="acrossTrackAvgEdited")
-    signalProcessingSettingsEdited = pyqtSignal(name="processingSettingsEdited")
+    signalsettingsEdited = pyqtSignal(name="settingsEdited")
 
     def __init__(self, settings, shared_ring_buffer_processed, parent=None):
         super(SubwindowVerticalSliceWidget, self).__init__(parent)
@@ -417,7 +417,7 @@ class SubwindowVerticalSliceWidget(QWidget):
         if self.settings['processing_settings']['acrossTrackAvg_m'] != self.spinboxAcrossTrackAvg.value():
             self.settings['processing_settings']['acrossTrackAvg_m'] = round(self.spinboxAcrossTrackAvg.value(), 2)
             self.acrossTrackAvgEdited.emit()
-            self.processingSettingsEdited.emit()
+            self.settingsEdited.emit()
 
 
 class GUI_PlotItem(pg.PlotItem):

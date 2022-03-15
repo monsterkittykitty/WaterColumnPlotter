@@ -25,7 +25,7 @@ class SharedRingBufferRaw:
         self.full_flag = full_flag  # multiprocessing.Value
         self.create_shmem = create_shmem
 
-        self.amplitude_dtype = np.dtype((np.float16, (self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS)))
+        self.amplitude_dtype = np.dtype((np.float32, (self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS)))
         self.count_dtype = np.dtype((np.uint16, (self.MAX_NUM_GRID_CELLS, self.MAX_NUM_GRID_CELLS)))
         self.timestamp_dtype = np.dtype(np.float64)
         self.lat_lon_dtype = np.dtype((np.float32, 2))
@@ -93,6 +93,7 @@ class SharedRingBufferRaw:
         """
         with self.counter.get_lock():
             self.counter.value = 0
+            self.full_flag.value = False
 
     def append_all(self, amplitude_data, count_data, timestamp_data, lat_lon_data):
         """

@@ -21,7 +21,7 @@ import pyqtgraph as pg
 class SubwindowPieSliceWidget(QWidget):
 
     signalbinSizeEdited = pyqtSignal(name="binSizeEdited")
-    signalProcessingSettingsEdited = pyqtSignal(name="processingSettingsEdited")
+    signalsettingsEdited = pyqtSignal(name="settingsEdited")
 
     def __init__(self, settings, shared_ring_buffer_processed, parent=None):
         super(SubwindowPieSliceWidget, self).__init__(parent)
@@ -349,7 +349,7 @@ class SubwindowPieSliceWidget(QWidget):
         if self.settings['processing_settings']['binSize_m'] != self.spinboxBinSize.value():
             self.settings['processing_settings']['binSize_m'] = round(self.spinboxBinSize.value(), 2)
             self.binSizeEdited.emit()
-            self.processingSettingsEdited.emit()
+            self.settingsEdited.emit()
 
 
 class GUI_PlotItem(pg.PlotItem):

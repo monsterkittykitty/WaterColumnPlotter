@@ -117,9 +117,10 @@ class WaterColumn:
         """
         # with self.process_flag.get_lock():
         #     self.process_flag.value = True
-
+        print("watercolumn, play_processes before, ip: {}".format(self.ip_settings_edited))
         self._playSonarMain()
         self._playPlotterMain()
+        print("watercolumn, play_processes after, ip: {}".format(self.ip_settings_edited))
 
     def _playSonarMain(self):
         """
@@ -337,6 +338,7 @@ class WaterColumn:
         """
         Signals subprocesses managed by sonarMain and plotterMain when settings have been changed.
         """
+        print("WaterColumn, signalSubprocessSettingsChanged")
         if self.sonarMain:
             self.sonarMain.settings_changed(self.ip_settings_edited)
         if self.plotterMain:
@@ -347,6 +349,7 @@ class WaterColumn:
         Called when settings are changed. Updates raw and processed ring buffers.
         Signals to subprocesses that settings have been changed.
         """
+        print("WaterColumn, update_buffers.")
         if self.plotterMain:
             # Get lock on shared_ring_buffer_raw; this will ensure that no other
             # changes can be made to shared_ring_buffer_raw while we make updates
@@ -372,8 +375,15 @@ class WaterColumn:
                     # Recalculate processed ring buffers based on update settings / updated raw ring buffers
                     # Note that this method holds lock on raw buffers for entire calculation and only get lock on
                     # processed buffer for final phase of adding processed data to processed buffer.
+                    print("prior to recalculate, raw ring buffer len: ", self.shared_ring_buffer_raw.get_num_elements_in_buffer())
+                    print("prior to recalculate, processed ring buffer len: ",
+                          self.shared_ring_buffer_processed.get_num_elements_in_buffer())
                     self.plotterMain.plotter.recalculate_processed_buffer(self.shared_ring_buffer_raw,
                                                                           self.shared_ring_buffer_processed)
+                    print("after recalculate, raw ring buffer len: ",
+                          self.shared_ring_buffer_raw.get_num_elements_in_buffer())
+                    print("after recalculate, processed ring buffer len: ",
+                          self.shared_ring_buffer_processed.get_num_elements_in_buffer())
                 # Signal to subprocesses that settings have changed.
                 self.signalSubprocessSettingsChanged()
                 # Reset IP settings edited flag

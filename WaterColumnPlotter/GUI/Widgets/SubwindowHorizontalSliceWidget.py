@@ -22,7 +22,7 @@ class SubwindowHorizontalSliceWidget(QWidget):
 
     signalDepthEdited = pyqtSignal(name="depthEdited")
     signalDepthAvgEdited = pyqtSignal(name="depthAvgEdited")
-    signalProcessingSettingsEdited = pyqtSignal(name="processingSettingsEdited")
+    signalsettingsEdited = pyqtSignal(name="settingsEdited")
 
     def __init__(self, settings, shared_ring_buffer_processed, parent=None):
         super(SubwindowHorizontalSliceWidget, self).__init__(parent)
@@ -364,7 +364,7 @@ class SubwindowHorizontalSliceWidget(QWidget):
         """
         self.depthEditedFunction()
         self.depthAvgEditedFunction()
-        self.processingSettingsEdited.emit()
+        self.settingsEdited.emit()
 
     def depthEditedFunction(self):
         """

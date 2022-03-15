@@ -25,7 +25,7 @@ class SharedRingBufferProcessed:
         self.full_flag = full_flag  # multiprocessing.Value
         self.create_shmem = create_shmem
 
-        self.slice_dtype = np.dtype((np.float16, self.MAX_NUM_GRID_CELLS))
+        self.slice_dtype = np.dtype((np.float32, self.MAX_NUM_GRID_CELLS))
         self.timestamp_dtype = np.dtype(np.float64)
         self.lat_lon_dtype = np.dtype((np.float32, 2))
 
@@ -92,6 +92,11 @@ class SharedRingBufferProcessed:
         """
         with self.counter.get_lock():
             self.counter.value = 0
+            self.full_flag.value = False
+            # with self.full_flag.get_lock():
+            #     print("type(full_flag)", type(full_flag))
+            #     if self.full_flag.value:
+            #         self.full_flag = False
 
     def clear_and_append_all(self, vertical_data, horizontal_data, timestamp_data, lat_lon_data):
         """
@@ -113,9 +118,11 @@ class SharedRingBufferProcessed:
         :param lat_lon_data: Data to be appended to lat_lon_buffer_avg.
         """
         # "This is an O(n) operation."
-
+        print("counter value: ", self.counter.value)
         # Ensure data block to add does not exceed total buffer length; if so, trim
+        print("append_all, vertical_data.shape before: ", len(vertical_data))
         vertical_data = vertical_data[-self.SIZE_BUFFER:]
+        print("append_all, vertical_data.shape after: ", len(vertical_data))
         horizontal_data = horizontal_data[-self.SIZE_BUFFER:]
         timestamp_data = timestamp_data[-self.SIZE_BUFFER:]
         lat_lon_data = lat_lon_data[-self.SIZE_BUFFER:]

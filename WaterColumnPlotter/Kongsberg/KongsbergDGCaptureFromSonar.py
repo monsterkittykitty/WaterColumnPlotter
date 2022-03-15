@@ -78,7 +78,7 @@ class KongsbergDGCaptureFromSonar(Process):
             self.process_flag = mp.Value(ctypes.c_bool, True)
 
         # TODO: Do we need / want a socket timeout?
-        self.SOCKET_TIMEOUT = 10  # Seconds
+        self.SOCKET_TIMEOUT = 60  # Seconds
         self.MAX_DATAGRAM_SIZE = 2 ** 16  # Maximum size of UDP packet
         self.sock_in = self._init_socket()
 
@@ -258,6 +258,7 @@ class KongsbergDGCaptureFromSonar(Process):
 
                 try:
                     data, address = self.sock_in.recvfrom(self.MAX_DATAGRAM_SIZE)
+                    # print("KongsbergDGCaptureFromSonar, data received.")
                 except BlockingIOError:
                     continue
                 except socket.timeout:

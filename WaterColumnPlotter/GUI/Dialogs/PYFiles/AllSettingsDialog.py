@@ -29,7 +29,7 @@ class AllSettingsDialog(QtWidgets.QDialog):
     signalHeaveEdited = pyqtSignal(name="heaveEdited")
     signalGridCellsEdited = pyqtSignal(name="gridCellsEdited")
     signalPingBufferEdited = pyqtSignal(name="pingBufferEdited")
-    signalProcessingSettingsEdited = pyqtSignal(name="processingSettingsEdited")
+    signalsettingsEdited = pyqtSignal(name="settingsEdited")
 
     def __init__(self, settings, parent=None):
         super(AllSettingsDialog, self).__init__(parent)
@@ -177,7 +177,7 @@ class AllSettingsDialog(QtWidgets.QDialog):
                                               .format(self.settings['ip_settings']['ip']))
 
         # If port value has changed:
-        if self.settings['ip_settings']['port'] != loadSettings['ip_settings']['port']:
+        if self.settings['ip_settings']['port'] != int(loadSettings['ip_settings']['port']):
             try:
                 self.settings['ip_settings']['port'] = int(loadSettings['ip_settings']['port'])
                 self.ui.lineEditPort.setText(str(self.settings['ip_settings']['port']))
@@ -200,9 +200,9 @@ class AllSettingsDialog(QtWidgets.QDialog):
 
         # If socket buffer multiplier has changed:
         if self.settings['ip_settings']['socketBufferMultiplier'] != \
-                loadSettings['ip_settings']['socketBufferMultiplier']:
+                int(loadSettings['ip_settings']['socketBufferMultiplier']):
             self.settings['ip_settings']['socketBufferMultiplier'] = \
-                loadSettings['ip_settings']['socketBufferMultiplier']
+                int(loadSettings['ip_settings']['socketBufferMultiplier'])
             self.ui.spinBoxSocketBuffer.setValue(self.settings['ip_settings']['socketBufferMultiplier'])
             socketBufferEdited = True
 
@@ -285,7 +285,6 @@ class AllSettingsDialog(QtWidgets.QDialog):
         """
         Assigns values in settings dialog to self.settings; emits signals for changed fields.
         """
-
         systemEdited = False
         ipEdited = False
         portEdited = False
@@ -328,8 +327,8 @@ class AllSettingsDialog(QtWidgets.QDialog):
         if self.settings['ip_settings']['ip'] != self.ui.lineEditIP.text():
             try:
                 # Check for valid IP address:
-                ipaddress.ip_address(self.lineEditIP.text())
-                self.settings['ip_settings']['ip'] = self.lineEditIP.text()
+                ipaddress.ip_address(self.ui.lineEditIP.text())
+                self.settings['ip_settings']['ip'] = self.ui.lineEditIP.text()
                 ipEdited = True
             except ValueError:
                 # (NOTE: This should be avoided with preventative validation.)
@@ -341,9 +340,9 @@ class AllSettingsDialog(QtWidgets.QDialog):
                 return False
 
         # If port value has changed:
-        if self.settings['ip_settings']['port'] != self.ui.lineEditPort.text():
+        if self.settings['ip_settings']['port'] != int(self.ui.lineEditPort.text()):
             try:
-                self.settings['ip_settings']['port'] = int(self.lineEditPort.text())
+                self.settings['ip_settings']['port'] = int(self.ui.lineEditPort.text())
                 portEdited = True
             except ValueError:
                 # (NOTE: This should be avoided with preventative validation.)
@@ -470,8 +469,8 @@ class AllSettingsDialog(QtWidgets.QDialog):
         if pingBufferEdited:
             self.pingBufferEdited.emit()
 
-        # If any settings edited, emit processingSettingsEdited signal
+        # If any settings edited, emit settingsEdited signal
         if systemEdited or ipEdited or portEdited or protocolEdited or socketBufferEdited or \
                 binSizeEdited or acrossTrackAvgEdited or depthEdited or depthAvgEdited or \
                 alongTrackAvgEdited or heaveEdited or gridCellsEdited or pingBufferEdited:
-            self.processingSettingsEdited.emit()
+            self.settingsEdited.emit()
