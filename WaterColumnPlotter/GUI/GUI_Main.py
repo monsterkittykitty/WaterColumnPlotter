@@ -211,9 +211,9 @@ class MainWindow(QMainWindow):
         """
         Updates protocol settings.
         """
-        print("protocol_edited")
+        print("protocol_edited: ", self.settings['ip_settings']['protocol'][0])
         with self.waterColumn.protocol.get_lock():
-            self.waterColumn.protocol.value = self.settings['ip_settings']['protocol']
+            self.waterColumn.protocol.value = self.settings['ip_settings']['protocol'][0]
 
         if self.waterColumn.sonarMain:
             self.waterColumn.ip_settings_edited = True
