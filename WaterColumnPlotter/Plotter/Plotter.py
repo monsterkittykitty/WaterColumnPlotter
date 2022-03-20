@@ -272,10 +272,12 @@ class Plotter(Process):
                             # been adjusted. We only need to monitor queue_pie_object for outdated pie_objects
                             # and adjust them accordingly.
                             if self.max_heave_edited:
+                                print("####################In plotter, max_heave_edited is True.")
                                 if round(pie_object.max_heave, 2) != round(self.max_heave_local, 2):
                                     self.shift_heave(pie_object.pie_chart_amplitudes, pie_object.pie_chart_counts,
                                                      pie_object.max_heave, self.max_heave_local)
                                 else:
+                                    print("####################In plotter, max_heave_edited is False.")
                                     self.max_heave_edited = False
 
                             # If self.along_track_avg_edited is True, processed ring buffer will have already been

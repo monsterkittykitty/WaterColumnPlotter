@@ -199,6 +199,7 @@ class SubwindowHorizontalSliceWidget(QWidget):
         :param shared_ring_buffer_processed: An instance of SharedRingBufferProcessed
         """
         self.shared_ring_buffer_processed = shared_ring_buffer_processed
+        self.plot.set_ring_buffer_processed_length(self.shared_ring_buffer_processed.SIZE_BUFFER)
 
     def mouseMoved(self, pos):
         """
@@ -388,6 +389,10 @@ class GUI_PlotItem(pg.PlotItem):
         super(GUI_PlotItem, self).__init__(parent)
 
         self.settings = settings
+        self.ring_buffer_processed_length = None
+
+    def set_ring_buffer_processed_length(self, ring_buffer_processed_length):
+        self.ring_buffer_processed_length = ring_buffer_processed_length
 
     def autoBtnClicked(self):
         """
@@ -398,8 +403,12 @@ class GUI_PlotItem(pg.PlotItem):
         self.vb.state['aspectLocked'] = False
 
         self.enableAutoRange()
-        self.setXRange(-(self.settings['buffer_settings']['maxBufferSize_ping'] /
-                         self.settings['processing_settings']['alongTrackAvg_ping']), 0)
+
+        if self.ring_buffer_processed_length:
+            self.setXRange(-self.ring_buffer_processed_length, 0)
+        else:
+            self.setXRange(-(self.settings['buffer_settings']['maxBufferSize_ping'] /
+                             self.settings['processing_settings']['alongTrackAvg_ping']), 0)
         # self.setYRange(self.settings['buffer_settings']['maxGridCells'], 0)
 
         self.autoBtn.hide()

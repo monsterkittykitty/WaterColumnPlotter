@@ -363,7 +363,7 @@ class WaterColumn:
                     self.plotterMain.plotter.bin_size_edited = False
                 else:
                     if self.plotterMain.plotter.max_heave_edited:
-
+                        print("**************************************************MAX HEAVE EDITED")
                         # Note that we already hold lock on shared_ring_buffer_raw
                         temp_amplitude_buffer_raw = self.shared_ring_buffer_raw.view_buffer_elements(
                             self.shared_ring_buffer_raw.amplitude_buffer)
@@ -372,6 +372,8 @@ class WaterColumn:
                         self.plotterMain.plotter.shift_heave(temp_amplitude_buffer_raw, temp_count_buffer_raw,
                                                              self.plotterMain.plotter.outdated_heave,
                                                              self.plotterMain.plotter.max_heave_local)
+                        self.plotterMain.plotter.max_heave_edited = False
+
                     # Recalculate processed ring buffers based on update settings / updated raw ring buffers
                     # Note that this method holds lock on raw buffers for entire calculation and only get lock on
                     # processed buffer for final phase of adding processed data to processed buffer.

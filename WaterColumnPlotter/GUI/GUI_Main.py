@@ -28,7 +28,7 @@ class MainWindow(QMainWindow):
 
         # Default settings:
         self.settings = {'system_settings': {'system': "Kongsberg"},
-                         'ip_settings': {'ip': '127.0.0.1', 'port': 8080, 'protocol': "UDP",
+                         'ip_settings': {'ip': '225.255.255.255', 'port': 6020, 'protocol': "Multicast",
                                          'socketBufferMultiplier': 4},
                          'processing_settings': {'binSize_m': 0.20, 'acrossTrackAvg_m': 10, 'depth_m': 2,
                                                  'depthAvg_m': 2, 'alongTrackAvg_ping': 5, 'maxHeave_m': 2.5},
