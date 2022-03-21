@@ -48,8 +48,8 @@ class SubwindowHorizontalSliceWidget(QWidget):
 
         # Adding axis labels based on:
         # https://stackoverflow.com/questions/58516639/add-axes-labels-and-title-to-pyqtgraph-imageview
-        self.plot.setLabel(axis='left', text='Across-Track')
-        self.plot.setLabel(axis='bottom', text='Pings')
+        self.plot.setLabel(axis='left', text='Across-Track (bins)')
+        self.plot.setLabel(axis='bottom', text='Pings (/ Along-Track Avg)')
 
         # Crosshair - behind image
         self.vLine = pg.InfiniteLine(angle=90, movable=False)

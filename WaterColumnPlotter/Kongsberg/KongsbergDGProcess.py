@@ -8,6 +8,7 @@
 # Reads data from #MWC records, bins water column data, creates standard format pie records,
 # and adds this record to a shared multiprocessing.Queue for use by the next process.
 
+import datetime
 import io
 import logging
 from multiprocessing import Process, Value
@@ -124,8 +125,18 @@ class KongsbergDGProcess(Process):
 
         elif header['dgmType'] == b'#MWC':
             # self.mwc = dg_bytes
+
+            # For debugging:
+            print("dgm_timestamp: ", header['dgdatetime'])
+
+            # For debugging:
+            start = datetime.datetime.now()
+
             pie_object = self.process_MWC(header, bytes_io)
             self.queue_pie_object.put(pie_object)
+
+            end = datetime.datetime.now()
+            print("Time to process one MWC: ", (end - start))
 
         elif header['dgmType'] == b'#SKM':
             # self.skm = dg_bytes
@@ -198,6 +209,10 @@ class KongsbergDGProcess(Process):
 
             # Detected range indicates bottom-detect point (zero bottom not detected)
             detected_range_np = np.array(dg['beamData']['detectedRangeInSamples'])
+
+            # For debugging:
+            print("detected_range_np.shape: ", detected_range_np.shape)
+
             # Compute average for non-zero values:
             average_detected_range_for_swath = np.average(detected_range_np[detected_range_np > 0])
             # Replace zero values (no bottom detect) with average value:
@@ -206,15 +221,29 @@ class KongsbergDGProcess(Process):
             # Create an array from 0 to max(detected_range_np), with a step size of 1
             # Tile above array num_beams number of times
             range_indices_np = np.tile(np.arange(0, (np.max(detected_range_np) + 1), 1), (num_beams, 1))
+
+            # For debugging:
+            print("range_indices_np.shape, before: ", range_indices_np.shape)
+
             # Mask values beyond actual reported detected range for any given beam
             # Based on: https://stackoverflow.com/questions/67978532/
             # how-to-mask-rows-of-a-2d-numpy-matrix-by-values-in-1d-list
             # And: https://stackoverflow.com/questions/29046162/numpy-array-loss-of-dimension-when-masking
             range_indices_np = np.where(range_indices_np <= detected_range_np[:, None], range_indices_np, np.nan)
 
+            # For debugging:
+            print("range_indices_np.shape, after: ", range_indices_np.shape)
+
             # Calculate range (distance) to every point from 0 to detected range:
             range_to_wc_data_point_np = (sound_speed * range_indices_np) / (sample_freq * 2)
 
+            # For debugging:
+            print("tilt_angle_re_vertical_deg.shape:", tilt_angle_re_vertical_deg.shape)
+            # print(tilt_angle_re_vertical_deg)
+            print("beam_point_angle_re_vertical_np.shape:", beam_point_angle_re_vertical_np.shape)
+            # print(beam_point_angle_re_vertical_np)
+
+            # Convert from spherical to cartesian coordinates
             kongs_x_np = range_to_wc_data_point_np * \
                          (np.sin(np.radians(tilt_angle_re_vertical_deg)))[:, np.newaxis]
             kongs_y_np = range_to_wc_data_point_np * \
@@ -222,6 +251,11 @@ class KongsbergDGProcess(Process):
             kongs_z_np = range_to_wc_data_point_np * \
                          (np.cos(np.radians(tilt_angle_re_vertical_deg)))[:, np.newaxis] * \
                          (np.cos(np.radians(beam_point_angle_re_vertical_np)))[:, np.newaxis] + heave
+
+            # For debugging:
+            print("kongs_x_np.shape:", kongs_x_np.shape)
+            print("kongs_y_np.shape:", kongs_z_np.shape)
+            print("kongs_y_np.shape:", kongs_z_np.shape)
 
             # Note: For x and y, we need "(self.max_grid_cells_local / 2)" to 'normalize position'--otherwise, negative
             # indices insert values at the end of the array (think negative indexing into array).
@@ -234,6 +268,9 @@ class KongsbergDGProcess(Process):
             # We only need x bin index for bottom strike points (the last value in the np array).
             # (Though, I'm not sure we need the x bin index at all, given that we have actual positions (kongs_x_np).)
 
+            # Convert from cartesian coordinates to bin index
+
+            # Use only final index (-1) for x-dimension bottom strike point
             bin_index_x_np = np.floor(kongs_x_np[-1] / round(self.bin_size_local, 2)) + \
                              int(self.max_grid_cells_local / 2)
             bin_index_y_np = np.floor(kongs_y_np / round(self.bin_size_local, 2)) + \
@@ -241,10 +278,25 @@ class KongsbergDGProcess(Process):
             bin_index_z_np = np.floor(kongs_z_np / self.bin_size_local) + \
                              int(round(self.max_heave_local, 2) / round(self.bin_size_local, 2))
 
+            # For debugging:
+            print("bin_index_x_np.shape:", bin_index_x_np.shape)
+            print("bin_index_y_np.shape:", bin_index_y_np.shape)
+            print(bin_index_y_np)
+            print("bin_index_z_np.shape:", bin_index_z_np.shape)
+            print(bin_index_z_np)
+
             # Mask indices that fall outside of accepted values: 0 to (MAX_NUM_GRID_CELLS - 1)
             # Mask will read False for values outside of range, True for values inside range
             mask_index_y = np.ma.masked_inside(bin_index_y_np, 0, (self.max_grid_cells_local - 1))
             mask_index_z = np.ma.masked_inside(bin_index_z_np, 0, (self.max_grid_cells_local - 1))
+
+            # For debugging:
+            print("mask_index_y.shape:", mask_index_y.shape)
+            print("mask_index_y number nonzero values:", np.count_nonzero(mask_index_y) - len(np.isnan(mask_index_y)))
+            # print(mask_index_y)
+            print("mask_index_z.shape:", mask_index_z.shape)
+            print("mask_index_z number nonzero values:", np.count_nonzero(mask_index_z) - len(np.isnan(mask_index_z)))
+            # print(mask_index_z)
 
             # Error checking and warning if data will be lost:
             # if len(bin_index_y_np[~mask_index_y.mask]) > 0:  # This doesn't work because NaNs are masked.
@@ -275,6 +327,10 @@ class KongsbergDGProcess(Process):
             # Pie chart will be approximated as a 2-dimensional y, z grid.
             # Combine y, z indices, convert from float to int:
             y_z_indices = np.vstack((bin_index_z_np[mask_index_y_z], bin_index_y_np[mask_index_y_z])).astype(int)
+
+            # For debugging:
+            if len(y_z_indices.shape) == 3:
+                print("hi")
 
             # amplitude_np = (np.array(dg['beamData']['sampleAmplitude05dB_p']) * 0.5) - tvg_offset_db
             # NOTE: This method results in two errors:

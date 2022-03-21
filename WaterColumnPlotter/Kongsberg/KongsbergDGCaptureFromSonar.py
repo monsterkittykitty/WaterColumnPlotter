@@ -17,6 +17,7 @@
 
 import argparse
 import ctypes
+import datetime
 import io
 import logging
 from multiprocessing import Process
@@ -78,7 +79,7 @@ class KongsbergDGCaptureFromSonar(Process):
             self.process_flag = mp.Value(ctypes.c_bool, True)
 
         # TODO: Do we need / want a socket timeout?
-        self.SOCKET_TIMEOUT = 60  # Seconds
+        # self.SOCKET_TIMEOUT = 60  # Seconds
         self.MAX_DATAGRAM_SIZE = 2 ** 16  # Maximum size of UDP packet
         self.sock_in = self._init_socket()
 
@@ -154,7 +155,7 @@ class KongsbergDGCaptureFromSonar(Process):
             raise RuntimeError("Connection type must be 'TCP', 'UDP', or 'Multicast'.")
 
         # TODO: Do we need / want a socket timeout?
-        temp_sock.settimeout(self.SOCKET_TIMEOUT)
+        # temp_sock.settimeout(self.SOCKET_TIMEOUT)
         return temp_sock
 
     def _init_buffer(self):
@@ -273,9 +274,9 @@ class KongsbergDGCaptureFromSonar(Process):
                     if header['dgmType'] == b'#MRZ' or header['dgmType'] == b'#MWC':  # Datagrams may be partitioned
 
                         # For debugging:
-                        # if header['dgmType'] == b'#MWC':
-                        #     mwc_counter += 1
-                        #     print("dgm_timestamp: ", header['dgdatetime'], "mwc_counter: ", mwc_counter)
+                        if header['dgmType'] == b'#MWC':
+                            print("mwc rxed")
+                        #     print("dgm_timestamp: ", header['dgdatetime'])
 
                         partition = k.read_EMdgmMpartition(bytes_io, header['dgmType'], header['dgmVersion'])
 
@@ -339,6 +340,9 @@ class KongsbergDGCaptureFromSonar(Process):
                                             self.buffer['dgmVersion'][timestamp_index],
                                             self.buffer['data'][timestamp_index])
 
+                                        # For debugging:
+                                        # print(datetime.datetime.utcfromtimestamp(self.buffer['dgTime'][timestamp_index]))
+
                                         self.queue_datagram.put(data_reconstruct)
                                         with self.full_ping_count.get_lock():
                                             self.full_ping_count.value += 1
@@ -376,6 +380,9 @@ class KongsbergDGCaptureFromSonar(Process):
                                                 self.buffer['dgmType'][timestamp_index],
                                                 self.buffer['dgmVersion'][timestamp_index],
                                                 self.buffer['data'][timestamp_index])
+
+                                            # For debugging:
+                                            # print(datetime.datetime.utcfromtimestamp(self.buffer['dgTime'][timestamp_index]))
 
                                             self.queue_datagram.put(data_reconstruct)
                                             with self.full_ping_count.get_lock():
