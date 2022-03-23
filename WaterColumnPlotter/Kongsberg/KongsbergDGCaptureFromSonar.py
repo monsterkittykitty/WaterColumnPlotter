@@ -27,6 +27,8 @@ import struct
 import sys
 from WaterColumnPlotter.Kongsberg.KmallReaderForMDatagrams import KmallReaderForMDatagrams as k
 
+__appname__ = "Water Column Capture"
+
 logger = logging.getLogger(__name__)
 
 
@@ -138,6 +140,7 @@ class KongsbergDGCaptureFromSonar(Process):
             temp_sock.bind((self.ip_local, self.port_local))
 
         elif self.protocol_local == "M":  # Multicast
+            print("Initializing multicast socket")
             temp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
             # Allow reuse of addresses
             temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -256,6 +259,8 @@ class KongsbergDGCaptureFromSonar(Process):
                         self.sock_in.close()
                         self.sock_in = self._init_socket()
                         self.settings_edited.value = False
+
+                print("Listening for data")
 
                 try:
                     data, address = self.sock_in.recvfrom(self.MAX_DATAGRAM_SIZE)

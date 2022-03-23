@@ -12,11 +12,14 @@ import datetime
 import io
 import logging
 from multiprocessing import Process, Value
+from numba import jit
 import numpy as np
 import struct
 import queue
 from WaterColumnPlotter.Kongsberg.KmallReaderForMDatagrams import KmallReaderForMDatagrams as k
 from WaterColumnPlotter.Plotter.PieStandardFormat import PieStandardFormat
+
+__appname__ = "Water Column Process"
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +154,7 @@ class KongsbergDGProcess(Process):
         """
         pass
 
+    @jit(nopython=True)
     def process_MWC(self, header, bytes_io):
         """
         Process #MWC datagram. Bins water column data, creates standard format pie records.
@@ -167,7 +171,8 @@ class KongsbergDGProcess(Process):
 
         # If #MWC record is 'empty' (did not receive all partitions):
         if header['numBytesDgm'] == length_to_strip:
-            # print("Processing empty datagram.")
+            # For debugging:
+            print("Processing empty datagram.")
 
             pie_chart_amplitudes = np.zeros(shape=(self.max_grid_cells_local, self.max_grid_cells_local))
             pie_chart_counts = np.zeros(shape=(self.max_grid_cells_local, self.max_grid_cells_local))
@@ -212,6 +217,16 @@ class KongsbergDGProcess(Process):
 
             # For debugging:
             print("detected_range_np.shape: ", detected_range_np.shape)
+
+            # TODO: Move this error check up.
+            if not np.any(detected_range_np):
+                pie_chart_amplitudes = np.zeros(shape=(self.max_grid_cells_local, self.max_grid_cells_local))
+                pie_chart_counts = np.zeros(shape=(self.max_grid_cells_local, self.max_grid_cells_local))
+
+                # Create an 'empty' PieStandardFormat record
+                pie_object = PieStandardFormat(self.bin_size_local, self.max_heave_local,
+                                               pie_chart_amplitudes, pie_chart_counts, header['dgTime'])
+                return pie_object
 
             # Compute average for non-zero values:
             average_detected_range_for_swath = np.average(detected_range_np[detected_range_np > 0])
