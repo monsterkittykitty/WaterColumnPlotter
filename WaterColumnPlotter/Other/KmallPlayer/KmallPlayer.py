@@ -334,6 +334,8 @@ class KmallPlayer:
             k = KMALL.kmall(file)
             k.index_file()
 
+            print(k.Index.loc[k.Index['MessageType'] == "b'#MWC'"])
+
             # Calculate scheduled delay and play time for each datagram:
             self.calculate_dgm_schedule(k.Index)
 

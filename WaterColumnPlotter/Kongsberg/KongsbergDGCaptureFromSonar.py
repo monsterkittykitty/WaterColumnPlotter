@@ -16,6 +16,7 @@
 #  into its own method, so it can be used when writing to a file.
 
 import argparse
+import cProfile
 import ctypes
 import datetime
 import io
@@ -96,6 +97,10 @@ class KongsbergDGCaptureFromSonar(Process):
         # Buffer to accomodate pings with partial data prior to reconstruction
         self.buffer = self._init_buffer()
 
+        # For debugging
+        self.start_time = None
+        self.data_counter = 0
+
     def update_local_settings(self):
         """
         At object initialization, this method initializes local copies of shared variables;
@@ -159,6 +164,11 @@ class KongsbergDGCaptureFromSonar(Process):
 
         # TODO: Do we need / want a socket timeout?
         # temp_sock.settimeout(self.SOCKET_TIMEOUT)
+
+        # Nonblocking experiment
+        # This results in a ton of lost packets. :(
+        # temp_sock.setblocking(False)
+
         return temp_sock
 
     def _init_buffer(self):
@@ -283,7 +293,18 @@ class KongsbergDGCaptureFromSonar(Process):
                             print("mwc rxed")
                         #     print("dgm_timestamp: ", header['dgdatetime'])
 
+                            if self.start_time is None:
+                                self.start_time = datetime.datetime.now()
+                            elif (datetime.datetime.now() - self.start_time).seconds >= 1:
+                                self.start_time = datetime.datetime.now()
+                                print("KongsbergDGCapture, #MWC data rate (bytes / second):", self.data_counter)
+                                self.data_counter = 0
+                            self.data_counter += header['numBytesDgm']
+
                         partition = k.read_EMdgmMpartition(bytes_io, header['dgmType'], header['dgmVersion'])
+
+                        # For debugging:
+                        print("KongsbergDGCapture, number of partitions:", partition['numOfDgms'])
 
                         if partition['numOfDgms'] == 1:  # Only one datagram; no need to reconstruct
                             self.queue_datagram.put(data)
@@ -514,7 +535,7 @@ class KongsbergDGCaptureFromSonar(Process):
                              .format(local_process_flag_value))
                 break  # Exit loop
 
-        # print("Closing socket.")  # For debugging
+        print("Closing socket.")  # For debugging
         self.sock_in.close()
 
     def flush_buffer(self):
@@ -721,7 +742,9 @@ class KongsbergDGCaptureFromSonar(Process):
         otherwise, writes raw binary data to file.
         """
         if self.queue_datagram:
-            self.receive_dg_and_queue()
+            # Profiler for performance testing:
+            cProfile.runctx('self.receive_dg_and_queue()', globals(), locals(), '../../Profile/profile-Capture.txt')
+            # self.receive_dg_and_queue()
         else:
             self.receive_dg_and_write_raw()
 

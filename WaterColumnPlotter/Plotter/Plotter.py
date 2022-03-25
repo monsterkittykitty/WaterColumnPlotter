@@ -7,6 +7,7 @@
 # Description: Receives standard format pie records from shared multiprocessing.Queue;
 # performs along-track, across-track, and depth slicing and averaging as specified by user settings.
 
+import cProfile
 import logging
 import math
 from multiprocessing import Process
@@ -23,6 +24,8 @@ class Plotter(Process):
                  settings_edited, queue_pie_object, raw_buffer_count, processed_buffer_count,
                  raw_buffer_full_flag, processed_buffer_full_flag, process_flag):
         super().__init__()
+
+        print("Initializing Plotter.")
 
         self.settings = settings
 
@@ -713,4 +716,6 @@ class Plotter(Process):
         self.shared_ring_buffer_processed = SharedRingBufferProcessed(self.settings, self.processed_buffer_count,
                                                          self.processed_buffer_full_flag, create_shmem=False)
 
-        self.get_and_buffer_pie()
+        # Profiler for performance testing:
+        cProfile.runctx('self.get_and_buffer_pie()', globals(), locals(), '../../Profile/profile-Plotter.txt')
+        # self.get_and_buffer_pie()

@@ -8,6 +8,7 @@
 # https://stackoverflow.com/questions/8908998/ring-buffer-with-numpy-ctypes
 
 from multiprocessing import shared_memory
+from numba import jit
 import numpy as np
 
 
@@ -177,14 +178,22 @@ class SharedRingBufferRaw:
             temp_cnt = self.view_recent_pings(self.count_buffer, pings)
 
             # "Collapse" arrays by adding every self.num_pings_to_average so that
-            temp_amp = np.sum(temp_amp, axis=0)
-            temp_cnt = np.sum(temp_cnt, axis=0)
+            # temp_amp = np.sum(temp_amp, axis=0)
+            # temp_cnt = np.sum(temp_cnt, axis=0)
+            temp_amp, temp_cnt = self.sum(temp_amp, temp_cnt)
 
             # Ignore divide by zero warnings. Division by zero results in NaN, which is what we want.
             with np.errstate(divide='ignore', invalid='ignore'):
                 temp_avg = temp_amp / temp_cnt
 
             return temp_avg
+
+    @staticmethod
+    @jit(nopython=True)
+    def sum(temp_amp, temp_cnt):
+        temp_amp = np.sum(temp_amp, axis=0)
+        temp_cnt = np.sum(temp_cnt, axis=0)
+        return temp_amp, temp_cnt
 
     def compact_all(self):
         """

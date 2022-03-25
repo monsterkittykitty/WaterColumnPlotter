@@ -117,10 +117,8 @@ class WaterColumn:
         """
         # with self.process_flag.get_lock():
         #     self.process_flag.value = True
-        print("watercolumn, play_processes before, ip: {}".format(self.ip_settings_edited))
         self._playSonarMain()
         self._playPlotterMain()
-        print("watercolumn, play_processes after, ip: {}".format(self.ip_settings_edited))
 
     def _playSonarMain(self):
         """
@@ -218,10 +216,15 @@ class WaterColumn:
         :return: A numpy matrix of average amplitude values for the most recent along_track_avg number of pings
         in raw ring buffer if at least one valid entry exists; otherwise, returns None.
         """
+        # TODO: Experiment with replacing this with version below
         with self.raw_buffer_count.get_lock():
             # This pulls most recent alongTrackAvg_ping from 'raw' buffer:
             pie = self.shared_ring_buffer_raw.view_recent_pings_as_pie(
                 self.settings['processing_settings']['alongTrackAvg_ping'])
+
+
+
+        # pie = self.shared_ring_buffer_raw.view_recent_pings_as_pie(1)
         # Check that temp arrays are not all NaNs (from 'discarded' pings)
         if not np.all(np.isnan(pie)):
             return self._trim_nans_pie(pie)
@@ -273,6 +276,8 @@ class WaterColumn:
         index_port = max((index_port - 10), 0)
         index_stbd = min((index_stbd + 10), self.MAX_NUM_GRID_CELLS)
 
+        print("Index Depth: {}; Index Port: {}; Index Stbd: {}".format(index_depth, index_port, index_stbd))
+
         # Simplify trimming to trim the same amount from both port and stbd sides
         index_across_track = min(index_port, (self.MAX_NUM_GRID_CELLS - index_stbd))
 
@@ -281,7 +286,12 @@ class WaterColumn:
         # x_zero = int(slice.shape[0] / 2) - index_port
         # return slice[:index_depth, index_port:index_stbd], x_zero
 
-        return slice[:index_depth, index_across_track:-index_across_track]
+        if index_across_track != 0:
+            return slice[:index_depth, index_across_track:-index_across_track]
+
+        # When index_across_track is 0, slice along second dimension of array is 0:-0 or 0:0, this trims everything!
+        # Do not slice along second dimension when index_across_track is 0.
+        return slice[:index_depth, :]
 
     def _trim_nans_vertical(self, slice):
         """

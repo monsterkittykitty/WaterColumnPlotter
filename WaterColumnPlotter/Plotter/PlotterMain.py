@@ -19,6 +19,8 @@ class PlotterMain:
                  queue_pie_object, raw_buffer_count, processed_buffer_count, raw_buffer_full_flag,
                  processed_buffer_full_flag):
 
+        print("Initializing PlotterMain.")
+
         self.settings = settings
 
         self.bin_size = bin_size  # multiprocessing.Value
