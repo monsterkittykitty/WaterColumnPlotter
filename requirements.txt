@@ -1,0 +1,5 @@
+setuptools~=49.2.1
+PyQt5~=5.15.4
+pyqtgraph~=0.12.4
+numpy~=1.21.0
+numba~=0.55.1
