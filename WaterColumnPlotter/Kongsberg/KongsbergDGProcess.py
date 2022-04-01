@@ -191,7 +191,7 @@ class KongsbergDGProcess(Process):
 
         # Full datagram (all partitions received):
         else:
-            dg = k.read_EMdgmMWC(bytes_io)
+            dg = k.read_EMdgmMWC(bytes_io, return_numpy=True)
 
             # TxInfo fields:
             heave = dg['txInfo']['heave_m']
@@ -209,7 +209,13 @@ class KongsbergDGProcess(Process):
 
             # BeamData fields:
             # Across-track beam angle array:
-            beam_point_angle_re_vertical_np = np.array(dg['beamData']['beamPointAngReVertical_deg'])
+            # beam_point_angle_re_vertical_np = np.array(dg['beamData']['beamPointAngReVertical_deg'])
+            # This way of converting lists to python arrays is faster!
+            beam_point_angle_re_vertical_np = np.empty(shape=len(dg['beamData']['beamPointAngReVertical_deg']),
+                                                       dtype=np.float32)
+            beam_point_angle_re_vertical_np[:] = dg['beamData']['beamPointAngReVertical_deg']
+
+
             # TODO: Calculate sin / cos first, then extend array?
             # Along-track beam angle array:
             sector_tilt_angle_re_tx_deg_np = np.array([tilt_angle_re_tx_deg_3_sectors[i] for i
@@ -221,7 +227,10 @@ class KongsbergDGProcess(Process):
             tilt_angle_re_vertical_deg = sector_tilt_angle_re_tx_deg_np
 
             # Detected range indicates bottom-detect point (zero bottom not detected)
-            detected_range_np = np.array(dg['beamData']['detectedRangeInSamples'])
+            # detected_range_np = np.array(dg['beamData']['detectedRangeInSamples'])
+            # This way of converting lists to python arrays is faster!
+            detected_range_np = np.empty(shape=len(dg['beamData']['detectedRangeInSamples']), dtype=np.uint16)
+            detected_range_np[:] = dg['beamData']['detectedRangeInSamples']
 
             sample_amplitude = dg['beamData']['sampleAmplitude05dB_p']
 

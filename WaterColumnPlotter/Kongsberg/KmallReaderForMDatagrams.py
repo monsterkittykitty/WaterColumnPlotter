@@ -9,8 +9,10 @@
 
 import datetime
 import logging
+import numpy as np
 import struct
 import sys
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -950,7 +952,7 @@ class KmallReaderForMDatagrams:
             sys.exit(1)
 
     @staticmethod
-    def read_EMdgmMWC_rxBeamData(file_io, dgm_version, return_format=False, return_fields=False):
+    def read_EMdgmMWC_rxBeamData(file_io, dgm_version, return_format=False, return_fields=False, return_numpy=False):
         """
         Read #MWC - data block 2: receiver, specific info for each beam.
         :param file_io: File or Bytes_IO object to be read.
@@ -976,6 +978,11 @@ class KmallReaderForMDatagrams:
             logger.warning("Datagram version {} unsupported.".format(dgm_version))
             sys.exit(1)
 
+        # if return_numpy:
+        #     beamPointAngReVertical_deg_format = "1f"
+        #     beamPointAngReVertical_deg = np.frombuffer(file_io.read(struct.calcsize(beamPointAngReVertical_deg_format)),
+        #                                                dtype='<f4', count=1)
+
         fields_a = struct.unpack(format_to_unpack_a, file_io.read(struct.Struct(format_to_unpack_a).size))
 
         format_to_unpack_b = str(fields_a[4]) + "b"
@@ -983,6 +990,17 @@ class KmallReaderForMDatagrams:
         if return_format:
             return format_to_unpack_a + format_to_unpack_b
 
+
+        # TODO: Numpy experiment:
+        # if return_numpy:
+        #     # Is the file_io.read here going to be inefficient?
+        #     # We basically start with binarry data from sonar, convert it to a file-like object with
+        #     # io.BytesIO(data), then convert it back to binary with read() command...
+        #     fields_b = np.frombuffer(file_io.read(struct.calcsize(format_to_unpack_b)),
+        #                                 dtype='|i1', count=fields_a[4])
+        #     print("Buffer test: ", fields_b)
+
+        # else:
         # Pointer to start of array with Water Column data. Length of array = numSampleData.
         # Sample amplitudes in 0.5 dB resolution. Size of array is numSampleData * int8_t.
         # Amplitude array is followed by phase information if phaseFlag >0.
@@ -1086,7 +1104,7 @@ class KmallReaderForMDatagrams:
         return dg
 
     @classmethod
-    def read_EMdgmMWC(cls, file_io, return_format=False, return_fields=False):
+    def read_EMdgmMWC(cls, file_io, return_format=False, return_fields=False, return_numpy=False):
         """
         Read full #MWC - Multibeam Water Column Datagram. Entire datagram containing several sub structs.
         :param file_io: File or Bytes_IO object to be read.
@@ -1129,7 +1147,9 @@ class KmallReaderForMDatagrams:
         rxBeamData = []
         rxPhaseInfo = []
         for idx in range(dg['rxInfo']['numBeams']):
-            rxBeamData.append(cls.read_EMdgmMWC_rxBeamData(file_io, dgm_version=dg['header']['dgmVersion']))
+            rxBeamData.append(cls.read_EMdgmMWC_rxBeamData(file_io,
+                                                           dgm_version=dg['header']['dgmVersion'],
+                                                           return_numpy=return_numpy))
 
             if dg['rxInfo']['phaseFlag'] == 0:
                 pass
@@ -1172,12 +1192,21 @@ class KmallReaderForMDatagrams:
         :param listofdicts: A list of dictionaries to be converted to a dictionary of lists.
         """
         if listofdicts:
+
+            # For debugging:
+            # start = time.time() * 1000
+
             needs_flattening = [k for (k, v) in listofdicts[0].items() if isinstance(v, list)]
             d_of_l = {k: [dic[k] for dic in listofdicts] for k in listofdicts[0]}
             if needs_flattening:
                 # print('flattening {}'.format(needs_flattening))
                 for nf in needs_flattening:
                     d_of_l[nf] = [item for sublist in d_of_l[nf] for item in sublist]
+
+            # For debugging:
+            # end = time.time() * 1000
+            # print("Time for List of Dicts Conversion: ", (end-start))  # Time is always less than 1 ms
+
             return d_of_l
         else:
             return None
