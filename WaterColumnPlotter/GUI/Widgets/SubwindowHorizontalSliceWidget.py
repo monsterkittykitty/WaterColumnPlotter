@@ -112,7 +112,7 @@ class SubwindowHorizontalSliceWidget(QWidget):
         top_row_layout.addWidget(self.spinboxDepth)
 
         # Depth average settings
-        labelDepthAvg = QLabel("Depth Average (m):")
+        labelDepthAvg = QLabel("Depth Avg (m):")
         top_row_layout.addWidget(labelDepthAvg)
 
         self.spinboxDepthAvg = QDoubleSpinBox()

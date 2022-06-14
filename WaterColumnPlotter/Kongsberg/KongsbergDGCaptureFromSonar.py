@@ -570,6 +570,8 @@ class KongsbergDGCaptureFromSonar(Process):
                       .format(self.buffer['dgmType'][temp_index],
                               self.buffer['dgTime'][temp_index], data_size))
 
+            # TODO: If data block is incomplete, this should reconstruct an empty record!
+
             # Whether or not data block is complete, clear entry:
             self.buffer['dgTime'][temp_index] = None
             self.buffer['complete'][temp_index] = False
