@@ -276,7 +276,8 @@ class WaterColumn:
         index_port = max((index_port - 10), 0)
         index_stbd = min((index_stbd + 10), self.MAX_NUM_GRID_CELLS)
 
-        print("Index Depth: {}; Index Port: {}; Index Stbd: {}".format(index_depth, index_port, index_stbd))
+        # For debugging:
+        # print("Index Depth: {}; Index Port: {}; Index Stbd: {}".format(index_depth, index_port, index_stbd))
 
         # Simplify trimming to trim the same amount from both port and stbd sides
         index_across_track = min(index_port, (self.MAX_NUM_GRID_CELLS - index_stbd))
@@ -348,7 +349,7 @@ class WaterColumn:
         """
         Signals subprocesses managed by sonarMain and plotterMain when settings have been changed.
         """
-        print("WaterColumn, signalSubprocessSettingsChanged")
+        # print("WaterColumn, signalSubprocessSettingsChanged")  # For debugging
         if self.sonarMain:
             self.sonarMain.settings_changed(self.ip_settings_edited)
         if self.plotterMain:
@@ -359,7 +360,7 @@ class WaterColumn:
         Called when settings are changed. Updates raw and processed ring buffers.
         Signals to subprocesses that settings have been changed.
         """
-        print("WaterColumn, update_buffers.")
+        # print("WaterColumn, update_buffers.")  # For debugging
         if self.plotterMain:
             # Get lock on shared_ring_buffer_raw; this will ensure that no other
             # changes can be made to shared_ring_buffer_raw while we make updates
@@ -373,7 +374,7 @@ class WaterColumn:
                     self.plotterMain.plotter.bin_size_edited = False
                 else:
                     if self.plotterMain.plotter.max_heave_edited:
-                        print("**************************************************MAX HEAVE EDITED")
+                        # print("MAX HEAVE EDITED")  # For debugging
                         # Note that we already hold lock on shared_ring_buffer_raw
                         temp_amplitude_buffer_raw = self.shared_ring_buffer_raw.view_buffer_elements(
                             self.shared_ring_buffer_raw.amplitude_buffer)
@@ -387,15 +388,17 @@ class WaterColumn:
                     # Recalculate processed ring buffers based on update settings / updated raw ring buffers
                     # Note that this method holds lock on raw buffers for entire calculation and only get lock on
                     # processed buffer for final phase of adding processed data to processed buffer.
-                    print("prior to recalculate, raw ring buffer len: ", self.shared_ring_buffer_raw.get_num_elements_in_buffer())
-                    print("prior to recalculate, processed ring buffer len: ",
-                          self.shared_ring_buffer_processed.get_num_elements_in_buffer())
+                    # print("prior to recalculate, raw ring buffer len: ",
+                    #       self.shared_ring_buffer_raw.get_num_elements_in_buffer())  # For debugging
+                    # print("prior to recalculate, processed ring buffer len: ",
+                    #       self.shared_ring_buffer_processed.get_num_elements_in_buffer())  # For debugging
+
                     self.plotterMain.plotter.recalculate_processed_buffer(self.shared_ring_buffer_raw,
                                                                           self.shared_ring_buffer_processed)
-                    print("after recalculate, raw ring buffer len: ",
-                          self.shared_ring_buffer_raw.get_num_elements_in_buffer())
-                    print("after recalculate, processed ring buffer len: ",
-                          self.shared_ring_buffer_processed.get_num_elements_in_buffer())
+                    # print("after recalculate, raw ring buffer len: ",
+                    #       self.shared_ring_buffer_raw.get_num_elements_in_buffer())  # For debugging
+                    # print("after recalculate, processed ring buffer len: ",
+                    #       self.shared_ring_buffer_processed.get_num_elements_in_buffer())  # For debugging
                 # Signal to subprocesses that settings have changed.
                 self.signalSubprocessSettingsChanged()
                 # Reset IP settings edited flag

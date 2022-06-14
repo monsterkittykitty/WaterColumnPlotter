@@ -6,6 +6,7 @@
 
 # Description: A modified version of select methods from KMALL.kmall for reading / parsing
 # Kongsberg kmall 'M' datagrams received directly from Kongsberg sonar system or SIS.
+# Supports up to Kongsberg *.kmall datagram format I.
 
 import datetime
 import logging

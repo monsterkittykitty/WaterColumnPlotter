@@ -39,6 +39,8 @@ class KongsbergDGCaptureFromSonar(Process):
                  full_ping_count=None, discard_ping_count=None, process_flag=None, out_file=None):
         super().__init__()
 
+        print("Initializing KongsbergDGCaptureFromSonar.")
+
         self.ip = ip  # multiprocessing.Array
         self.port = port  # multiprocessing.Value
         self.protocol = protocol  # multiprocessing.Value
@@ -136,6 +138,7 @@ class KongsbergDGCaptureFromSonar(Process):
             sys.exit(1)
 
         elif self.protocol_local == "U":  # UDP
+            # print("Initializing UDP socket.")  # For debugging
             temp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             # Allow reuse of addresses
             temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -145,7 +148,7 @@ class KongsbergDGCaptureFromSonar(Process):
             temp_sock.bind((self.ip_local, self.port_local))
 
         elif self.protocol_local == "M":  # Multicast
-            print("Initializing multicast socket")
+            # print("Initializing multicast socket.")  # For debugging
             temp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
             # Allow reuse of addresses
             temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -270,11 +273,11 @@ class KongsbergDGCaptureFromSonar(Process):
                         self.sock_in = self._init_socket()
                         self.settings_edited.value = False
 
-                print("Listening for data")
+                # print("Listening for data.")  # For debugging
 
                 try:
                     data, address = self.sock_in.recvfrom(self.MAX_DATAGRAM_SIZE)
-                    # print("KongsbergDGCaptureFromSonar, data received.")
+                    # print("KongsbergDGCaptureFromSonar, data received.")  # For debugging
                 except BlockingIOError:
                     continue
                 except socket.timeout:
@@ -289,22 +292,21 @@ class KongsbergDGCaptureFromSonar(Process):
                     if header['dgmType'] == b'#MRZ' or header['dgmType'] == b'#MWC':  # Datagrams may be partitioned
 
                         # For debugging:
-                        if header['dgmType'] == b'#MWC':
-                            print("mwc rxed")
-                        #     print("dgm_timestamp: ", header['dgdatetime'])
-
-                            if self.start_time is None:
-                                self.start_time = datetime.datetime.now()
-                            elif (datetime.datetime.now() - self.start_time).seconds >= 1:
-                                self.start_time = datetime.datetime.now()
-                                print("KongsbergDGCapture, #MWC data rate (bytes / second):", self.data_counter)
-                                self.data_counter = 0
-                            self.data_counter += header['numBytesDgm']
+                        # if header['dgmType'] == b'#MWC':
+                        #     print("#MWC rxed.")
+                        #     # Prints number of bytes received per second
+                        #     if self.start_time is None:
+                        #         self.start_time = datetime.datetime.now()
+                        #     elif (datetime.datetime.now() - self.start_time).seconds >= 1:
+                        #         self.start_time = datetime.datetime.now()
+                        #         print("KongsbergDGCapture, #MWC data rate (bytes / second):", self.data_counter)
+                        #         self.data_counter = 0
+                        #     self.data_counter += header['numBytesDgm']
 
                         partition = k.read_EMdgmMpartition(bytes_io, header['dgmType'], header['dgmVersion'])
 
                         # For debugging:
-                        print("KongsbergDGCapture, number of partitions:", partition['numOfDgms'])
+                        # print("KongsbergDGCapture, number of partitions:", partition['numOfDgms'])
 
                         if partition['numOfDgms'] == 1:  # Only one datagram; no need to reconstruct
                             self.queue_datagram.put(data)
@@ -566,9 +568,9 @@ class KongsbergDGCaptureFromSonar(Process):
                     self.full_ping_count.value += 1
 
                 # For debugging:
-                print("Flushing buffer; complete datablock: {}, {}, {} bytes"
-                      .format(self.buffer['dgmType'][temp_index],
-                              self.buffer['dgTime'][temp_index], data_size))
+                # print("Flushing buffer; complete datablock: {}, {}, {} bytes"
+                #       .format(self.buffer['dgmType'][temp_index],
+                #               self.buffer['dgTime'][temp_index], data_size))
 
             # TODO: If data block is incomplete, this should reconstruct an empty record!
 

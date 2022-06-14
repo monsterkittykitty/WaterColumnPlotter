@@ -244,9 +244,7 @@ class Plotter(Process):
                 local_process_flag_value = self.process_flag.value
 
             try:
-                print("plotter, getting pie object: count_temp: {}, self.along-track-avg-local: {}".format(count_temp, self.along_track_avg_local))
                 pie_object = self.queue_pie_object.get(block=True, timeout=self.QUEUE_RX_TIMEOUT)
-                print("plotter, got pie object")
 
                 if pie_object:  # pie_object will be of type DGPie if valid record, or type None if poison pill
                     if local_process_flag_value == 1 or local_process_flag_value == 2:  # Play pressed or pause pressed
@@ -275,27 +273,28 @@ class Plotter(Process):
                             # been adjusted. We only need to monitor queue_pie_object for outdated pie_objects
                             # and adjust them accordingly.
                             if self.max_heave_edited:
-                                print("####################In plotter, max_heave_edited is True.")
+                                # print("In plotter, max_heave_edited is True.")  # For debugging
                                 if round(pie_object.max_heave, 2) != round(self.max_heave_local, 2):
                                     self.shift_heave(pie_object.pie_chart_amplitudes, pie_object.pie_chart_counts,
                                                      pie_object.max_heave, self.max_heave_local)
                                 else:
-                                    print("####################In plotter, max_heave_edited is False.")
+                                    # print("In plotter, max_heave_edited is False.")  # For debugging
                                     self.max_heave_edited = False
 
                             # If self.along_track_avg_edited is True, processed ring buffer will have already been
                             # adjusted. We need to know the 'remainder' of items in the raw ring buffer than were not
                             # included in calculations for the revised processed ring buffer.
-                            print("self.along_track_avg_edited: ", self.along_track_avg_edited)
+                            # print("self.along_track_avg_edited: ", self.along_track_avg_edited)  # For debugging
                             if self.along_track_avg_edited:
-                                print("self.shared_ring_buffer_raw.get_num_elements_in_buffer(): ", self.shared_ring_buffer_raw.get_num_elements_in_buffer())
-                                print("self.shared_ring_buffer_processed.get_num_elements_in_buffer(): ",
-                                      self.shared_ring_buffer_processed.get_num_elements_in_buffer())
-                                print("count temp before change: ", count_temp)
+                                # print("self.shared_ring_buffer_raw.get_num_elements_in_buffer(): ",
+                                #       self.shared_ring_buffer_raw.get_num_elements_in_buffer())  # For debugging
+                                # print("self.shared_ring_buffer_processed.get_num_elements_in_buffer(): ",
+                                #       self.shared_ring_buffer_processed.get_num_elements_in_buffer())  # For debugging
+                                # print("count temp before change: ", count_temp)  # For debugging
                                 # Note: Lock for this buffer is already held
                                 count_temp = self.shared_ring_buffer_raw.get_num_elements_in_buffer() % \
                                              self.along_track_avg_local
-                                print("count temp after change: ", count_temp)
+                                # print("count temp after change: ", count_temp)  # For debugging
 
                             # with self.raw_buffer_count.get_lock():
                             # Add raw data to raw ring buffer in shared memory
@@ -344,13 +343,13 @@ class Plotter(Process):
                                     temp_lat_lon = np.copy(self.shared_ring_buffer_raw.view_recent_pings(
                                         self.shared_ring_buffer_raw.lat_lon_buffer, count_temp))
 
-                                    print("count_temp before recursive call: {}".format(count_temp))
+                                    # print("count_temp before recursive call: {}".format(count_temp))  # For debugging
                                     count_temp = self.adjust_along_track_avg(temp_pie_amplitudes, temp_pie_counts,
                                                                              temp_timestamp, temp_lat_lon, count_temp)
-                                    print("count_temp after recursive call: {}".format(count_temp))
+                                    # print("count_temp after recursive call: {}".format(count_temp))  # For debugging
                                     if count_temp < self.along_track_avg_local:
                                         # This should always be true at this point!
-                                        print("Resetting along_track_avg_edited to False")
+                                        # print("Resetting along_track_avg_edited to False")  # For debugging
                                         self.along_track_avg_edited = False
                                     else:
                                         logger.error("Recursive method for recalculating along-track average failed.")
@@ -390,11 +389,12 @@ class Plotter(Process):
         :param count_temp: Temporary count of number of entries added to raw ring buffer since
         last call to collapse_and_buffer_pings. (Note, this should be equal to length of input matrices.)
         """
-        print("start of recursive call")
-        print("count_temp: {}, self.along_trav_avg_local: {}".format(count_temp, self.along_track_avg_local))
-        print("len(arrays): ", len(temp_pie_amplitudes), ", ", len(temp_pie_counts), ", ", len(temp_timestamp), ", ", len(temp_lat_lon))
-        print("len(arrays[:self.along_track_avg_local]): ", len(temp_pie_amplitudes[:self.along_track_avg_local]), ", ",
-              len(temp_pie_counts[:self.along_track_avg_local]), ", ",  len(temp_timestamp[:self.along_track_avg_local]), ", ", len(temp_lat_lon[:self.along_track_avg_local]))
+        # For debugging
+        # print("start of recursive call")
+        # print("count_temp: {}, self.along_trav_avg_local: {}".format(count_temp, self.along_track_avg_local))
+        # print("len(arrays): ", len(temp_pie_amplitudes), ", ", len(temp_pie_counts), ", ", len(temp_timestamp), ", ", len(temp_lat_lon))
+        # print("len(arrays[:self.along_track_avg_local]): ", len(temp_pie_amplitudes[:self.along_track_avg_local]), ", ",
+        #       len(temp_pie_counts[:self.along_track_avg_local]), ", ",  len(temp_timestamp[:self.along_track_avg_local]), ", ", len(temp_lat_lon[:self.along_track_avg_local]))
 
         if count_temp < self.along_track_avg_local:  # Terminating case
             self.outdated_along_track_avg = None
@@ -427,10 +427,10 @@ class Plotter(Process):
         :param temp_lat_lon: Temporary copy of raw latitude, longitude values from standard format pie objects.
         Number of entries equal to along_track_avg.
         """
-        print("plotter, collapsing and buffering pings")
+        # print("plotter, collapsing and buffering pings")  # For debugging
 
         if np.any(temp_pie_amplitudes) and np.any(temp_pie_counts):
-            print("plotter: len(amplitudes): {}".format(len(temp_pie_amplitudes)))
+            # print("plotter: len(amplitudes): {}".format(len(temp_pie_amplitudes)))  # For debugging
 
             # VERTICAL SLICE:
             # Trim arrays to omit values outside of self.vertical_slice_width_m
@@ -525,7 +525,9 @@ class Plotter(Process):
         :param ring_buffer_raw: Reference to raw ring buffer in shared memory.
         :param ring_buffer_processed: Reference to processed ring buffer in shared memory.
         """
-        print("in recalculate_processed_buffer. self.along_track_avg_local: ", self.along_track_avg_local)
+        # print("in recalculate_processed_buffer. self.along_track_avg_local: ",
+        #       self.along_track_avg_local)  # For debugging
+
         with ring_buffer_raw.counter.get_lock():
             temp_amplitude_buffer = ring_buffer_raw.view_buffer_elements(ring_buffer_raw.amplitude_buffer)
             temp_count_buffer = ring_buffer_raw.view_buffer_elements(ring_buffer_raw.count_buffer)
@@ -586,8 +588,8 @@ class Plotter(Process):
                                                                      self.along_track_avg_local))
 
             # For debugging:
-            print("Shape temp_amplitude_vertical_collapsed: {}; temp_count_vertical_collapsed: {}"
-                  .format(temp_count_vertical_collapsed.shape, temp_count_vertical_collapsed.shape))
+            # print("Shape temp_amplitude_vertical_collapsed: {}; temp_count_vertical_collapsed: {}"
+            #       .format(temp_count_vertical_collapsed.shape, temp_count_vertical_collapsed.shape))
 
             # Sum rows of matrices:
             # Note that this creates copy of array
@@ -633,8 +635,8 @@ class Plotter(Process):
                                                                         self.along_track_avg_local))
 
             # For debugging:
-            print("Shape temp_amplitude_horizontal_collapsed: {}; temp_count_horizontal_collapsed: {}"
-                  .format(temp_count_horizontal_collapsed.shape, temp_count_horizontal_collapsed.shape))
+            # print("Shape temp_amplitude_horizontal_collapsed: {}; temp_count_horizontal_collapsed: {}"
+            #       .format(temp_count_horizontal_collapsed.shape, temp_count_horizontal_collapsed.shape))
 
             # Sum columns of matrices:
             # Note that this creates copy of array

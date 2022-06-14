@@ -19,6 +19,8 @@ class KongsbergDGMain:
     def __init__(self, settings, ip, port, protocol, socket_buffer_multiplier, bin_size, max_heave,
                  max_grid_cells, queue_datagram, queue_pie_object, full_ping_count, discard_ping_count):
 
+        print("Initializing KongsbergDGMain.")
+
         self.settings = settings
 
         self.ip = ip  # multiprocessing.Array
@@ -55,7 +57,7 @@ class KongsbergDGMain:
         settings have changed through the use of shared multiprocessing.Values.
         :param ip_settings_edited: Boolean indicating whether IP settings have been edited.
         """
-        print("KongsbergDGMain, settings_changed. IP: {}".format(ip_settings_edited))
+        # print("KongsbergDGMain, settings_changed. IP: {}".format(ip_settings_edited))  # For debugging
         if ip_settings_edited:
             with self.capture_settings_edited.get_lock():
                 self.capture_settings_edited.value = True

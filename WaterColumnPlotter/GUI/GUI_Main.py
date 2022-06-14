@@ -62,8 +62,6 @@ class MainWindow(QMainWindow):
 
         self.displaySettingsDialog()  # This will block until OK or Close / Cancel is selected in settings dialog
 
-        print("Initialization: self.watercolumn.ip_settings_edited: {}".format(self.waterColumn.ip_settings_edited))
-
         # Must wait for OK or Close on settings dialog to initialize shared memory and ring buffers.
         self.waterColumn.initRingBuffers(create_shmem=True)
         self.mdi.setSharedRingBufferProcessed(self.waterColumn.shared_ring_buffer_processed)
@@ -111,7 +109,7 @@ class MainWindow(QMainWindow):
             temp_pie = self.waterColumn.get_pie()
             if temp_pie is not None:
                 # if temp_pie.any():  # For debugging
-                    # print("temp_pie.shape", temp_pie.shape)
+                #     print("temp_pie.shape", temp_pie.shape)
 
                 self.mdi.pieWidget.pie_plot.setImage(temp_pie.T, autoRange=False,
                                                      autoLevels=False, autoHistogramRange=False,
@@ -128,6 +126,7 @@ class MainWindow(QMainWindow):
                 # x = [0, 0]
                 # self.mdi.verticalWidget.plot.plot(x, y)
             else:
+                # For debugging
                 print("Temp pie is none.")
 
         if self.waterColumn.get_processed_buffer_length() > 0:
@@ -185,7 +184,7 @@ class MainWindow(QMainWindow):
         """
         Updates IP settings.
         """
-        print("ip_edited")
+        # print("ip_edited")  # For debugging
         self.toolBar.setIPPort(self.settings['ip_settings']['ip'], self.settings['ip_settings']['port'])
 
         # NOTE: IP address stored as multiprocessing Array
@@ -199,7 +198,7 @@ class MainWindow(QMainWindow):
         """
         Updates port settings.
         """
-        print("port_edited")
+        # print("port_edited")  # For debugging
         self.toolBar.setIPPort(self.settings['ip_settings']['ip'], self.settings['ip_settings']['port'])
 
         with self.waterColumn.port.get_lock():
@@ -213,7 +212,7 @@ class MainWindow(QMainWindow):
         """
         Updates protocol settings.
         """
-        print("protocol_edited: ", self.settings['ip_settings']['protocol'][0])
+        # print("protocol_edited")  # For debugging
         with self.waterColumn.protocol.get_lock():
             self.waterColumn.protocol.value = self.settings['ip_settings']['protocol'][0]
 
@@ -225,7 +224,7 @@ class MainWindow(QMainWindow):
         """
         Updates socket buffer settings.
         """
-        print("socket_buffer_edited")
+        # print("socket_buffer_edited")  # For debugging
         with self.waterColumn.socket_buffer_multiplier.get_lock():
             self.waterColumn.socket_buffer_multiplier.value = self.settings['ip_settings']['socketBufferMultiplier']
 
@@ -260,7 +259,7 @@ class MainWindow(QMainWindow):
         Updates across-track average settings.
         :param fromSettingsDialog: Indicates whether update was made from settings dialog (rather than MDI window).
         """
-        print("Across-track average edited. self.watercolumn.ip_settings_edited: {}".format(self.waterColumn.ip_settings_edited))
+        # print("across_track_average_edited")  # For debugging
 
         # Only need to update MDI windows if setting was updated in settings dialog:
         if fromSettingsDialog:
@@ -306,8 +305,7 @@ class MainWindow(QMainWindow):
         """
         Updates along-track average settings.
         """
-        print("Along-track average edited. self.watercolumn.ip_settings_edited: {}".format(self.waterColumn.ip_settings_edited))
-        print("New along_track_average: ", self.settings['processing_settings']['alongTrackAvg_ping'])
+        # print("along_track_average_edited")  # For debugging
 
         with self.waterColumn.along_track_avg.get_lock():
             self.waterColumn.along_track_avg.value = self.settings['processing_settings']['alongTrackAvg_ping']
@@ -340,7 +338,7 @@ class MainWindow(QMainWindow):
         """
         Signals WaterColumn class that settings have been updated / changed.
         """
-        print("Settings edited.")
+        # print("settings_edited.")  # For debugging
         self.waterColumn.settingsChanged()
 
     def displaySettingsDialog(self):
@@ -369,9 +367,7 @@ class MainWindow(QMainWindow):
         settingsDialog.signalAcrossTrackAvgEdited.connect(lambda: self.acrossTrackAvgEdited(fromSettingsDialog=True))
         settingsDialog.signalDepthEdited.connect(lambda: self.depthEdited(fromSettingsDialog=True))
         settingsDialog.signalDepthAvgEdited.connect(lambda: self.depthAvgEdited(fromSettingsDialog=True))
-        print("displaySettingsDialog, before alongTrackSignal, ip: {}".format(self.waterColumn.ip_settings_edited))
         settingsDialog.signalAlongTrackAvgEdited.connect(self.alongTrackAvgEdited)
-        print("displaySettingsDialog, after alongTrackSignal, ip: {}".format(self.waterColumn.ip_settings_edited))
         settingsDialog.signalHeaveEdited.connect(self.heaveEdited)
         settingsDialog.signalGridCellsEdited.connect(self.gridCellsEdited)
         settingsDialog.signalPingBufferEdited.connect(self.pingBufferEdited)

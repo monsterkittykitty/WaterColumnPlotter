@@ -118,11 +118,11 @@ class SharedRingBufferProcessed:
         :param lat_lon_data: Data to be appended to lat_lon_buffer_avg.
         """
         # "This is an O(n) operation."
-        print("counter value: ", self.counter.value)
+        # print("counter value: ", self.counter.value)  # For debugging
         # Ensure data block to add does not exceed total buffer length; if so, trim
-        print("append_all, vertical_data.shape before: ", len(vertical_data))
+        # print("append_all, vertical_data.shape before: ", len(vertical_data))  # For debugging
         vertical_data = vertical_data[-self.SIZE_BUFFER:]
-        print("append_all, vertical_data.shape after: ", len(vertical_data))
+        # print("append_all, vertical_data.shape after: ", len(vertical_data))  # For debugging
         horizontal_data = horizontal_data[-self.SIZE_BUFFER:]
         timestamp_data = timestamp_data[-self.SIZE_BUFFER:]
         lat_lon_data = lat_lon_data[-self.SIZE_BUFFER:]
