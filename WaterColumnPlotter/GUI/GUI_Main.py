@@ -475,4 +475,5 @@ def main():
 
 
 if __name__ == '__main__':
+    multiprocessing.freeze_support()  # Enables freezing program for windows systems
     main()
