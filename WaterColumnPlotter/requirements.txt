@@ -1,4 +1,0 @@
-numpy~=1.21.4
-psutil~=5.8.0
-PyQt5~=5.15.6
-pyqtgraph~=0.12.3
